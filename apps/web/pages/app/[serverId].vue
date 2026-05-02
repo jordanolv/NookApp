@@ -7,6 +7,7 @@ const serverId = computed(() => route.params.serverId as string);
 const { store, fetchServers } = useServers();
 const { fetchChannels } = useChannels();
 const { user, signOut } = useAuth();
+const socket = useSocket();
 
 if (!store.ready) await fetchServers();
 
@@ -26,6 +27,17 @@ const currentChannelId = computed(() => {
   const match = route.path.match(/\/channels\/([^/]+)/);
   return match?.[1] ?? null;
 });
+
+onMounted(() => {
+  socket.connect();
+  socket.joinServer(serverId.value);
+});
+
+onUnmounted(() => {
+  socket.disconnect();
+});
+
+watch(serverId, (id) => socket.joinServer(id));
 
 async function handleSignOut() {
   await signOut();
