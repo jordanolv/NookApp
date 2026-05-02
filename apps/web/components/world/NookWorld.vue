@@ -121,8 +121,15 @@ onMounted(() => {
       socket.emitPlayerMoved(payload);
     });
 
+    // Store latest tag positions but only project them in POST_RENDER, after
+    // cameras.update() has applied the lerp — projecting in POST_UPDATE gives
+    // a 1-frame-stale worldView which makes stationary tags jitter when the camera moves.
+    let latestTags: NameTagUpdate[] = [];
     scene.events.on('name-tags', (tags: NameTagUpdate[]) => {
-      updateNameTags(tags, scene.cameras.main);
+      latestTags = tags;
+    });
+    game.value!.events.on(Phaser.Core.Events.POST_RENDER, () => {
+      updateNameTags(latestTags, scene.cameras.main);
     });
 
     // Now that everything is wired up, announce ourselves
