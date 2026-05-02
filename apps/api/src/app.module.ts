@@ -7,8 +7,11 @@ import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { MailerModule } from './mailer/mailer.module';
 import { MembersModule } from './members/members.module';
+import { MessagesModule } from './messages/messages.module';
+import { RealtimeModule } from './realtime/realtime.module';
 import { ServersModule } from './servers/servers.module';
 import { UsersModule } from './users/users.module';
+import { VoiceModule } from './voice/voice.module';
 
 @Module({
   imports: [
@@ -24,6 +27,9 @@ import { UsersModule } from './users/users.module';
     ServersModule,
     ChannelsModule,
     MembersModule,
+    MessagesModule,
+    RealtimeModule,
+    VoiceModule,
   ],
 })
 export class AppModule {}
