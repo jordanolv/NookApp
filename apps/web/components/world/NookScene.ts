@@ -9,6 +9,11 @@ const WORLD_H = WORLD_ROWS * TILE_SIZE;
 const PLAYER_SPEED = 170;
 const EMIT_INTERVAL_MS = 1000 / 15; // 15 Hz
 
+const WALL_T = TILE_SIZE * 2; // 64px wall thickness
+const DOOR_W = TILE_SIZE * 3; // 96px door opening
+const ROOM_W = TILE_SIZE * 9; // 288px room width
+const ROOM_H = TILE_SIZE * 8; // 256px room height
+
 const IDLE_FRAME: Record<string, number> = { right: 0, up: 1, left: 2, down: 3 };
 const WALK_START: Record<string, number> = { right: 112, up: 118, left: 124, down: 130 };
 
@@ -22,6 +27,16 @@ const DEFAULT_SKIN: Record<CgLayer, string> = {
   hair: '/assets/cg/hair/hair_01.png',
   accessory: '/assets/cg/accessory/acc_backpack.png',
 };
+
+// Predefined positions for up to 6 voice rooms, distributed around the world
+const ROOM_POSITIONS = [
+  { x: 192, y: 192 },
+  { x: 832, y: 192 },
+  { x: 192, y: 832 },
+  { x: 832, y: 832 },
+  { x: 512, y: 192 },
+  { x: 512, y: 832 },
+];
 
 export interface NameTagUpdate {
   userId: string;
@@ -47,6 +62,19 @@ export interface ObjectLabelUpdate {
   worldY: number;
 }
 
+export interface RoomZone {
+  channelId: string;
+  name: string;
+  x: number;
+  y: number;
+}
+
+interface ActiveRoom extends RoomZone {
+  bounds: Phaser.Geom.Rectangle;
+  doorLabelWorldX: number;
+  doorLabelWorldY: number;
+}
+
 interface RemotePlayer {
   layers: Phaser.GameObjects.Sprite[];
   lastDir: string;
@@ -67,6 +95,10 @@ export class NookScene extends Phaser.Scene {
   private worldObjects = new Map<string, Phaser.GameObjects.GameObject>();
   private worldObjectSpecs = new Map<string, WorldObjectSpec>();
 
+  private activeRooms: ActiveRoom[] = [];
+  private currentRoomChannelId: string | null = null;
+  private roomGraphics!: Phaser.GameObjects.Graphics;
+
   localUserId: string;
   readonly localUserName: string;
   onReady?: () => void;
@@ -77,11 +109,9 @@ export class NookScene extends Phaser.Scene {
     this.localUserName = localUserName;
   }
 
-  // Called after the snapshot to lock in the authoritative userId from the server
   setLocalUserId(userId: string) {
     if (this.localUserId === userId) return;
     this.localUserId = userId;
-    // Defensive: if a remote player was accidentally spawned for ourselves, drop it
     this.removeRemotePlayer(userId);
   }
 
@@ -102,6 +132,11 @@ export class NookScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#cdd0d4');
 
     this.drawFloor();
+
+    // Room graphics layer drawn below players
+    this.roomGraphics = this.add.graphics();
+    this.roomGraphics.setDepth(0.5);
+
     this.spawnLocalPlayer();
     this.cameras.main.startFollow(this.localBody, true, 0.15, 0.15);
     this.setupInput();
@@ -109,11 +144,26 @@ export class NookScene extends Phaser.Scene {
 
     this.events.on(Phaser.Scenes.Events.POST_UPDATE, this.onPostUpdate, this);
 
-    // Signal to NookWorld.vue that the scene is fully ready — safe to call scene methods
     this.onReady?.();
   }
 
-  // --- Public API called from NookWorld.vue ---
+  // --- Public API ---
+
+  setRooms(zones: RoomZone[]) {
+    this.activeRooms = zones.slice(0, ROOM_POSITIONS.length).map((zone, i) => {
+      const pos = ROOM_POSITIONS[i]!;
+      return {
+        ...zone,
+        x: pos.x,
+        y: pos.y,
+        bounds: new Phaser.Geom.Rectangle(pos.x, pos.y, ROOM_W, ROOM_H),
+        // Label above the door opening (bottom-center of room)
+        doorLabelWorldX: pos.x + ROOM_W / 2,
+        doorLabelWorldY: pos.y + ROOM_H + 8,
+      };
+    });
+    this.redrawRooms();
+  }
 
   updateRemotePlayer(payload: PlayerMovedPayload, name: string | null) {
     if (payload.userId === this.localUserId) return;
@@ -163,7 +213,7 @@ export class NookScene extends Phaser.Scene {
   }
 
   spawnWorldObject(spec: WorldObjectSpec) {
-    this.removeWorldObject(spec.id); // idempotent
+    this.removeWorldObject(spec.id);
 
     let obj: Phaser.GameObjects.GameObject;
     if (spec.texture && this.textures.exists(spec.texture)) {
@@ -173,7 +223,6 @@ export class NookScene extends Phaser.Scene {
     } else {
       const rect = this.add.rectangle(spec.x, spec.y, 32, 32, 0x6c63ff, 0.9);
       rect.setOrigin(0.5, 1).setDepth(spec.y);
-      // Gentle float tween so the object is visually distinct from floor
       this.tweens.add({
         targets: rect,
         y: spec.y - 4,
@@ -205,9 +254,40 @@ export class NookScene extends Phaser.Scene {
 
   // --- Private ---
 
+  private redrawRooms() {
+    const g = this.roomGraphics;
+    g.clear();
+
+    for (const room of this.activeRooms) {
+      const { x, y } = room;
+      const isActive = this.currentRoomChannelId === room.channelId;
+
+      // Floor tint — warm beige slightly different from open area
+      g.fillStyle(isActive ? 0xf0e0b0 : 0xe8d8a8, 1);
+      g.fillRect(x + WALL_T, y + WALL_T, ROOM_W - WALL_T * 2, ROOM_H - WALL_T);
+
+      // Walls
+      const wallColor = 0x3a3028;
+      g.fillStyle(wallColor, 1);
+      // Top wall
+      g.fillRect(x, y, ROOM_W, WALL_T);
+      // Left wall
+      g.fillRect(x, y, WALL_T, ROOM_H);
+      // Right wall
+      g.fillRect(x + ROOM_W - WALL_T, y, WALL_T, ROOM_H);
+      // Bottom wall — two halves with door gap in the center
+      const doorLeft = x + ROOM_W / 2 - DOOR_W / 2;
+      g.fillRect(x, y + ROOM_H - WALL_T, doorLeft - x, WALL_T);
+      g.fillRect(doorLeft + DOOR_W, y + ROOM_H - WALL_T, x + ROOM_W - (doorLeft + DOOR_W), WALL_T);
+
+      // Door frame highlights
+      g.fillStyle(isActive ? 0x6c8fa0 : 0x5a7080, 1);
+      g.fillRect(doorLeft - 4, y + ROOM_H - WALL_T - 4, 4, WALL_T + 4);
+      g.fillRect(doorLeft + DOOR_W, y + ROOM_H - WALL_T - 4, 4, WALL_T + 4);
+    }
+  }
+
   private drawFloor() {
-    // Bake the grid into a 32x32 tile texture once, then tile it across the world.
-    // Drawing 80+ Graphics lines every frame is what was killing perf.
     const tileKey = 'floor_tile';
     if (!this.textures.exists(tileKey)) {
       const g = this.make.graphics({ x: 0, y: 0 }, false);
@@ -221,7 +301,6 @@ export class NookScene extends Phaser.Scene {
     }
     this.add.tileSprite(0, 0, WORLD_W, WORLD_H, tileKey).setOrigin(0, 0);
 
-    // Outer wall ring as a single static graphics object — drawn once into command list.
     const wall = this.add.graphics();
     wall.fillStyle(0x2d2d2d, 1);
     wall.fillRect(0, 0, WORLD_W, 16);
@@ -331,7 +410,6 @@ export class NookScene extends Phaser.Scene {
     const now = this.time.now;
     const frame = this.localBody.frame.name;
 
-    // Sync overlay layers to body
     for (let i = 1; i < this.localLayers.length; i++) {
       this.localLayers[i].setFrame(frame).setPosition(this.localBody.x, this.localBody.y);
       this.localLayers[i].setDepth(this.localBody.y + 0.01 * i);
@@ -352,7 +430,29 @@ export class NookScene extends Phaser.Scene {
       } satisfies PlayerMovedPayload);
     }
 
-    // Positions for DOM name tags (local + remote)
+    // Room proximity detection — check which room (if any) the local player is inside
+    if (this.activeRooms.length) {
+      const px = this.localBody.x;
+      const py = this.localBody.y;
+      let insideRoom: ActiveRoom | null = null;
+      for (const room of this.activeRooms) {
+        if (Phaser.Geom.Rectangle.Contains(room.bounds, px, py)) {
+          insideRoom = room;
+          break;
+        }
+      }
+      const newChannelId = insideRoom?.channelId ?? null;
+      if (newChannelId !== this.currentRoomChannelId) {
+        const prev = this.currentRoomChannelId;
+        this.currentRoomChannelId = newChannelId;
+        // Redraw rooms so the active one gets the highlighted floor
+        this.redrawRooms();
+        if (prev) this.events.emit('room:left', { channelId: prev });
+        if (newChannelId) this.events.emit('room:entered', { channelId: newChannelId });
+      }
+    }
+
+    // DOM name tags
     const tags: NameTagUpdate[] = [
       {
         userId: this.localUserId,
@@ -367,7 +467,7 @@ export class NookScene extends Phaser.Scene {
     }
     this.events.emit('name-tags', tags);
 
-    // Object labels — projected the same way, emitted every frame for camera tracking
+    // DOM object labels
     const objectLabels: ObjectLabelUpdate[] = [];
     for (const [id, spec] of this.worldObjectSpecs) {
       if (!spec.label) continue;
@@ -376,6 +476,15 @@ export class NookScene extends Phaser.Scene {
         | undefined;
       if (!obj) continue;
       objectLabels.push({ id, label: spec.label, worldX: obj.x, worldY: obj.y - 20 });
+    }
+    // Room door labels
+    for (const room of this.activeRooms) {
+      objectLabels.push({
+        id: `room:${room.channelId}`,
+        label: `🔊 ${room.name}`,
+        worldX: room.doorLabelWorldX,
+        worldY: room.doorLabelWorldY,
+      });
     }
     if (objectLabels.length) this.events.emit('object-labels', objectLabels);
   }
@@ -387,7 +496,6 @@ export class NookScene extends Phaser.Scene {
     worldY: number,
   ): { x: number; y: number } {
     const wv = cam.worldView;
-    // Coordinates relative to the container (no rect.left/top) — name tags use absolute positioning within their parent
     return {
       x: ((worldX - wv.x) / wv.width) * rect.width,
       y: ((worldY - wv.y) / wv.height) * rect.height,

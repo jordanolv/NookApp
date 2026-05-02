@@ -8,6 +8,9 @@ import {
 } from './NookScene';
 import type { PlayerState } from '@nookapp/protocol';
 
+const serversStore = useServers().store;
+const voice = useVoice();
+
 const props = defineProps<{ serverId: string; userId: string; playerName: string }>();
 
 const canvasRef = ref<HTMLDivElement | null>(null);
@@ -179,6 +182,30 @@ onMounted(() => {
       rawSocket.emit('world:object:click', { objectId });
     });
 
+    // Voice rooms — build zones from the server's voice channels and auto-join on proximity
+    const voiceChannels = serversStore.voiceChannels;
+    if (voiceChannels.length) {
+      scene.setRooms(voiceChannels.map((ch) => ({ channelId: ch.id, name: ch.name, x: 0, y: 0 })));
+    }
+
+    let leaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+    scene.events.on('room:entered', ({ channelId }: { channelId: string }) => {
+      if (leaveTimer) {
+        clearTimeout(leaveTimer);
+        leaveTimer = null;
+      }
+      void voice.join(props.serverId, channelId);
+    });
+
+    scene.events.on('room:left', () => {
+      // 2-second grace period — cancel if the player steps back in before it fires
+      leaveTimer = setTimeout(() => {
+        leaveTimer = null;
+        void voice.leave();
+      }, 2000);
+    });
+
     // Store latest tag/label positions but only project them in POST_RENDER, after
     // cameras.update() has applied the lerp — projecting in POST_UPDATE gives
     // a 1-frame-stale worldView which makes stationary tags jitter when the camera moves.
@@ -218,6 +245,7 @@ onMounted(() => {
     game.value = null;
     nameTagEls.clear();
     objectLabelEls.clear();
+    // leaveTimer cleanup is handled inside scene.onReady closure — no ref needed here
   });
 
   nextTick(() => {
