@@ -19,6 +19,8 @@
     "@nestjs/swagger": "^7.4.2",
     "@nestjs/websockets": "^11.1.19",
     "@nookapp/db": "workspace:*",
+    "@nookapp/plugin-hello-world": "workspace:*",
+    "@nookapp/plugin-sdk": "workspace:*",
     "@nookapp/protocol": "workspace:*",
     "better-auth": "^1.6.9",
     "class-transformer": "^0.5.1",

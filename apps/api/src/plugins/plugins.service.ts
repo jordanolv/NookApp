@@ -1,14 +1,18 @@
-import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { eq, and } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 import type {
   PluginContext,
   PluginDefinition,
   CommandHandler,
   PlatformEvent,
+  WorldObjectSpec,
+  UIPanelSpec,
 } from '@nookapp/plugin-sdk';
-import { serverPlugin, type Database } from '@nookapp/db';
+import { serverPlugin, pluginKv, type Database } from '@nookapp/db';
 import { DB } from '../database/database.module';
 import { PLUGIN_REGISTRY } from './plugin-registry';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 
 class PluginContextImpl implements PluginContext {
   readonly pluginId: string;
@@ -16,8 +20,15 @@ class PluginContextImpl implements PluginContext {
 
   private readonly commandHandlers = new Map<string, CommandHandler>();
   private readonly eventHandlers = new Map<PlatformEvent, ((...args: unknown[]) => void)[]>();
+  private readonly timers: ReturnType<typeof setInterval>[] = [];
+  private readonly panels: UIPanelSpec[] = [];
 
-  constructor(pluginId: string, serverId: string) {
+  constructor(
+    pluginId: string,
+    serverId: string,
+    private readonly db: Database,
+    private readonly gateway: RealtimeGateway,
+  ) {
     this.pluginId = pluginId;
     this.serverId = serverId;
   }
@@ -35,6 +46,85 @@ class PluginContextImpl implements PluginContext {
     },
   };
 
+  storage = {
+    get: async <T = unknown>(key: string): Promise<T | null> => {
+      const [row] = await this.db
+        .select({ value: pluginKv.value })
+        .from(pluginKv)
+        .where(
+          and(
+            eq(pluginKv.serverId, this.serverId),
+            eq(pluginKv.pluginId, this.pluginId),
+            eq(pluginKv.key, key),
+          ),
+        )
+        .limit(1);
+      return row ? (row.value as T) : null;
+    },
+
+    set: async <T = unknown>(key: string, value: T): Promise<void> => {
+      const jsonValue = value as unknown;
+      await this.db
+        .insert(pluginKv)
+        .values({
+          id: randomUUID(),
+          serverId: this.serverId,
+          pluginId: this.pluginId,
+          key,
+          value: jsonValue,
+        })
+        .onConflictDoUpdate({
+          target: [pluginKv.serverId, pluginKv.pluginId, pluginKv.key],
+          set: { value: jsonValue, updatedAt: new Date() },
+        });
+    },
+
+    delete: async (key: string): Promise<void> => {
+      await this.db
+        .delete(pluginKv)
+        .where(
+          and(
+            eq(pluginKv.serverId, this.serverId),
+            eq(pluginKv.pluginId, this.pluginId),
+            eq(pluginKv.key, key),
+          ),
+        );
+    },
+  };
+
+  world = {
+    spawnObject: (spec: WorldObjectSpec) => {
+      this.gateway.emitToServer(this.serverId, 'world:object:spawn', {
+        ...spec,
+        pluginId: this.pluginId,
+      });
+    },
+
+    removeObject: (id: string) => {
+      this.gateway.emitToServer(this.serverId, 'world:object:remove', { id });
+    },
+  };
+
+  ui = {
+    registerPanel: (spec: UIPanelSpec) => {
+      this.panels.push(spec);
+    },
+  };
+
+  scheduler = {
+    every: (ms: number, cb: () => void | Promise<void>): (() => void) => {
+      const handle = setInterval(() => void cb(), ms);
+      this.timers.push(handle);
+      return () => clearInterval(handle);
+    },
+  };
+
+  broadcast = {
+    emit: (event: string, payload: unknown) => {
+      this.gateway.emitToServer(this.serverId, event, payload);
+    },
+  };
+
   getCommandHandler(name: string): CommandHandler | undefined {
     return this.commandHandlers.get(name.toLowerCase());
   }
@@ -44,6 +134,15 @@ class PluginContextImpl implements PluginContext {
       handler(...args);
     }
   }
+
+  getRegisteredPanels(): UIPanelSpec[] {
+    return this.panels;
+  }
+
+  destroy() {
+    for (const t of this.timers) clearInterval(t);
+    this.timers.length = 0;
+  }
 }
 
 @Injectable()
@@ -51,7 +150,10 @@ export class PluginsService implements OnModuleInit {
   // serverId:pluginId → context
   private readonly active = new Map<string, PluginContextImpl>();
 
-  constructor(@Inject(DB) private readonly db: Database) {}
+  constructor(
+    @Inject(DB) private readonly db: Database,
+    @Inject(forwardRef(() => RealtimeGateway)) private readonly gateway: RealtimeGateway,
+  ) {}
 
   async onModuleInit() {
     const rows = await this.db.select().from(serverPlugin).where(eq(serverPlugin.enabled, true));
@@ -67,13 +169,15 @@ export class PluginsService implements OnModuleInit {
   private async activate(serverId: string, pluginId: string) {
     const def = PLUGIN_REGISTRY.find((p) => p.manifest.id === pluginId);
     if (!def) return;
-    const ctx = new PluginContextImpl(pluginId, serverId);
+    const ctx = new PluginContextImpl(pluginId, serverId, this.db, this.gateway);
     await def.initialize(ctx);
     this.active.set(this.contextKey(serverId, pluginId), ctx);
   }
 
   private deactivate(serverId: string, pluginId: string) {
-    this.active.delete(this.contextKey(serverId, pluginId));
+    const key = this.contextKey(serverId, pluginId);
+    this.active.get(key)?.destroy();
+    this.active.delete(key);
   }
 
   listAvailable(): PluginDefinition['manifest'][] {
@@ -88,10 +192,15 @@ export class PluginsService implements OnModuleInit {
 
     const enabledIds = new Set(rows.filter((r) => r.enabled).map((r) => r.pluginId));
 
-    return PLUGIN_REGISTRY.map((p) => ({
-      ...p.manifest,
-      enabled: enabledIds.has(p.manifest.id),
-    }));
+    return PLUGIN_REGISTRY.map((p) => {
+      const key = this.contextKey(serverId, p.manifest.id);
+      const ctx = this.active.get(key);
+      return {
+        ...p.manifest,
+        enabled: enabledIds.has(p.manifest.id),
+        panels: ctx?.getRegisteredPanels() ?? [],
+      };
+    });
   }
 
   async enable(serverId: string, pluginId: string) {
@@ -143,5 +252,9 @@ export class PluginsService implements OnModuleInit {
         ctx.emit(event, ...args);
       }
     }
+  }
+
+  handleWorldObjectClick(serverId: string, objectId: string, userId: string) {
+    this.emitEvent(serverId, 'world:object:clicked', { objectId, userId });
   }
 }

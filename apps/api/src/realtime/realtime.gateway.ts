@@ -5,6 +5,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
+import { forwardRef, Inject } from '@nestjs/common';
 import type { Server, Socket } from 'socket.io';
 import type {
   PlayerHelloPayload,
@@ -15,6 +16,7 @@ import type {
   VoiceSnapshotPayload,
 } from '@nookapp/protocol';
 import { AuthService } from '../auth/auth.service';
+import { PluginsService } from '../plugins/plugins.service';
 
 type RoomPlayers = Map<string, PlayerState>;
 
@@ -27,7 +29,10 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   // serverId → Map<userId, channelId>
   private readonly voicePresence = new Map<string, Map<string, string>>();
 
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    @Inject(forwardRef(() => PluginsService)) private readonly plugins: PluginsService,
+  ) {}
 
   async handleConnection(client: Socket) {
     const token = client.handshake.auth['token'] as string | undefined;
@@ -49,12 +54,14 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     this.rooms.get(serverId)?.delete(userId);
     client.to(`server:${serverId}`).emit('player:left', { userId });
+    this.plugins.emitEvent(serverId, 'player:left', { userId });
 
     const vp = this.voicePresence.get(serverId);
     const channelId = vp?.get(userId);
     if (vp && channelId) {
       vp.delete(userId);
       this.server.to(`server:${serverId}`).emit('voice:left', { userId, channelId });
+      this.plugins.emitEvent(serverId, 'voice:left', { userId, channelId });
     }
   }
 
@@ -79,6 +86,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     room.set(userId, me);
     client.to(`server:${serverId}`).emit('player:joined', me);
+    this.plugins.emitEvent(serverId, 'player:joined', me);
 
     // Send current voice presence snapshot to the newcomer
     const vp = this.voicePresence.get(serverId);
@@ -123,13 +131,18 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const prevChannel = vp.get(userId);
     if (prevChannel && prevChannel !== payload.channelId) {
       this.server.to(`server:${serverId}`).emit('voice:left', { userId, channelId: prevChannel });
+      this.plugins.emitEvent(serverId, 'voice:left', { userId, channelId: prevChannel });
     }
 
     vp.set(userId, payload.channelId);
-    // Broadcast to everyone in the room including the sender so their own presence is updated
     this.server
       .to(`server:${serverId}`)
       .emit('voice:joined', { userId, name, channelId: payload.channelId });
+    this.plugins.emitEvent(serverId, 'voice:joined', {
+      userId,
+      name,
+      channelId: payload.channelId,
+    });
   }
 
   @SubscribeMessage('voice:leave')
@@ -144,6 +157,16 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     vp.delete(userId);
     this.server.to(`server:${serverId}`).emit('voice:left', { userId, channelId });
+    this.plugins.emitEvent(serverId, 'voice:left', { userId, channelId });
+  }
+
+  @SubscribeMessage('world:object:click')
+  handleWorldObjectClick(client: Socket, payload: { objectId: string }) {
+    const serverId = client.data.serverId as string | undefined;
+    const userId = client.data.userId as string | undefined;
+    if (!serverId || !userId) return;
+
+    this.plugins.handleWorldObjectClick(serverId, payload.objectId, userId);
   }
 
   emitToServer(serverId: string, event: string, payload: unknown) {

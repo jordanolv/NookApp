@@ -29,6 +29,13 @@
       "when": 1777753431087,
       "tag": "0003_fixed_firebird",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777754310296,
+      "tag": "0004_plugin_kv",
+      "breakpoints": true
     }
   ]
 }

@@ -1,9 +1,10 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { RealtimeGateway } from './realtime.gateway';
+import { PluginsModule } from '../plugins/plugins.module';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, forwardRef(() => PluginsModule)],
   providers: [RealtimeGateway],
   exports: [RealtimeGateway],
 })

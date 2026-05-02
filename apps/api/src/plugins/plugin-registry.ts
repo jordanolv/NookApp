@@ -1,4 +1,4 @@
 import type { PluginDefinition } from '@nookapp/plugin-sdk';
-import { helloWorldPlugin } from '../../../../plugins/hello-world/server';
+import { helloWorldPlugin } from '@nookapp/plugin-hello-world';
 
 export const PLUGIN_REGISTRY: PluginDefinition[] = [helloWorldPlugin];

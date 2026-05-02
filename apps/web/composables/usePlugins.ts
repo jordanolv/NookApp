@@ -1,3 +1,10 @@
+interface PluginPanelSpec {
+  id: string;
+  label: string;
+  icon: string;
+  component: string;
+}
+
 interface PluginInfo {
   id: string;
   displayName: string;
@@ -5,6 +12,7 @@ interface PluginInfo {
   author: string;
   version: string;
   enabled: boolean;
+  panels: PluginPanelSpec[];
 }
 
 export function usePlugins() {
