@@ -12,6 +12,7 @@ import { RealtimeModule } from './realtime/realtime.module';
 import { ServersModule } from './servers/servers.module';
 import { UsersModule } from './users/users.module';
 import { VoiceModule } from './voice/voice.module';
+import { PluginsModule } from './plugins/plugins.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { VoiceModule } from './voice/voice.module';
     MessagesModule,
     RealtimeModule,
     VoiceModule,
+    PluginsModule,
   ],
 })
 export class AppModule {}

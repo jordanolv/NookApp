@@ -93,6 +93,7 @@ export default [
         useMessages: 'readonly',
         useSocket: 'readonly',
         useVoice: 'readonly',
+        usePlugins: 'readonly',
         useInvites: 'readonly',
         useServersStore: 'readonly',
         $fetch: 'readonly',

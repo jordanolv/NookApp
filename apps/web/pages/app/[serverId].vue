@@ -172,6 +172,17 @@ async function handleSignOut() {
             </li>
           </ul>
         </div>
+
+        <div class="mt-4 border-t border-neutral-800 pt-3">
+          <NuxtLink
+            :to="`/app/${serverId}/plugins`"
+            class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200 transition-colors"
+            :class="{ 'bg-neutral-700 text-neutral-100': route.path.endsWith('/plugins') }"
+          >
+            <span class="text-neutral-500">🧩</span>
+            <span>Plugins</span>
+          </NuxtLink>
+        </div>
       </nav>
 
       <!-- User bar -->

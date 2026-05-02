@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, lt } from 'drizzle-orm';
-import { channel, member, message, type Database } from '@nookapp/db';
+import { channel, member, message, user, type Database } from '@nookapp/db';
 import type { CreateMessageInput, MessagePublic } from '@nookapp/protocol';
 import { DB } from '../database/database.module';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { PluginsService } from '../plugins/plugins.service';
 
 function toMessagePublic(row: typeof message.$inferSelect): MessagePublic {
   return {
@@ -18,7 +20,11 @@ function toMessagePublic(row: typeof message.$inferSelect): MessagePublic {
 
 @Injectable()
 export class MessagesService {
-  constructor(@Inject(DB) private readonly db: Database) {}
+  constructor(
+    @Inject(DB) private readonly db: Database,
+    private readonly realtime: RealtimeGateway,
+    private readonly plugins: PluginsService,
+  ) {}
 
   async listMessages(
     serverId: string,
@@ -62,7 +68,42 @@ export class MessagesService {
       })
       .returning();
 
-    return toMessagePublic(created);
+    const msg = toMessagePublic(created);
+
+    // Route slash commands to plugins — emit bot response ephemerally (no DB write)
+    if (input.content.startsWith('/')) {
+      const [cmd, ...args] = input.content.slice(1).trim().split(/\s+/);
+      if (cmd) {
+        const [u] = await this.db
+          .select({ name: user.name })
+          .from(user)
+          .where(eq(user.id, userId))
+          .limit(1);
+
+        const response = await this.plugins.handleCommand(
+          serverId,
+          channelId,
+          cmd,
+          args,
+          userId,
+          u?.name ?? userId,
+        );
+
+        if (response) {
+          const botMsg: MessagePublic = {
+            id: `bot-${randomUUID()}`,
+            channelId,
+            authorId: `plugin:${cmd}`,
+            content: response,
+            createdAt: new Date().toISOString(),
+            editedAt: null,
+          };
+          this.realtime.emitToServer(serverId, 'message:sent', botMsg);
+        }
+      }
+    }
+
+    return msg;
   }
 
   private async requireChannelMember(serverId: string, channelId: string, userId: string) {
