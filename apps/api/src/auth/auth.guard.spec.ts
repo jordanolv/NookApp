@@ -10,7 +10,14 @@ function makeContext(req: object): ExecutionContext {
 }
 
 const fakeSession: AuthSession = {
-  user: { id: 'u_1', email: 'a@b.c', name: 'Alice', emailVerified: true, image: null },
+  user: {
+    id: 'u_1',
+    email: 'a@b.c',
+    name: 'Alice',
+    emailVerified: true,
+    image: null,
+    createdAt: new Date(),
+  },
   session: { id: 's_1', userId: 'u_1', expiresAt: new Date(Date.now() + 60_000) },
 };
 
