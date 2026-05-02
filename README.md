@@ -4,7 +4,7 @@ Multi-tenant Discord/Gather-like virtual office. Each user creates their own "No
 
 ## Stack
 
-- **Backend**: Node 22 + NestJS + Drizzle ORM + Postgres 16 + Better Auth + Socket.IO + Y.js/Hocuspocus + LiveKit OSS
+- **Backend**: Node 22 + NestJS + Drizzle ORM + Postgres 18 + Better Auth + Socket.IO + Y.js/Hocuspocus + LiveKit OSS
 - **Frontend**: Nuxt 3 + Tailwind + Reka UI + Pinia + Phaser 3
 - **Shared**: Zod (`packages/protocol`), Drizzle schema (`packages/db`), plugin contract (`packages/plugin-sdk`)
 - **Infra**: pnpm workspaces, Docker Compose, Caddy reverse proxy
@@ -69,21 +69,21 @@ plugins/         per-Nook plugins (loaded by registry)
 
 ## Scripts (root)
 
-| Script | Description |
-|---|---|
-| `pnpm dev` | Start `api` and `web` in parallel |
-| `pnpm build` | Build all workspaces |
-| `pnpm typecheck` | Typecheck all workspaces |
-| `pnpm lint` / `pnpm lint:fix` | ESLint over `.ts/.tsx/.vue` |
-| `pnpm format` / `pnpm format:check` | Prettier |
-| `pnpm test` | Run all package tests |
-| `pnpm db:generate` | Drizzle: generate SQL migration from schema diff |
-| `pnpm db:migrate` | Apply pending migrations to `DATABASE_URL` |
-| `pnpm db:studio` | Drizzle Studio UI |
+| Script                              | Description                                      |
+| ----------------------------------- | ------------------------------------------------ |
+| `pnpm dev`                          | Start `api` and `web` in parallel                |
+| `pnpm build`                        | Build all workspaces                             |
+| `pnpm typecheck`                    | Typecheck all workspaces                         |
+| `pnpm lint` / `pnpm lint:fix`       | ESLint over `.ts/.tsx/.vue`                      |
+| `pnpm format` / `pnpm format:check` | Prettier                                         |
+| `pnpm test`                         | Run all package tests                            |
+| `pnpm db:generate`                  | Drizzle: generate SQL migration from schema diff |
+| `pnpm db:migrate`                   | Apply pending migrations to `DATABASE_URL`       |
+| `pnpm db:studio`                    | Drizzle Studio UI                                |
 
 ## Git workflow
 
-One branch per ticket. PRs target `dev`; `dev` merges into `main` on release. Commit format: Conventional Commits, subject only (≤72 chars). See `CLAUDE.md` § *Git workflow* for the full rules.
+One branch per ticket. PRs target `dev`; `dev` merges into `main` on release. Commit format: Conventional Commits, subject only (≤72 chars). See `CLAUDE.md` § _Git workflow_ for the full rules.
 
 ## License
 

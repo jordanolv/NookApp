@@ -82,6 +82,9 @@ export default [
         onBeforeMount: 'readonly',
         onBeforeUnmount: 'readonly',
         nextTick: 'readonly',
+        // Project composables
+        useAuth: 'readonly',
+        useAuthStore: 'readonly',
         // Pinia
         defineStore: 'readonly',
       },

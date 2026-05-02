@@ -11,6 +11,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiBase: process.env.NUXT_PUBLIC_API_BASE ?? 'http://localhost:3000/api/v1',
+      authBase: process.env.NUXT_PUBLIC_AUTH_BASE ?? 'http://localhost:3000/api/auth',
     },
   },
   typescript: {
