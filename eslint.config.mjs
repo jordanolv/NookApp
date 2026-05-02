@@ -85,6 +85,13 @@ export default [
         // Project composables
         useAuth: 'readonly',
         useAuthStore: 'readonly',
+        useApi: 'readonly',
+        useServers: 'readonly',
+        useChannels: 'readonly',
+        useMessages: 'readonly',
+        useSocket: 'readonly',
+        useServersStore: 'readonly',
+        $fetch: 'readonly',
         // Pinia
         defineStore: 'readonly',
       },
