@@ -42,9 +42,10 @@ function updateNameTags(tags: NameTagUpdate[], cam: Phaser.Cameras.Scene2D.Camer
   for (const t of tags) {
     seen.add(t.userId);
     const el = ensureNameTag(t.userId, t.name);
-    const { x, y } = NookScene.projectToScreen(cam, cachedRect, t.worldX, t.worldY);
+    // Project 60 world-units above the body anchor (head top ≈ y - 54) so the offset scales with zoom
+    const { x, y } = NookScene.projectToScreen(cam, cachedRect, t.worldX, t.worldY - 60);
     el.style.left = `${x}px`;
-    el.style.top = `${y - 52}px`;
+    el.style.top = `${y}px`;
   }
   // Remove tags for players no longer present
   for (const userId of nameTagEls.keys()) {
@@ -120,8 +121,15 @@ onMounted(() => {
       socket.emitPlayerMoved(payload);
     });
 
+    // Store latest tag positions but only project them in POST_RENDER, after
+    // cameras.update() has applied the lerp — projecting in POST_UPDATE gives
+    // a 1-frame-stale worldView which makes stationary tags jitter when the camera moves.
+    let latestTags: NameTagUpdate[] = [];
     scene.events.on('name-tags', (tags: NameTagUpdate[]) => {
-      updateNameTags(tags, scene.cameras.main);
+      latestTags = tags;
+    });
+    game.value!.events.on(Phaser.Core.Events.POST_RENDER, () => {
+      updateNameTags(latestTags, scene.cameras.main);
     });
 
     // Now that everything is wired up, announce ourselves

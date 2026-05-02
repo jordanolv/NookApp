@@ -315,9 +315,10 @@ export class NookScene extends Phaser.Scene {
     worldY: number,
   ): { x: number; y: number } {
     const wv = cam.worldView;
+    // Coordinates relative to the container (no rect.left/top) — name tags use absolute positioning within their parent
     return {
-      x: rect.left + ((worldX - wv.x) / wv.width) * rect.width,
-      y: rect.top + ((worldY - wv.y) / wv.height) * rect.height,
+      x: ((worldX - wv.x) / wv.width) * rect.width,
+      y: ((worldY - wv.y) / wv.height) * rect.height,
     };
   }
 }

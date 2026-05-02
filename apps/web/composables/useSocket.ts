@@ -5,6 +5,8 @@ import type {
   PlayerMovedPayload,
   PlayerSnapshotPayload,
   PlayerState,
+  VoiceParticipant,
+  VoiceSnapshotPayload,
 } from '@nookapp/protocol';
 
 let socket: Socket | null = null;
@@ -64,6 +66,29 @@ export function useSocket() {
     return () => socket?.off('player:moved', cb);
   }
 
+  function emitVoiceJoin(payload: { channelId: string }) {
+    socket?.emit('voice:join', payload);
+  }
+
+  function emitVoiceLeave() {
+    socket?.emit('voice:leave');
+  }
+
+  function onVoiceSnapshot(cb: (payload: VoiceSnapshotPayload) => void) {
+    socket?.on('voice:snapshot', cb);
+    return () => socket?.off('voice:snapshot', cb);
+  }
+
+  function onVoiceJoined(cb: (data: VoiceParticipant) => void) {
+    socket?.on('voice:joined', cb);
+    return () => socket?.off('voice:joined', cb);
+  }
+
+  function onVoiceLeft(cb: (data: { userId: string; channelId: string }) => void) {
+    socket?.on('voice:left', cb);
+    return () => socket?.off('voice:left', cb);
+  }
+
   return {
     connect,
     disconnect,
@@ -74,5 +99,10 @@ export function useSocket() {
     onPlayerLeft,
     emitPlayerMoved,
     onPlayerMoved,
+    emitVoiceJoin,
+    emitVoiceLeave,
+    onVoiceSnapshot,
+    onVoiceJoined,
+    onVoiceLeft,
   };
 }
