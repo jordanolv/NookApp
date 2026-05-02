@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
+import { MailerModule } from './mailer/mailer.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -12,6 +13,7 @@ import { UsersModule } from './users/users.module';
       envFilePath: [join(process.cwd(), '.env'), join(process.cwd(), '..', '..', '.env')],
     }),
     DatabaseModule,
+    MailerModule,
     HealthModule,
     UsersModule,
   ],
