@@ -65,4 +65,9 @@ export class ServersController {
   ) {
     return this.serversService.createInvite(serverId, user.id, body);
   }
+
+  @Post('invites/:code/join')
+  joinViaInvite(@CurrentUser() user: AuthSession['user'], @Param('code') code: string) {
+    return this.serversService.joinViaInvite(code, user.id);
+  }
 }
