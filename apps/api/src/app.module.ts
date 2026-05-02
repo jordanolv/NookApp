@@ -2,9 +2,11 @@ import { join } from 'node:path';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
+import { ChannelsModule } from './channels/channels.module';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { MailerModule } from './mailer/mailer.module';
+import { ServersModule } from './servers/servers.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -18,6 +20,8 @@ import { UsersModule } from './users/users.module';
     AuthModule,
     HealthModule,
     UsersModule,
+    ServersModule,
+    ChannelsModule,
   ],
 })
 export class AppModule {}
