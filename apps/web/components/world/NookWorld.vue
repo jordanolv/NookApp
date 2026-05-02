@@ -188,22 +188,12 @@ onMounted(() => {
       scene.setRooms(voiceChannels.map((ch) => ({ channelId: ch.id, name: ch.name, x: 0, y: 0 })));
     }
 
-    let leaveTimer: ReturnType<typeof setTimeout> | null = null;
-
     scene.events.on('room:entered', ({ channelId }: { channelId: string }) => {
-      if (leaveTimer) {
-        clearTimeout(leaveTimer);
-        leaveTimer = null;
-      }
       void voice.join(props.serverId, channelId);
     });
 
     scene.events.on('room:left', () => {
-      // 2-second grace period — cancel if the player steps back in before it fires
-      leaveTimer = setTimeout(() => {
-        leaveTimer = null;
-        void voice.leave();
-      }, 2000);
+      void voice.leave();
     });
 
     // Store latest tag/label positions but only project them in POST_RENDER, after
@@ -245,7 +235,6 @@ onMounted(() => {
     game.value = null;
     nameTagEls.clear();
     objectLabelEls.clear();
-    // leaveTimer cleanup is handled inside scene.onReady closure — no ref needed here
   });
 
   nextTick(() => {
