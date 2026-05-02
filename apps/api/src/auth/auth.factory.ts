@@ -1,6 +1,6 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { schema, type Database } from '@nookapp/db';
+import { account, session, user, verification, type Database } from '@nookapp/db';
 import type { MailerService } from '../mailer/mailer.service';
 
 export interface AuthFactoryDeps {
@@ -24,10 +24,10 @@ export function createAuth({ db, mailer, env }: AuthFactoryDeps) {
     database: drizzleAdapter(db, {
       provider: 'pg',
       schema: {
-        user: schema.user,
-        account: schema.account,
-        session: schema.session,
-        verification: schema.verification,
+        user,
+        account,
+        session,
+        verification,
       },
     }),
     secret: env.BETTER_AUTH_SECRET,

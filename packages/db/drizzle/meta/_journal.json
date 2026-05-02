@@ -8,6 +8,13 @@
       "when": 1777724358329,
       "tag": "0000_abandoned_silver_fox",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777730243355,
+      "tag": "0001_closed_exodus",
+      "breakpoints": true
     }
   ]
 }
