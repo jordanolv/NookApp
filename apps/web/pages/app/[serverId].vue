@@ -7,7 +7,35 @@ const serverId = computed(() => route.params.serverId as string);
 const { store, fetchServers } = useServers();
 const { fetchChannels } = useChannels();
 const { user, signOut } = useAuth();
+const { createInvite } = useInvites();
 const socket = useSocket();
+
+const showInviteModal = ref(false);
+const inviteUrl = ref('');
+const inviteLoading = ref(false);
+const inviteCopied = ref(false);
+
+async function handleInvite() {
+  showInviteModal.value = true;
+  if (inviteUrl.value) return;
+  inviteLoading.value = true;
+  try {
+    const invite = await createInvite(serverId.value);
+    inviteUrl.value = `${window.location.origin}/invite/${invite.code}`;
+  } finally {
+    inviteLoading.value = false;
+  }
+}
+
+async function copyInviteUrl() {
+  await navigator.clipboard.writeText(inviteUrl.value);
+  inviteCopied.value = true;
+  setTimeout(() => (inviteCopied.value = false), 2000);
+}
+
+function closeInviteModal() {
+  showInviteModal.value = false;
+}
 
 if (!store.ready) await fetchServers();
 
@@ -62,6 +90,13 @@ async function handleSignOut() {
           </div>
           <span class="truncate text-sm font-semibold">{{ server?.name }}</span>
         </NuxtLink>
+        <button
+          class="flex-shrink-0 text-neutral-500 hover:text-neutral-300 transition-colors"
+          title="Invite people"
+          @click="handleInvite"
+        >
+          +
+        </button>
       </div>
 
       <!-- Channels -->
@@ -123,5 +158,49 @@ async function handleSignOut() {
     <div class="flex flex-1 flex-col overflow-hidden">
       <NuxtPage />
     </div>
+
+    <!-- Invite modal -->
+    <Teleport to="body">
+      <div
+        v-if="showInviteModal"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+        @click.self="closeInviteModal"
+      >
+        <div
+          class="w-full max-w-md rounded-xl bg-neutral-900 border border-neutral-800 p-6 flex flex-col gap-4"
+        >
+          <div class="flex items-center justify-between">
+            <h2 class="font-semibold text-sm">Invite people to {{ server?.name }}</h2>
+            <button
+              class="text-neutral-500 hover:text-neutral-300 transition-colors"
+              @click="closeInviteModal"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div v-if="inviteLoading" class="flex items-center justify-center py-4">
+            <div
+              class="h-5 w-5 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent"
+            />
+          </div>
+
+          <div v-else class="flex flex-col gap-2">
+            <p class="text-xs text-neutral-500">Share this link with anyone you want to invite.</p>
+            <div class="flex items-center gap-2 rounded-lg bg-neutral-800 px-3 py-2">
+              <span class="flex-1 truncate text-xs text-neutral-300 font-mono">{{
+                inviteUrl
+              }}</span>
+              <button
+                class="flex-shrink-0 rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium hover:bg-indigo-500 transition-colors"
+                @click="copyInviteUrl"
+              >
+                {{ inviteCopied ? 'Copied!' : 'Copy' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>

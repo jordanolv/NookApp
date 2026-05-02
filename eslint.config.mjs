@@ -90,6 +90,7 @@ export default [
         useChannels: 'readonly',
         useMessages: 'readonly',
         useSocket: 'readonly',
+        useInvites: 'readonly',
         useServersStore: 'readonly',
         $fetch: 'readonly',
         // Pinia

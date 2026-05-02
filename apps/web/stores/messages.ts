@@ -3,13 +3,13 @@ import type { MessagePublic } from '@nookapp/protocol';
 
 interface MessagesState {
   byChannel: Record<string, MessagePublic[]>;
-  loadingChannels: Set<string>;
+  loadingChannels: Record<string, boolean>;
 }
 
 export const useMessagesStore = defineStore('messages', {
   state: (): MessagesState => ({
     byChannel: {},
-    loadingChannels: new Set(),
+    loadingChannels: {},
   }),
   getters: {
     forChannel: (s) => (channelId: string) => s.byChannel[channelId] ?? [],
@@ -23,11 +23,10 @@ export const useMessagesStore = defineStore('messages', {
       this.byChannel[channelId].push(message);
     },
     setLoading(channelId: string, loading: boolean) {
-      if (loading) this.loadingChannels.add(channelId);
-      else this.loadingChannels.delete(channelId);
+      this.loadingChannels[channelId] = loading;
     },
     isLoading(channelId: string) {
-      return this.loadingChannels.has(channelId);
+      return !!this.loadingChannels[channelId];
     },
   },
 });
