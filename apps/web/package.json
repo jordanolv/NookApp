@@ -17,6 +17,7 @@
     "@pinia/nuxt": "^0.7.0",
     "@vueuse/core": "^11.1.0",
     "nuxt": "^3.13.2",
+    "phaser": "^3.90.0",
     "pinia": "^2.2.4",
     "reka-ui": "^1.0.0-alpha.10",
     "socket.io-client": "^4.8.3",

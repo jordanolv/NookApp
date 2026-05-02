@@ -154,9 +154,21 @@ async function handleSignOut() {
       </div>
     </aside>
 
-    <!-- Main content (nested route) -->
-    <div class="flex flex-1 flex-col overflow-hidden">
-      <NuxtPage />
+    <!-- Main content: Phaser world in background, chat panel overlay on the right -->
+    <div class="relative flex flex-1 overflow-hidden">
+      <ClientOnly>
+        <WorldNookWorld :player-name="user?.name ?? 'Player'" />
+      </ClientOnly>
+
+      <!-- Chat panel overlay (visible when a channel is selected) -->
+      <Transition name="panel">
+        <div
+          v-if="currentChannelId"
+          class="absolute right-0 top-0 h-full w-96 flex flex-col border-l border-neutral-800 bg-neutral-950/90 backdrop-blur-sm"
+        >
+          <NuxtPage />
+        </div>
+      </Transition>
     </div>
 
     <!-- Invite modal -->
@@ -204,3 +216,14 @@ async function handleSignOut() {
     </Teleport>
   </div>
 </template>
+
+<style scoped>
+.panel-enter-active,
+.panel-leave-active {
+  transition: transform 0.2s ease;
+}
+.panel-enter-from,
+.panel-leave-to {
+  transform: translateX(100%);
+}
+</style>

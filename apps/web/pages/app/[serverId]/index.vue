@@ -1,19 +1,8 @@
 <script setup lang="ts">
-const { store } = useServers();
-
-const firstTextChannel = computed(() => store.textChannels[0]);
-
-watchEffect(() => {
-  const ch = firstTextChannel.value;
-  const route = useRoute();
-  if (ch) {
-    navigateTo(`/app/${route.params.serverId}/channels/${ch.id}`, { replace: true });
-  }
-});
+// Landing on a server shows the world — no redirect needed.
+// Click a channel in the sidebar to open the chat overlay.
 </script>
 
 <template>
-  <div class="flex flex-1 items-center justify-center text-neutral-500">
-    <span v-if="!firstTextChannel">No channels yet</span>
-  </div>
+  <div />
 </template>
