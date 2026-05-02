@@ -150,6 +150,7 @@ onMounted(() => {
   });
 
   const offMoved = socket.onPlayerMoved((payload) => {
+    if (!scene.hasRemotePlayer(payload.userId)) return;
     scene.updateRemotePlayer(payload, null);
   });
 
