@@ -1,7 +1,14 @@
-import type { PluginDefinition } from '@nookapp/plugin-sdk';
+import type { PluginDefinition, PluginManifest } from '@nookapp/plugin-sdk';
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const manifest = require('./plugin.json') as import('@nookapp/plugin-sdk').PluginManifest;
+const manifest: PluginManifest = {
+  id: 'hello-world',
+  version: '1.0.0',
+  displayName: 'Hello World',
+  description: 'Example plugin — /hello, /ping, /count, plus a welcome message on join',
+  author: 'Jordan',
+  permissions: ['commands.register', 'events.player', 'storage.kv', 'broadcast'],
+  entry: { server: './server.ts' },
+};
 
 export const helloWorldPlugin: PluginDefinition = {
   manifest,
