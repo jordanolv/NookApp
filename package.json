@@ -1,0 +1,54 @@
+{
+  "name": "nookapp",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.18.2",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm packages:dev & pnpm -r --parallel --filter \"./apps/*\" run dev",
+    "packages:build": "pnpm -r --filter \"./packages/*\" run build",
+    "packages:dev": "pnpm -r --parallel --filter \"./packages/*\" run dev",
+    "build": "pnpm packages:build && pnpm -r --filter \"./apps/*\" run build",
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm -r run test",
+    "db:generate": "pnpm --filter @nookapp/db run generate",
+    "db:migrate": "pnpm --filter @nookapp/db run migrate",
+    "db:studio": "pnpm --filter @nookapp/db run studio",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,vue,mts,cts}": ["eslint --fix", "prettier --write"],
+    "*.{json,md,yml,yaml,css}": ["prettier --write"]
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "@parcel/watcher",
+      "esbuild",
+      "vue-demi"
+    ]
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.5.0",
+    "@commitlint/config-conventional": "^19.5.0",
+    "@eslint/js": "^9.12.0",
+    "@types/node": "^22.7.5",
+    "@typescript-eslint/eslint-plugin": "^8.8.1",
+    "@typescript-eslint/parser": "^8.8.1",
+    "eslint": "^9.12.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-vue": "^9.28.0",
+    "globals": "^15.11.0",
+    "husky": "^9.1.6",
+    "lint-staged": "^15.2.10",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3",
+    "vue-eslint-parser": "^9.4.3"
+  }
+}

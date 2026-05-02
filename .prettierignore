@@ -1,0 +1,9 @@
+node_modules
+dist
+.nuxt
+.output
+.cache
+pnpm-lock.yaml
+apps/web/public/assets
+assets-source
+drizzle/meta

@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build output
+dist/
+.output/
+.nuxt/
+.cache/
+*.tsbuildinfo
+apps/*/.nuxt/
+apps/*/.output/
+apps/*/dist/
+packages/*/dist/
+
+# Env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Originals (license texts + uncropped sheets — only the runtime copy under
+# apps/web/public/assets/ ships).
+assets-source/
+
+# Drizzle generated meta
+drizzle/meta/

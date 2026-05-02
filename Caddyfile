@@ -1,0 +1,15 @@
+# Local dev: nookapp.localhost → web (Nuxt), api.nookapp.localhost → api (NestJS).
+# Add these hosts to /etc/hosts:
+#   127.0.0.1 nookapp.localhost api.nookapp.localhost mail.nookapp.localhost
+
+nookapp.localhost {
+	reverse_proxy localhost:3001
+}
+
+api.nookapp.localhost {
+	reverse_proxy localhost:3000
+}
+
+mail.nookapp.localhost {
+	reverse_proxy localhost:8025
+}
