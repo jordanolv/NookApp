@@ -375,11 +375,17 @@ Single `POST_UPDATE` listener registered in `create()` dispatches all `syncXxx()
 - **Comments** explain *why*, never *what*. Keep them sparse
 - **No emojis in code/comments**. Plenty in UI strings — that's the Discord/Gather aesthetic
 - **One module per domain** in NestJS. Plugin modules are isolated with their own DI container scope
+- **Feature-first layout**: code is organized by feature/domain (`auth/`, `users/`, `servers/`…), never by technical layer (`controllers/`, `services/`…). Each feature folder owns its module, service, controller, guards, DTOs, and types. Nothing leaks out unless explicitly exported from the module.
+- **Small, single-purpose units**: one function = one responsibility. If you need a comment to explain what a function does, split it. Aim for < 50 lines per function, < 200 lines per file. Extract helpers into the same feature folder, not into a global `utils/`.
+- **Thin controllers, fat services**: controllers validate input and delegate — no business logic inside a controller. Services own the logic and are the only layer that touches repositories.
+- **Composables are thin on the frontend**: business logic lives in Pinia stores or the API layer, not in components or composables. A composable wires a store to the template; it does not duplicate store logic.
 - **Tests**: every service has a `*.spec.ts` (unit, mocked deps); every controller has a `*.e2e-spec.ts` (real DB, test container)
 
 ## Git workflow
 
-**One branch per ticket, PR to `main`. Never commit directly to `main & dev`.** Including for Sprint 1 scaffolding — split the work into logical tickets and ship each as its own PR.
+**One branch per ticket, PR to `dev`. Never commit directly to `main` or `dev`.** `dev` is the integration branch; `main` receives only merge commits from `dev` on release.
+
+**Never mention "sprint" anywhere in the repo** — not in branch names, commit messages, PR titles, comments, or code. Use feature/domain names instead (`feat/servers`, `feat/realtime`, etc.). Sprint numbers are internal planning only. Including for Sprint 1 scaffolding — split the work into logical tickets and ship each as its own PR.
 
 ### Branch naming
 
@@ -458,64 +464,50 @@ Discord OAuth setup: create an app at https://discord.com/developers/application
 
 Resend setup: sign up at https://resend.com, verify a sending domain (or use the `onboarding@resend.dev` for test), grab an API key.
 
-## Sprint roadmap
+## Progress
 
-### Sprint 1 — Foundation (the next chantier)
+### Done
 
-Goal: full infra boots end-to-end, you can sign up via email or Discord, verify your email, log in, and reach an empty `/app` page. No game, no domain logic yet.
+**Foundation** ✅ — pnpm workspace, NestJS API, Nuxt 3 web, Drizzle + Postgres, Better Auth (email + Discord), Mailpit/Resend mailer, docker-compose, ESLint/Prettier/Husky/commitlint.
 
-Deliverables:
-- pnpm workspace + tsconfig.base + ESLint/Prettier + Husky + commitlint
-- `apps/api` scaffolded with NestJS, basic modules: `auth`, `users`, `mailer`, `health`
-- `apps/web` scaffolded with Nuxt 3, Tailwind, Reka UI, Pinia. Pages: `/`, `/auth/register`, `/auth/login`, `/auth/verify`, `/app`
-- `packages/protocol` with auth DTOs (Zod)
-- `packages/db` with Drizzle schema for `user`, `account`, `session`, `verification`. Migration generated and applied on boot in dev
-- Better Auth integrated in NestJS, exposing routes, with email-pass + Discord providers
-- Mailer abstraction with Mailpit + Resend drivers; verification email template
-- `docker-compose.yml`: postgres, mailpit, livekit, api, web, caddy
-- `Caddyfile` configured for local dev (proxying `nookapp.localhost` → web app)
-- Top-level scripts: `pnpm dev`, `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test`
-- README with quickstart
-- `.env.example` complete
+**Core domain (API)** ✅ — servers/channels CRUD, member table + `ServerScopeGuard`, invite system, messages (REST + Socket.IO emit), Socket.IO gateway with room isolation (`server:${serverId}`), LiveKit token endpoint.
 
-### Sprint 2 — Core domain
+**Frontend — servers & navigation** ✅ (`feat/web-servers` merged) — server list + create modal, per-server sidebar with channel list, nested Nuxt routing.
 
-- Servers (Nooks) CRUD: create, list mine, invite, join via invite link
-- Channels CRUD inside a server
-- Members + roles (owner/admin/member) + a permission system on routes
-- Messages: REST for fetching, Socket.IO for live broadcast, persistence in DB
-- LiveKit token endpoint scoped to channel + membership check
-- Per-server Socket.IO namespace, per-channel room
+**Frontend — real-time chat** ✅ (`feat/web-chat` merged) — message history, send message, Socket.IO live updates, message grouping.
 
-### Sprint 3 — Plugin SDK
+**Frontend — invites** ✅ (`feat/web-invite` merged) — invite button in sidebar generates a shareable link, `/invite/[code]` page auto-joins and redirects. Also added missing `POST /servers/invites/:code/join` API endpoint.
 
-- `packages/plugin-sdk` with full typed contract
-- NestJS `PluginsModule` that loads `plugins/*/plugin.json` at boot, registers per-server modules dynamically based on `server_plugins.enabled`
-- `PluginPermissionGuard` on every SDK call
-- `plugins/hello-world` reference plugin: registers a `/hello` command, posts an event, has a Vue panel
-- Frontend plugin runtime: dynamic component loading, command palette integration
+### Next: Phaser world
 
-### Sprint 4 — Map editor
+Branch order, each PR to `dev` before starting the next:
 
-- Phaser scene mounted in Nuxt with empty world
-- Y.js doc bound to map state, Hocuspocus client connecting to backend
-- Tile palette UI + paint tool (phase Sols)
-- Room tool: drag rectangle, generate walls + door, auto-create channel (phase Pièces)
-- Object palette: drag-and-drop, rotation, snap, Y-sort (phase Décor)
-- Per-tool permission checks (only members with edit permission can mutate)
-- Live cursor preview of other admins editing
+**`feat/phaser-world`** ← start here
+- Install Phaser 3, mount in a `<ClientOnly>` Nuxt component inside the server page
+- Empty world: beige floor, grid, outer wall ring (cosmetic baseline from CLAUDE.md)
+- Player sprite: LimeZu CG layered system (body + eyes + outfit + hair + accessory), scale 2×, origin (0.5, 0.85)
+- WASD/arrow movement at 170 u/s, normalized diagonals
+- Walk animations (row 2, frames 112–135) + idle frames (row 0, frames 0–3) — see Gameplay rendering section
+- Camera: 1.5× zoom, smooth lerp follow (0.15, 0.15), setRoundPixels(true)
+- DOM name tag above player head, projected via `cam.worldView` formula, repositioned in POST_UPDATE
 
-### Sprint 5 — Polish + deploy
+**`feat/phaser-multiplayer`**
+- Broadcast player position via Socket.IO `player:moved` (volatile, 15 Hz) on POST_UPDATE
+- Render remote players as sprites, same layered system, driven by received positions
+- DOM name tags for remote players
 
-- Full Jest unit coverage for services
-- E2E tests on critical flows (signup, create server, post message)
-- `@nestjs/swagger` exposing `/api/docs` with all endpoints documented
-- ER diagram generated via `drizzle-kit studio` screenshot or `dbdocs`
-- `ARCHITECTURE.md` with diagrams (Excalidraw)
-- GitHub Actions CI: lint + typecheck + test on PR; build + push docker images on `main`
-- VPS deploy script: SSH + `docker compose pull && up -d`
-- Caddy with real domain + auto-HTTPS
-- Production `.env` rotation procedure documented
+**`feat/map-editor`**
+- Y.js doc bound to map state, Hocuspocus client
+- Tile palette + paint tool (phase Sols)
+- Room tool: drag rectangle → walls + door + auto-create text channel (phase Pièces)
+- Object palette: drag-and-drop, snap, Y-sort (phase Décor)
+- Admin-only permission check
+
+### Later
+
+**Plugin SDK** — `packages/plugin-sdk` typed contract, NestJS `PluginsModule`, `hello-world` plugin, frontend runtime loader. Comes after map editor.
+
+**Polish + deploy** — full test coverage, OpenAPI docs, ER diagram, GitHub Actions CI, VPS deploy script, Caddy + HTTPS.
 
 ## What NOT to do
 

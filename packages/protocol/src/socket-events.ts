@@ -8,6 +8,11 @@ export const SOCKET_EVENTS = {
   PlayerSnapshot: 'player:snapshot',
   MessageSent: 'message:sent',
   MessageDeleted: 'message:deleted',
+  VoiceJoin: 'voice:join',
+  VoiceLeave: 'voice:leave',
+  VoiceJoined: 'voice:joined',
+  VoiceLeft: 'voice:left',
+  VoiceSnapshot: 'voice:snapshot',
 } as const;
 export type SocketEventName = (typeof SOCKET_EVENTS)[keyof typeof SOCKET_EVENTS];
 
@@ -43,6 +48,18 @@ export const playerSnapshotPayloadSchema = z.object({
   others: z.array(playerStateSchema),
 });
 export type PlayerSnapshotPayload = z.infer<typeof playerSnapshotPayloadSchema>;
+
+export const voiceParticipantSchema = z.object({
+  userId: z.string(),
+  name: z.string(),
+  channelId: z.string(),
+});
+export type VoiceParticipant = z.infer<typeof voiceParticipantSchema>;
+
+export const voiceSnapshotPayloadSchema = z.object({
+  participants: z.array(voiceParticipantSchema),
+});
+export type VoiceSnapshotPayload = z.infer<typeof voiceSnapshotPayloadSchema>;
 
 export const messageSentPayloadSchema = z.object({
   id: z.string(),

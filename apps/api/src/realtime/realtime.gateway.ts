@@ -11,11 +11,12 @@ import type {
   PlayerMovedPayload,
   PlayerSnapshotPayload,
   PlayerState,
+  VoiceParticipant,
+  VoiceSnapshotPayload,
 } from '@nookapp/protocol';
 import { AuthService } from '../auth/auth.service';
 
-// In-memory presence per server room — resets on restart (acceptable for now)
-type RoomPlayers = Map<string, PlayerState>; // userId -> state
+type RoomPlayers = Map<string, PlayerState>;
 
 @WebSocketGateway({ cors: { origin: true, credentials: true } })
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -23,6 +24,8 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   server!: Server;
 
   private readonly rooms = new Map<string, RoomPlayers>();
+  // serverId → Map<userId, channelId>
+  private readonly voicePresence = new Map<string, Map<string, string>>();
 
   constructor(private readonly authService: AuthService) {}
 
@@ -46,10 +49,15 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     this.rooms.get(serverId)?.delete(userId);
     client.to(`server:${serverId}`).emit('player:left', { userId });
+
+    const vp = this.voicePresence.get(serverId);
+    const channelId = vp?.get(userId);
+    if (vp && channelId) {
+      vp.delete(userId);
+      this.server.to(`server:${serverId}`).emit('voice:left', { userId, channelId });
+    }
   }
 
-  // Client sends hello with initial position after joining a server.
-  // Server responds with snapshot of all existing players, then broadcasts the newcomer.
   @SubscribeMessage('player:hello')
   handlePlayerHello(client: Socket, payload: PlayerHelloPayload) {
     const { serverId, name, x, y, dir } = payload;
@@ -62,7 +70,6 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     if (!this.rooms.has(serverId)) this.rooms.set(serverId, new Map());
     const room = this.rooms.get(serverId)!;
 
-    // Build the newcomer's state and snapshot
     const me: PlayerState = { userId, name, x, y, dir };
     const snapshot: PlayerSnapshotPayload = {
       you: me,
@@ -70,9 +77,20 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     };
     client.emit('player:snapshot', snapshot);
 
-    // Store and broadcast to everyone else
     room.set(userId, me);
     client.to(`server:${serverId}`).emit('player:joined', me);
+
+    // Send current voice presence snapshot to the newcomer
+    const vp = this.voicePresence.get(serverId);
+    const voiceParticipants: VoiceParticipant[] = [];
+    if (vp) {
+      for (const [uid, chId] of vp.entries()) {
+        const state = room.get(uid);
+        if (state) voiceParticipants.push({ userId: uid, name: state.name, channelId: chId });
+      }
+    }
+    const voiceSnapshot: VoiceSnapshotPayload = { participants: voiceParticipants };
+    client.emit('voice:snapshot', voiceSnapshot);
   }
 
   @SubscribeMessage('player:moved')
@@ -81,7 +99,6 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const userId = client.data.userId as string | undefined;
     if (!serverId || !userId) return;
 
-    // Always use server-side userId — never trust client-supplied value
     payload.userId = userId;
 
     const room = this.rooms.get(serverId);
@@ -91,6 +108,42 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
 
     client.volatile.to(`server:${serverId}`).emit('player:moved', payload);
+  }
+
+  @SubscribeMessage('voice:join')
+  handleVoiceJoin(client: Socket, payload: { channelId: string }) {
+    const serverId = client.data.serverId as string | undefined;
+    const userId = client.data.userId as string | undefined;
+    const name = client.data.name as string | undefined;
+    if (!serverId || !userId || !name) return;
+
+    if (!this.voicePresence.has(serverId)) this.voicePresence.set(serverId, new Map());
+    const vp = this.voicePresence.get(serverId)!;
+
+    const prevChannel = vp.get(userId);
+    if (prevChannel && prevChannel !== payload.channelId) {
+      this.server.to(`server:${serverId}`).emit('voice:left', { userId, channelId: prevChannel });
+    }
+
+    vp.set(userId, payload.channelId);
+    // Broadcast to everyone in the room including the sender so their own presence is updated
+    this.server
+      .to(`server:${serverId}`)
+      .emit('voice:joined', { userId, name, channelId: payload.channelId });
+  }
+
+  @SubscribeMessage('voice:leave')
+  handleVoiceLeave(client: Socket) {
+    const serverId = client.data.serverId as string | undefined;
+    const userId = client.data.userId as string | undefined;
+    if (!serverId || !userId) return;
+
+    const vp = this.voicePresence.get(serverId);
+    const channelId = vp?.get(userId);
+    if (!vp || !channelId) return;
+
+    vp.delete(userId);
+    this.server.to(`server:${serverId}`).emit('voice:left', { userId, channelId });
   }
 
   emitToServer(serverId: string, event: string, payload: unknown) {

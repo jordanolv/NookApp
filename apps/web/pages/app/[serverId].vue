@@ -9,6 +9,7 @@ const { fetchChannels } = useChannels();
 const { user, signOut } = useAuth();
 const { createInvite } = useInvites();
 const socket = useSocket();
+const voice = useVoice();
 
 const showInviteModal = ref(false);
 const inviteUrl = ref('');
@@ -56,11 +57,24 @@ const currentChannelId = computed(() => {
   return match?.[1] ?? null;
 });
 
+async function handleVoiceChannelClick(channelId: string) {
+  if (voice.currentChannelId.value === channelId) {
+    await voice.leave();
+  } else {
+    await voice.join(serverId.value, channelId);
+  }
+}
+
+let teardownVoiceListeners: (() => void) | null = null;
+
 onMounted(() => {
   socket.connect();
+  teardownVoiceListeners = voice.setupListeners();
 });
 
-onUnmounted(() => {
+onUnmounted(async () => {
+  if (voice.currentChannelId.value) await voice.leave();
+  teardownVoiceListeners?.();
   socket.disconnect();
 });
 
@@ -123,10 +137,37 @@ async function handleSignOut() {
           <ul class="space-y-0.5">
             <li v-for="ch in store.voiceChannels" :key="ch.id">
               <button
-                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200 transition-colors"
+                class="flex w-full flex-col rounded-md px-2 py-1.5 text-sm transition-colors"
+                :class="
+                  voice.currentChannelId.value === ch.id
+                    ? 'bg-neutral-700 text-green-400'
+                    : 'text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200'
+                "
+                @click="handleVoiceChannelClick(ch.id)"
               >
-                <span class="text-neutral-500">🔊</span>
-                <span class="truncate">{{ ch.name }}</span>
+                <div class="flex items-center gap-2">
+                  <span class="text-neutral-500">🔊</span>
+                  <span class="truncate">{{ ch.name }}</span>
+                </div>
+                <!-- Participants in this channel -->
+                <ul
+                  v-if="voice.voicePresence.value.get(ch.id)?.length"
+                  class="mt-1 ml-5 space-y-0.5"
+                >
+                  <li
+                    v-for="p in voice.voicePresence.value.get(ch.id)"
+                    :key="p.userId"
+                    class="flex items-center gap-1 text-xs text-neutral-500"
+                  >
+                    <span
+                      class="h-1 w-1 rounded-full flex-shrink-0"
+                      :class="
+                        voice.activeSpeakers.value.has(p.userId) ? 'bg-green-400' : 'bg-neutral-600'
+                      "
+                    />
+                    <span class="truncate">{{ p.name }}</span>
+                  </li>
+                </ul>
               </button>
             </li>
           </ul>
@@ -160,6 +201,7 @@ async function handleSignOut() {
           :user-id="user.id"
           :player-name="user.name"
         />
+        <VoiceVoicePanel />
       </ClientOnly>
 
       <!-- Chat panel overlay (visible when a channel is selected) -->

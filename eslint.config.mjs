@@ -73,7 +73,9 @@ export default [
         createError: 'readonly',
         // Vue auto-imports
         ref: 'readonly',
+        shallowRef: 'readonly',
         reactive: 'readonly',
+        readonly: 'readonly',
         computed: 'readonly',
         watch: 'readonly',
         watchEffect: 'readonly',
@@ -90,6 +92,7 @@ export default [
         useChannels: 'readonly',
         useMessages: 'readonly',
         useSocket: 'readonly',
+        useVoice: 'readonly',
         useInvites: 'readonly',
         useServersStore: 'readonly',
         $fetch: 'readonly',
