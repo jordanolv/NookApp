@@ -9,6 +9,7 @@ import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthSession } from '../auth/auth.types';
 import { ZodPipe } from '../common/zod.pipe';
+import { ServerScopeGuard } from '../members/server-scope.guard';
 import { ServersService } from './servers.service';
 
 @ApiTags('servers')
@@ -32,11 +33,13 @@ export class ServersController {
   }
 
   @Get(':serverId')
+  @UseGuards(ServerScopeGuard)
   getById(@CurrentUser() user: AuthSession['user'], @Param('serverId') serverId: string) {
     return this.serversService.getServer(serverId, user.id);
   }
 
   @Patch(':serverId')
+  @UseGuards(ServerScopeGuard)
   update(
     @CurrentUser() user: AuthSession['user'],
     @Param('serverId') serverId: string,
@@ -47,11 +50,13 @@ export class ServersController {
   }
 
   @Delete(':serverId')
+  @UseGuards(ServerScopeGuard)
   remove(@CurrentUser() user: AuthSession['user'], @Param('serverId') serverId: string) {
     return this.serversService.deleteServer(serverId, user.id);
   }
 
   @Post(':serverId/invites')
+  @UseGuards(ServerScopeGuard)
   createInvite(
     @CurrentUser() user: AuthSession['user'],
     @Param('serverId') serverId: string,

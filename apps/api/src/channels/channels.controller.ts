@@ -5,11 +5,12 @@ import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthSession } from '../auth/auth.types';
 import { ZodPipe } from '../common/zod.pipe';
+import { ServerScopeGuard } from '../members/server-scope.guard';
 import { ChannelsService } from './channels.service';
 
 @ApiTags('channels')
 @Controller('servers/:serverId/channels')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, ServerScopeGuard)
 export class ChannelsController {
   constructor(private readonly channelsService: ChannelsService) {}
 
