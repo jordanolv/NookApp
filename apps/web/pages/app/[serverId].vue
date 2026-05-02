@@ -58,14 +58,11 @@ const currentChannelId = computed(() => {
 
 onMounted(() => {
   socket.connect();
-  socket.joinServer(serverId.value);
 });
 
 onUnmounted(() => {
   socket.disconnect();
 });
-
-watch(serverId, (id) => socket.joinServer(id));
 
 async function handleSignOut() {
   await signOut();
@@ -157,7 +154,12 @@ async function handleSignOut() {
     <!-- Main content: Phaser world in background, chat panel overlay on the right -->
     <div class="relative flex flex-1 overflow-hidden">
       <ClientOnly>
-        <WorldNookWorld :player-name="user?.name ?? 'Player'" />
+        <WorldNookWorld
+          v-if="user?.id"
+          :server-id="serverId"
+          :user-id="user.id"
+          :player-name="user.name"
+        />
       </ClientOnly>
 
       <!-- Chat panel overlay (visible when a channel is selected) -->

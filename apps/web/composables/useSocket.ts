@@ -1,5 +1,11 @@
 import { io, type Socket } from 'socket.io-client';
-import type { MessagePublic } from '@nookapp/protocol';
+import type {
+  MessagePublic,
+  PlayerHelloPayload,
+  PlayerMovedPayload,
+  PlayerSnapshotPayload,
+  PlayerState,
+} from '@nookapp/protocol';
 
 let socket: Socket | null = null;
 
@@ -8,7 +14,9 @@ export function useSocket() {
   const socketBase = apiBase.replace('/api/v1', '');
 
   function connect(token?: string) {
-    if (socket?.connected) return socket;
+    // Idempotent based on existence, not connected state — otherwise we'd
+    // create duplicate sockets while the first is still in handshake.
+    if (socket) return socket;
     socket = io(socketBase, {
       withCredentials: true,
       auth: token ? { token } : undefined,
@@ -22,8 +30,14 @@ export function useSocket() {
     socket = null;
   }
 
-  function joinServer(serverId: string) {
-    socket?.emit('join:server', serverId);
+  // hello replaces join:server — sends initial position so the server can build the snapshot
+  function hello(payload: PlayerHelloPayload) {
+    socket?.emit('player:hello', payload);
+  }
+
+  function onSnapshot(cb: (payload: PlayerSnapshotPayload) => void) {
+    socket?.on('player:snapshot', cb);
+    return () => socket?.off('player:snapshot', cb);
   }
 
   function onMessage(cb: (msg: MessagePublic) => void) {
@@ -31,7 +45,7 @@ export function useSocket() {
     return () => socket?.off('message:sent', cb);
   }
 
-  function onPlayerJoined(cb: (data: { userId: string }) => void) {
+  function onPlayerJoined(cb: (state: PlayerState) => void) {
     socket?.on('player:joined', cb);
     return () => socket?.off('player:joined', cb);
   }
@@ -41,5 +55,24 @@ export function useSocket() {
     return () => socket?.off('player:left', cb);
   }
 
-  return { connect, disconnect, joinServer, onMessage, onPlayerJoined, onPlayerLeft };
+  function emitPlayerMoved(payload: PlayerMovedPayload) {
+    socket?.volatile.emit('player:moved', payload);
+  }
+
+  function onPlayerMoved(cb: (payload: PlayerMovedPayload) => void) {
+    socket?.on('player:moved', cb);
+    return () => socket?.off('player:moved', cb);
+  }
+
+  return {
+    connect,
+    disconnect,
+    hello,
+    onSnapshot,
+    onMessage,
+    onPlayerJoined,
+    onPlayerLeft,
+    emitPlayerMoved,
+    onPlayerMoved,
+  };
 }
