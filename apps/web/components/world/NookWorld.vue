@@ -42,9 +42,10 @@ function updateNameTags(tags: NameTagUpdate[], cam: Phaser.Cameras.Scene2D.Camer
   for (const t of tags) {
     seen.add(t.userId);
     const el = ensureNameTag(t.userId, t.name);
-    const { x, y } = NookScene.projectToScreen(cam, cachedRect, t.worldX, t.worldY);
+    // Project 60 world-units above the body anchor (head top ≈ y - 54) so the offset scales with zoom
+    const { x, y } = NookScene.projectToScreen(cam, cachedRect, t.worldX, t.worldY - 60);
     el.style.left = `${x}px`;
-    el.style.top = `${y - 52}px`;
+    el.style.top = `${y}px`;
   }
   // Remove tags for players no longer present
   for (const userId of nameTagEls.keys()) {
