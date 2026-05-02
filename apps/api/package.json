@@ -18,6 +18,8 @@
     "@nestjs/swagger": "^7.4.2",
     "@nookapp/db": "workspace:*",
     "@nookapp/protocol": "workspace:*",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
     "drizzle-orm": "^0.36.4",
     "postgres": "^3.4.5",
     "reflect-metadata": "^0.2.2",
