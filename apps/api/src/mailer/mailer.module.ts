@@ -3,11 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import { MailerService } from './mailer.service';
 import { MAILER_DRIVER } from './mailer.types';
 import { makeDriverFactory } from './mailer.factory';
-import { MailerDevController } from './mailer.dev.controller';
 
 @Global()
 @Module({
-  controllers: [MailerDevController],
   providers: [
     MailerService,
     {

@@ -1,5 +1,10 @@
-import 'dotenv/config';
+import { config } from 'dotenv';
 import { defineConfig } from 'drizzle-kit';
+import { resolve } from 'node:path';
+
+// Load .env from workspace root, then fallback to package-local .env.
+config({ path: resolve(__dirname, '..', '..', '.env') });
+config();
 
 const url = process.env.DATABASE_URL;
 if (!url) {
