@@ -94,6 +94,7 @@ class PluginContextImpl implements PluginContext {
 
   world = {
     spawnObject: (spec: WorldObjectSpec) => {
+      this._worldObjects.set(spec.id, spec);
       this.gateway.emitToServer(this.serverId, 'world:object:spawn', {
         ...spec,
         pluginId: this.pluginId,
@@ -101,9 +102,13 @@ class PluginContextImpl implements PluginContext {
     },
 
     removeObject: (id: string) => {
+      this._worldObjects.delete(id);
       this.gateway.emitToServer(this.serverId, 'world:object:remove', { id });
     },
   };
+
+  // Tracked so newly joining players receive a snapshot
+  readonly _worldObjects = new Map<string, WorldObjectSpec>();
 
   ui = {
     registerPanel: (spec: UIPanelSpec) => {
@@ -176,8 +181,25 @@ export class PluginsService implements OnModuleInit {
 
   private deactivate(serverId: string, pluginId: string) {
     const key = this.contextKey(serverId, pluginId);
-    this.active.get(key)?.destroy();
+    const ctx = this.active.get(key);
+    if (ctx) {
+      // Remove any world objects this plugin spawned
+      for (const id of ctx._worldObjects.keys()) {
+        this.gateway.emitToServer(serverId, 'world:object:remove', { id });
+      }
+      ctx.destroy();
+    }
     this.active.delete(key);
+  }
+
+  getWorldObjects(serverId: string): WorldObjectSpec[] {
+    const result: WorldObjectSpec[] = [];
+    for (const [key, ctx] of this.active) {
+      if (key.startsWith(`${serverId}:`)) {
+        result.push(...ctx._worldObjects.values());
+      }
+    }
+    return result;
   }
 
   listAvailable(): PluginDefinition['manifest'][] {

@@ -89,9 +89,15 @@ export function useSocket() {
     return () => socket?.off('voice:left', cb);
   }
 
+  function raw(): Socket {
+    if (!socket) throw new Error('Socket not connected');
+    return socket;
+  }
+
   return {
     connect,
     disconnect,
+    raw,
     hello,
     onSnapshot,
     onMessage,

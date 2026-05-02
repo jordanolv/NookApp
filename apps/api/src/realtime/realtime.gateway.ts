@@ -88,6 +88,12 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     client.to(`server:${serverId}`).emit('player:joined', me);
     this.plugins.emitEvent(serverId, 'player:joined', me);
 
+    // Send world objects snapshot to the newcomer so objects spawned before they joined are visible
+    const worldObjects = this.plugins.getWorldObjects(serverId);
+    if (worldObjects.length) {
+      client.emit('world:object:snapshot', { objects: worldObjects });
+    }
+
     // Send current voice presence snapshot to the newcomer
     const vp = this.voicePresence.get(serverId);
     const voiceParticipants: VoiceParticipant[] = [];

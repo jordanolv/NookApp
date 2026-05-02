@@ -30,6 +30,23 @@ export interface NameTagUpdate {
   worldY: number;
 }
 
+export interface WorldObjectSpec {
+  id: string;
+  x: number;
+  y: number;
+  texture?: string;
+  frame?: number | string;
+  label?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ObjectLabelUpdate {
+  id: string;
+  label: string;
+  worldX: number;
+  worldY: number;
+}
+
 interface RemotePlayer {
   layers: Phaser.GameObjects.Sprite[];
   lastDir: string;
@@ -47,6 +64,8 @@ export class NookScene extends Phaser.Scene {
   private lastEmitTime = 0;
 
   private remotePlayers = new Map<string, RemotePlayer>();
+  private worldObjects = new Map<string, Phaser.GameObjects.GameObject>();
+  private worldObjectSpecs = new Map<string, WorldObjectSpec>();
 
   localUserId: string;
   readonly localUserName: string;
@@ -141,6 +160,47 @@ export class NookScene extends Phaser.Scene {
     if (!remote) return;
     for (const spr of remote.layers) spr.destroy();
     this.remotePlayers.delete(userId);
+  }
+
+  spawnWorldObject(spec: WorldObjectSpec) {
+    this.removeWorldObject(spec.id); // idempotent
+
+    let obj: Phaser.GameObjects.GameObject;
+    if (spec.texture && this.textures.exists(spec.texture)) {
+      const spr = this.add.sprite(spec.x, spec.y, spec.texture, spec.frame);
+      spr.setScale(2).setOrigin(0.5, 1).setDepth(spec.y);
+      obj = spr;
+    } else {
+      const rect = this.add.rectangle(spec.x, spec.y, 32, 32, 0x6c63ff, 0.9);
+      rect.setOrigin(0.5, 1).setDepth(spec.y);
+      // Gentle float tween so the object is visually distinct from floor
+      this.tweens.add({
+        targets: rect,
+        y: spec.y - 4,
+        duration: 900,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+      obj = rect;
+    }
+
+    const go = obj as Phaser.GameObjects.GameObject &
+      Phaser.GameObjects.Components.Transform &
+      Phaser.GameObjects.Components.Size;
+    go.setInteractive({ useHandCursor: true });
+    go.on('pointerdown', () => {
+      this.events.emit('world-object-clicked', spec.id);
+    });
+
+    this.worldObjects.set(spec.id, obj);
+    this.worldObjectSpecs.set(spec.id, spec);
+  }
+
+  removeWorldObject(id: string) {
+    this.worldObjects.get(id)?.destroy();
+    this.worldObjects.delete(id);
+    this.worldObjectSpecs.delete(id);
   }
 
   // --- Private ---
@@ -306,6 +366,18 @@ export class NookScene extends Phaser.Scene {
       tags.push({ userId, name: remote.name, worldX: spr.x, worldY: spr.y });
     }
     this.events.emit('name-tags', tags);
+
+    // Object labels — projected the same way, emitted every frame for camera tracking
+    const objectLabels: ObjectLabelUpdate[] = [];
+    for (const [id, spec] of this.worldObjectSpecs) {
+      if (!spec.label) continue;
+      const obj = this.worldObjects.get(id) as
+        | (Phaser.GameObjects.GameObject & Phaser.GameObjects.Components.Transform)
+        | undefined;
+      if (!obj) continue;
+      objectLabels.push({ id, label: spec.label, worldX: obj.x, worldY: obj.y - 20 });
+    }
+    if (objectLabels.length) this.events.emit('object-labels', objectLabels);
   }
 
   static projectToScreen(
