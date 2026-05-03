@@ -159,9 +159,14 @@ watch(
   async (id) => {
     const found = store.list.find((s) => s.id === id) ?? null;
     store.setCurrent(found);
-    if (found) {
-      await Promise.all([fetchChannels(id), loadMember(id), loadMap(id)]);
-    }
+    if (!found) return;
+    // Each request is isolated: a 404 on /map (e.g. API not yet deployed with
+    // the new module) must not block the channel list or member fetch.
+    await Promise.all([
+      fetchChannels(id),
+      loadMember(id).catch((err) => console.warn('loadMember failed', err)),
+      loadMap(id).catch((err) => console.warn('loadMap failed', err)),
+    ]);
   },
   { immediate: true },
 );
