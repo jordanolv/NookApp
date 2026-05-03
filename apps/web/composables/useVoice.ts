@@ -28,6 +28,9 @@ const remoteScreenTracks = ref<Map<string, RemoteTrack>>(new Map());
 // Audio elements keyed by participant identity (= userId)
 const audioEls = new Map<string, HTMLAudioElement>();
 
+// Incremented on every join/leave to cancel in-flight joins
+let joinSeq = 0;
+
 // 'world' = cam bubbles above players; 'panel' = Discord-style floating grid
 const mediaViewMode = ref<'world' | 'panel'>('world');
 const mediaPanelFocusKey = ref<string | null>(null);
@@ -98,12 +101,16 @@ export function useVoice() {
   }
 
   async function join(serverId: string, channelId: string) {
+    const seq = ++joinSeq;
+
     if (room.value) await leave();
+    if (seq !== joinSeq) return;
 
     const { token } = await $fetch<{ token: string }>(
       `${runtimePublic.apiBase}/servers/${serverId}/channels/${channelId}/livekit-token`,
       { credentials: 'include' },
     );
+    if (seq !== joinSeq) return;
 
     const lkRoom = new Room({
       adaptiveStream: true,
@@ -200,6 +207,11 @@ export function useVoice() {
     lkRoom.on(RoomEvent.Disconnected, cleanupRoom);
 
     await lkRoom.connect(runtimePublic.livekitUrl as string, token);
+    if (seq !== joinSeq) {
+      lkRoom.disconnect();
+      return;
+    }
+
     await lkRoom.localParticipant.setMicrophoneEnabled(!isMuted.value);
 
     room.value = lkRoom;
@@ -210,6 +222,7 @@ export function useVoice() {
   }
 
   async function leave() {
+    joinSeq++;
     if (!room.value) return;
     socket.emitVoiceLeave();
     await room.value.disconnect();
