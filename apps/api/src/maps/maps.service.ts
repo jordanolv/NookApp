@@ -1,20 +1,18 @@
 import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { map, member, type Database } from '@nookapp/db';
-import { DEFAULT_MAP, type MapData, type MapPublic } from '@nookapp/protocol';
+import { DEFAULT_MAP, mapDataSchema, type MapData, type MapPublic } from '@nookapp/protocol';
 import { DB } from '../database/database.module';
 
 function toMapPublic(serverId: string, row: typeof map.$inferSelect | null): MapPublic {
   if (!row) {
-    return {
-      serverId,
-      data: DEFAULT_MAP,
-      updatedAt: new Date(0).toISOString(),
-    };
+    return { serverId, data: DEFAULT_MAP, updatedAt: new Date(0).toISOString() };
   }
+  // Stale shape from earlier migration → fall back so the client gets a valid map.
+  const parsed = mapDataSchema.safeParse(row.data);
   return {
     serverId: row.serverId,
-    data: row.data as MapData,
+    data: parsed.success ? parsed.data : DEFAULT_MAP,
     updatedAt: row.updatedAt.toISOString(),
   };
 }

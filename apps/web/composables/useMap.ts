@@ -47,12 +47,12 @@ export function useMap() {
   // (full grid) serializes as an empty array.
   function toggleTile(x: number, y: number) {
     const data = currentMap.value;
-    const idx = data.removed.findIndex(([rx, ry]) => rx === x && ry === y);
-    const removed =
+    const idx = data.tiles.findIndex(([tx, ty]) => tx === x && ty === y);
+    const tiles =
       idx >= 0
-        ? data.removed.filter((_, i) => i !== idx)
-        : [...data.removed, [x, y] as [number, number]];
-    currentMap.value = { ...data, removed };
+        ? data.tiles.filter((_, i) => i !== idx)
+        : [...data.tiles, [x, y] as [number, number]];
+    currentMap.value = { ...data, tiles };
     scheduleSave();
   }
 

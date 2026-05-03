@@ -1,17 +1,12 @@
 import { z } from 'zod';
 
-// World grid dimensions (in tiles). Bounded so a payload can't blow up storage.
-export const MAP_MIN_SIZE = 8;
-export const MAP_MAX_SIZE = 80;
-
-// Sparse representation: tiles default to "present"; removed lists the holes.
-// Each entry is [x, y]. Storing as tuples keeps the JSON compact.
-const tileCoordSchema = z.tuple([z.number().int().min(0), z.number().int().min(0)]);
+const tileCoordSchema = z.tuple([
+  z.number().int().min(0).max(199),
+  z.number().int().min(0).max(199),
+]);
 
 export const mapDataSchema = z.object({
-  width: z.number().int().min(MAP_MIN_SIZE).max(MAP_MAX_SIZE),
-  height: z.number().int().min(MAP_MIN_SIZE).max(MAP_MAX_SIZE),
-  removed: z.array(tileCoordSchema),
+  tiles: z.array(tileCoordSchema).max(40000),
 });
 export type MapData = z.infer<typeof mapDataSchema>;
 
@@ -27,8 +22,13 @@ export const mapPublicSchema = z.object({
 });
 export type MapPublic = z.infer<typeof mapPublicSchema>;
 
-export const DEFAULT_MAP: MapData = {
-  width: 40,
-  height: 40,
-  removed: [],
-};
+// Default starter slab: 6×6 tiles centered on the spawn point.
+const SPAWN = 35;
+const HALF = 3;
+const defaultTiles: [number, number][] = [];
+for (let dx = -HALF; dx < HALF; dx++) {
+  for (let dy = -HALF; dy < HALF; dy++) {
+    defaultTiles.push([SPAWN + dx, SPAWN + dy]);
+  }
+}
+export const DEFAULT_MAP: MapData = { tiles: defaultTiles };
