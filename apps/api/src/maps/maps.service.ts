@@ -4,12 +4,26 @@ import { map, member, type Database } from '@nookapp/db';
 import { DEFAULT_MAP, mapDataSchema, type MapData, type MapPublic } from '@nookapp/protocol';
 import { DB } from '../database/database.module';
 
+// Drop unknown item types so a renamed/removed item shape doesn't fail the whole parse.
+function sanitizeRawData(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object') return raw;
+  const obj = raw as { items?: unknown };
+  if (!Array.isArray(obj.items)) return raw;
+  const knownTypes = new Set(['wall']);
+  return {
+    ...obj,
+    items: obj.items.filter(
+      (it): it is { type: string } =>
+        !!it && typeof it === 'object' && knownTypes.has((it as { type?: string }).type ?? ''),
+    ),
+  };
+}
+
 function toMapPublic(serverId: string, row: typeof map.$inferSelect | null): MapPublic {
   if (!row) {
     return { serverId, data: DEFAULT_MAP, updatedAt: new Date(0).toISOString() };
   }
-  // Stale shape from earlier migration → fall back so the client gets a valid map.
-  const parsed = mapDataSchema.safeParse(row.data);
+  const parsed = mapDataSchema.safeParse(sanitizeRawData(row.data));
   return {
     serverId: row.serverId,
     data: parsed.success ? parsed.data : DEFAULT_MAP,

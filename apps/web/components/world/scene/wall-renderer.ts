@@ -1,37 +1,87 @@
 import Phaser from 'phaser';
-import { TILE_SIZE, WALL_COLOR, WALL_THICKNESS, type Side } from './constants';
+import {
+  TILE_SIZE,
+  WALL_FRONT_COLOR,
+  WALL_HIGHLIGHT_COLOR,
+  WALL_SHADOW_COLOR,
+  WALL_TOP_COLOR,
+} from './constants';
 import type { MapModel } from './map-model';
 
-interface Rect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
+const WALL_THICKNESS = 14;
+const HALF_THICKNESS = WALL_THICKNESS / 2;
+const TOP_FACE_HEIGHT = 9;
+const CENTER = TILE_SIZE / 2;
+const BODY_LEFT = CENTER - HALF_THICKNESS;
+const BODY_RIGHT = CENTER + HALF_THICKNESS;
+const BODY_TOP = CENTER - HALF_THICKNESS;
+const BODY_BOTTOM = CENTER + HALF_THICKNESS;
+
+interface Neighbors {
+  n: boolean;
+  s: boolean;
+  e: boolean;
+  w: boolean;
 }
 
-function rectForSide(tx: number, ty: number, side: Side): Rect {
-  const px = tx * TILE_SIZE;
-  const py = ty * TILE_SIZE;
-  switch (side) {
-    case 'top':
-      return { x: px, y: py, w: TILE_SIZE, h: WALL_THICKNESS };
-    case 'bottom':
-      return { x: px, y: py + TILE_SIZE - WALL_THICKNESS, w: TILE_SIZE, h: WALL_THICKNESS };
-    case 'left':
-      return { x: px, y: py, w: WALL_THICKNESS, h: TILE_SIZE };
-    case 'right':
-      return { x: px + TILE_SIZE - WALL_THICKNESS, y: py, w: WALL_THICKNESS, h: TILE_SIZE };
+function neighborKey({ n, s, e, w }: Neighbors): string {
+  const k = `${n ? 'N' : ''}${s ? 'S' : ''}${e ? 'E' : ''}${w ? 'W' : ''}`;
+  return `wall_${k || 'I'}`;
+}
+
+// Renders the wall as a center body plus arms reaching out to each connected
+// neighbor, with a light top face above any exposed top edge. The top edges of
+// arms that connect to a wall above (N arm) are interior and skipped, which
+// keeps a vertical run visually continuous instead of dashed.
+function ensureWallTexture(scene: Phaser.Scene, neighbors: Neighbors): string {
+  const key = neighborKey(neighbors);
+  if (scene.textures.exists(key)) return key;
+
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
+
+  // Front face — center body and the four arms.
+  g.fillStyle(WALL_FRONT_COLOR, 1);
+  g.fillRect(BODY_LEFT, BODY_TOP, WALL_THICKNESS, WALL_THICKNESS);
+  if (neighbors.n) g.fillRect(BODY_LEFT, 0, WALL_THICKNESS, BODY_TOP);
+  if (neighbors.s) g.fillRect(BODY_LEFT, BODY_BOTTOM, WALL_THICKNESS, TILE_SIZE - BODY_BOTTOM);
+  if (neighbors.e) g.fillRect(BODY_RIGHT, BODY_TOP, TILE_SIZE - BODY_RIGHT, WALL_THICKNESS);
+  if (neighbors.w) g.fillRect(0, BODY_TOP, BODY_LEFT, WALL_THICKNESS);
+
+  // Top face — drawn above each horizontal top edge of the body that isn't
+  // covered by an N arm continuing into the wall above.
+  g.fillStyle(WALL_TOP_COLOR, 1);
+  if (!neighbors.n) {
+    g.fillRect(BODY_LEFT, BODY_TOP - TOP_FACE_HEIGHT, WALL_THICKNESS, TOP_FACE_HEIGHT);
   }
-}
+  if (neighbors.e) {
+    g.fillRect(BODY_RIGHT, BODY_TOP - TOP_FACE_HEIGHT, TILE_SIZE - BODY_RIGHT, TOP_FACE_HEIGHT);
+  }
+  if (neighbors.w) {
+    g.fillRect(0, BODY_TOP - TOP_FACE_HEIGHT, BODY_LEFT, TOP_FACE_HEIGHT);
+  }
 
-const SIDES: Side[] = ['top', 'bottom', 'left', 'right'];
+  // 1-px highlight at the top of the body (joint between top face and front face).
+  g.fillStyle(WALL_HIGHLIGHT_COLOR, 1);
+  if (!neighbors.n) g.fillRect(BODY_LEFT, BODY_TOP, WALL_THICKNESS, 1);
+  if (neighbors.e) g.fillRect(BODY_RIGHT, BODY_TOP, TILE_SIZE - BODY_RIGHT, 1);
+  if (neighbors.w) g.fillRect(0, BODY_TOP, BODY_LEFT, 1);
+
+  // 1-px shadow at the bottom of the body where exposed (no S arm continuing).
+  g.fillStyle(WALL_SHADOW_COLOR, 1);
+  if (!neighbors.s) g.fillRect(BODY_LEFT, BODY_BOTTOM - 1, WALL_THICKNESS, 1);
+  if (neighbors.e) g.fillRect(BODY_RIGHT, BODY_BOTTOM - 1, TILE_SIZE - BODY_RIGHT, 1);
+  if (neighbors.w) g.fillRect(0, BODY_BOTTOM - 1, BODY_LEFT, 1);
+
+  g.generateTexture(key, TILE_SIZE, TILE_SIZE);
+  g.destroy();
+  return key;
+}
 
 export class WallRenderer {
-  private readonly graphics: Phaser.GameObjects.Graphics;
   private readonly group: Phaser.Physics.Arcade.StaticGroup;
+  private sprites: Phaser.GameObjects.Image[] = [];
 
   constructor(private readonly scene: Phaser.Scene) {
-    this.graphics = scene.add.graphics().setDepth(0.3);
     this.group = scene.physics.add.staticGroup();
   }
 
@@ -40,24 +90,39 @@ export class WallRenderer {
   }
 
   apply(model: MapModel) {
-    this.graphics.clear();
     this.group.clear(true, true);
-    this.graphics.fillStyle(WALL_COLOR, 1);
+    for (const sprite of this.sprites) sprite.destroy();
+    this.sprites = [];
 
-    for (const [tx, ty] of model.data.tiles) {
-      for (const side of SIDES) {
-        if (!model.isExternalEdge(tx, ty, side)) continue;
-        if (model.hasDoor(tx, ty, side)) continue;
-        const rect = rectForSide(tx, ty, side);
-        this.graphics.fillRect(rect.x, rect.y, rect.w, rect.h);
-        this.addCollider(rect);
-      }
+    for (const item of model.data.items) {
+      if (item.type !== 'wall') continue;
+      this.spawnWall(model, item.x, item.y);
     }
   }
 
-  private addCollider(rect: Rect) {
-    const zone = this.scene.add.zone(rect.x + rect.w / 2, rect.y + rect.h / 2, rect.w, rect.h);
-    this.scene.physics.add.existing(zone, true);
-    this.group.add(zone);
+  private spawnWall(model: MapModel, tx: number, ty: number) {
+    const neighbors: Neighbors = {
+      n: model.hasWall(tx, ty - 1),
+      s: model.hasWall(tx, ty + 1),
+      e: model.hasWall(tx + 1, ty),
+      w: model.hasWall(tx - 1, ty),
+    };
+    const textureKey = ensureWallTexture(this.scene, neighbors);
+    const cellLeft = tx * TILE_SIZE;
+    const cellTop = ty * TILE_SIZE;
+    const cellBottom = cellTop + TILE_SIZE;
+
+    this.sprites.push(
+      this.scene.add.image(cellLeft, cellTop, textureKey).setOrigin(0, 0).setDepth(cellBottom),
+    );
+
+    const collider = this.scene.add.zone(
+      cellLeft + TILE_SIZE / 2,
+      cellBottom - TILE_SIZE / 2,
+      TILE_SIZE,
+      TILE_SIZE,
+    );
+    this.scene.physics.add.existing(collider, true);
+    this.group.add(collider);
   }
 }

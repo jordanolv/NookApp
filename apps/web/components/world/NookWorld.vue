@@ -11,8 +11,10 @@ import type { PlayerState } from '@nookapp/protocol';
 const serversStore = useServers().store;
 const voice = useVoice();
 
-import type { MapData, Side } from '@nookapp/protocol';
+import type { MapData } from '@nookapp/protocol';
 import type { BuildTool } from './NookScene';
+
+type RectPayload = { x1: number; y1: number; x2: number; y2: number; mode: 'add' | 'remove' };
 
 const props = defineProps<{
   serverId: string;
@@ -27,8 +29,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   'zone-picked': [zone: { x: number; y: number; w: number; h: number }];
   'zone-cancel': [];
-  'tile-toggled': [x: number, y: number];
-  'door-toggled': [x: number, y: number, side: Side];
+  'tiles-rect': [rect: RectPayload];
+  'walls-rect': [rect: RectPayload];
 }>();
 
 const zoneDrag = ref<{ startX: number; startY: number; curX: number; curY: number } | null>(null);
@@ -436,10 +438,8 @@ onMounted(() => {
       rawSocket.emit('world:object:click', { objectId });
     });
 
-    scene.events.on('tile-toggled', (x: number, y: number) => emit('tile-toggled', x, y));
-    scene.events.on('door-toggled', (x: number, y: number, side: Side) =>
-      emit('door-toggled', x, y, side),
-    );
+    scene.events.on('tiles-rect', (rect: RectPayload) => emit('tiles-rect', rect));
+    scene.events.on('walls-rect', (rect: RectPayload) => emit('walls-rect', rect));
 
     if (props.mapData) scene.applyMapData(props.mapData);
     if (props.buildTool) scene.setBuildTool(props.buildTool);

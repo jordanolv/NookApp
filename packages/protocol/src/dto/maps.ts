@@ -5,22 +5,18 @@ const tileCoordSchema = z.tuple([
   z.number().int().min(0).max(199),
 ]);
 
-const sideSchema = z.enum(['top', 'bottom', 'left', 'right']);
-export type Side = z.infer<typeof sideSchema>;
-
 // Each item type is its own object schema; the discriminated union makes adding
 // new types (bed, rug, plant, …) a matter of declaring a new schema and adding
 // it to the union below — no other code touches MapData shape.
-const doorItemSchema = z.object({
-  type: z.literal('door'),
+const wallItemSchema = z.object({
+  type: z.literal('wall'),
   x: z.number().int().min(0).max(199),
   y: z.number().int().min(0).max(199),
-  side: sideSchema,
 });
 
-const mapItemSchema = z.discriminatedUnion('type', [doorItemSchema]);
+const mapItemSchema = z.discriminatedUnion('type', [wallItemSchema]);
 export type MapItem = z.infer<typeof mapItemSchema>;
-export type DoorItem = z.infer<typeof doorItemSchema>;
+export type WallItem = z.infer<typeof wallItemSchema>;
 
 export const mapDataSchema = z.object({
   tiles: z.array(tileCoordSchema).max(40000),

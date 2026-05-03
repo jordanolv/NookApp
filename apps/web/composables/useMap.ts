@@ -1,6 +1,5 @@
-import { DEFAULT_MAP, type MapData, type MapPublic, type Side } from '@nookapp/protocol';
-
-export type BuildTool = 'tile' | 'door';
+import { DEFAULT_MAP, type MapData, type MapItem, type MapPublic } from '@nookapp/protocol';
+import type { BuildTool } from '~/components/world/NookScene';
 
 const currentMap = ref<MapData>(DEFAULT_MAP);
 const currentServerId = ref<string | null>(null);
@@ -46,27 +45,64 @@ export function useMap() {
     }, SAVE_DEBOUNCE_MS);
   }
 
-  function toggleTile(x: number, y: number) {
+  function paintRect(x1: number, y1: number, x2: number, y2: number, mode: 'add' | 'remove') {
+    const minX = Math.min(x1, x2);
+    const maxX = Math.max(x1, x2);
+    const minY = Math.min(y1, y2);
+    const maxY = Math.max(y1, y2);
     const data = currentMap.value;
-    const idx = data.tiles.findIndex(([tx, ty]) => tx === x && ty === y);
-    const tiles =
-      idx >= 0
-        ? data.tiles.filter((_, i) => i !== idx)
-        : [...data.tiles, [x, y] as [number, number]];
-    currentMap.value = { ...data, tiles };
+
+    if (mode === 'add') {
+      const existing = new Set(data.tiles.map(([x, y]) => `${x},${y}`));
+      const additions: [number, number][] = [];
+      for (let x = minX; x <= maxX; x++) {
+        for (let y = minY; y <= maxY; y++) {
+          if (!existing.has(`${x},${y}`)) additions.push([x, y]);
+        }
+      }
+      if (!additions.length) return;
+      currentMap.value = { ...data, tiles: [...data.tiles, ...additions] };
+    } else {
+      const tiles = data.tiles.filter(([x, y]) => x < minX || x > maxX || y < minY || y > maxY);
+      if (tiles.length === data.tiles.length) return;
+      currentMap.value = { ...data, tiles };
+    }
     scheduleSave();
   }
 
-  function toggleDoor(x: number, y: number, side: Side) {
+  function paintWallsRect(x1: number, y1: number, x2: number, y2: number, mode: 'add' | 'remove') {
+    const minX = Math.min(x1, x2);
+    const maxX = Math.max(x1, x2);
+    const minY = Math.min(y1, y2);
+    const maxY = Math.max(y1, y2);
     const data = currentMap.value;
-    const idx = data.items.findIndex(
-      (item) => item.type === 'door' && item.x === x && item.y === y && item.side === side,
-    );
-    const items =
-      idx >= 0
-        ? data.items.filter((_, i) => i !== idx)
-        : [...data.items, { type: 'door' as const, x, y, side }];
-    currentMap.value = { ...data, items };
+
+    if (mode === 'add') {
+      const existing = new Set(
+        data.items.filter((item) => item.type === 'wall').map((item) => `${item.x},${item.y}`),
+      );
+      const additions: MapItem[] = [];
+      for (let x = minX; x <= maxX; x++) {
+        for (let y = minY; y <= maxY; y++) {
+          if (!existing.has(`${x},${y}`)) additions.push({ type: 'wall', x, y });
+        }
+      }
+      if (!additions.length) return;
+      currentMap.value = { ...data, items: [...data.items, ...additions] };
+    } else {
+      const items = data.items.filter(
+        (item) =>
+          !(
+            item.type === 'wall' &&
+            item.x >= minX &&
+            item.x <= maxX &&
+            item.y >= minY &&
+            item.y <= maxY
+          ),
+      );
+      if (items.length === data.items.length) return;
+      currentMap.value = { ...data, items };
+    }
     scheduleSave();
   }
 
@@ -76,8 +112,8 @@ export function useMap() {
     buildTool,
     isSaving: readonly(isSaving),
     loadMap,
-    toggleTile,
-    toggleDoor,
+    paintRect,
+    paintWallsRect,
     flushSave,
   };
 }

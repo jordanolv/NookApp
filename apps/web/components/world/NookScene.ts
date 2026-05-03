@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { MapData, PlayerMovedPayload, Side } from '@nookapp/protocol';
+import type { MapData, PlayerMovedPayload } from '@nookapp/protocol';
 import { drawGrassBackground } from './scene/background';
 import { BuildOverlay } from './scene/build-overlay';
 import {
@@ -13,9 +13,10 @@ import {
 } from './scene/constants';
 import { FloorRenderer } from './scene/floor-renderer';
 import { MapModel } from './scene/map-model';
+import { RectPaintTool } from './scene/rect-paint-tool';
 import { WallRenderer } from './scene/wall-renderer';
 
-export type BuildTool = 'tile' | 'door';
+export type BuildTool = 'tile' | 'wall';
 
 const PLAYER_SPEED = 170;
 const EMIT_INTERVAL_MS = 1000 / 15; // 15 Hz
@@ -115,6 +116,8 @@ export class NookScene extends Phaser.Scene {
   private floorRenderer?: FloorRenderer;
   private wallRenderer?: WallRenderer;
   private buildOverlay?: BuildOverlay;
+  private tilePaintTool?: RectPaintTool;
+  private wallPaintTool?: RectPaintTool;
   private wallCollider?: Phaser.Physics.Arcade.Collider;
   private buildTool: BuildTool = 'tile';
 
@@ -155,12 +158,16 @@ export class NookScene extends Phaser.Scene {
     this.floorRenderer = new FloorRenderer(this);
     this.wallRenderer = new WallRenderer(this);
     this.buildOverlay = new BuildOverlay(this);
+    this.tilePaintTool = new RectPaintTool(this, { add: 0x6366f1, remove: 0xef4444 });
+    this.wallPaintTool = new RectPaintTool(this, { add: 0x9a9a9a, remove: 0xef4444 });
 
     // Room graphics layer drawn below players
     this.roomGraphics = this.add.graphics();
     this.roomGraphics.setDepth(0.5);
 
     this.input.on('pointerdown', this.onBuildPointerDown, this);
+    this.input.on('pointermove', this.onBuildPointerMove, this);
+    this.input.on('pointerup', this.onBuildPointerUp, this);
 
     this.spawnLocalPlayer();
     this.wallCollider = this.wallRenderer.collideWith(this.localBody);
@@ -185,45 +192,58 @@ export class NookScene extends Phaser.Scene {
     if (!this.buildOverlay || this.buildOverlay.isActive() === active) return;
     this.buildOverlay.setActive(active);
     if (this.wallCollider) this.wallCollider.active = !active;
+    if (!active) {
+      this.tilePaintTool?.cancel();
+      this.wallPaintTool?.cancel();
+    }
   }
 
   setBuildTool(tool: BuildTool) {
+    if (this.buildTool === tool) return;
     this.buildTool = tool;
+    this.tilePaintTool?.cancel();
+    this.wallPaintTool?.cancel();
+  }
+
+  private activeTool(): RectPaintTool | undefined {
+    return this.buildTool === 'tile' ? this.tilePaintTool : this.wallPaintTool;
+  }
+
+  private isPresentAtPointer(tx: number, ty: number): boolean {
+    if (!this.model) return false;
+    return this.buildTool === 'tile' ? this.model.hasFloor(tx, ty) : this.model.hasWall(tx, ty);
+  }
+
+  private commitEventName(): 'tiles-rect' | 'walls-rect' {
+    return this.buildTool === 'tile' ? 'tiles-rect' : 'walls-rect';
+  }
+
+  private isBuildActive() {
+    return this.buildOverlay?.isActive() ?? false;
+  }
+
+  private pointerToTile(pointer: Phaser.Input.Pointer): [number, number] {
+    return [Math.floor(pointer.worldX / TILE_SIZE), Math.floor(pointer.worldY / TILE_SIZE)];
   }
 
   private onBuildPointerDown(pointer: Phaser.Input.Pointer) {
-    if (!this.buildOverlay?.isActive()) return;
-    const tx = Math.floor(pointer.worldX / TILE_SIZE);
-    const ty = Math.floor(pointer.worldY / TILE_SIZE);
+    if (!this.isBuildActive() || !this.model) return;
+    const [tx, ty] = this.pointerToTile(pointer);
     if (tx < 0 || ty < 0 || tx >= WORLD_COLS || ty >= WORLD_ROWS) return;
-
-    if (this.buildTool === 'tile') {
-      this.events.emit('tile-toggled', tx, ty);
-      return;
-    }
-
-    if (this.buildTool === 'door') {
-      const side = this.pickClosestSide(pointer.worldX, pointer.worldY, tx, ty);
-      if (!this.model?.hasFloor(tx, ty)) return;
-      if (!this.model.isExternalEdge(tx, ty, side)) return;
-      this.events.emit('door-toggled', tx, ty, side);
-    }
+    this.activeTool()?.beginDrag(tx, ty, this.isPresentAtPointer(tx, ty));
   }
 
-  private pickClosestSide(worldX: number, worldY: number, tx: number, ty: number): Side {
-    const dx = worldX - tx * TILE_SIZE;
-    const dy = worldY - ty * TILE_SIZE;
-    const distances: Record<Side, number> = {
-      top: dy,
-      bottom: TILE_SIZE - dy,
-      left: dx,
-      right: TILE_SIZE - dx,
-    };
-    let best: Side = 'top';
-    for (const side of ['top', 'bottom', 'left', 'right'] as Side[]) {
-      if (distances[side] < distances[best]) best = side;
-    }
-    return best;
+  private onBuildPointerMove(pointer: Phaser.Input.Pointer) {
+    const [tx, ty] = this.pointerToTile(pointer);
+    this.activeTool()?.updateDrag(tx, ty);
+  }
+
+  private onBuildPointerUp(pointer: Phaser.Input.Pointer) {
+    const tool = this.activeTool();
+    if (!tool) return;
+    const [tx, ty] = this.pointerToTile(pointer);
+    const result = tool.endDrag(tx, ty);
+    if (result) this.events.emit(this.commitEventName(), result);
   }
 
   setRooms(zones: RoomZone[]) {

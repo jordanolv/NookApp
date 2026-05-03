@@ -17,8 +17,8 @@ const {
   buildTool,
   isSaving: isMapSaving,
   loadMap,
-  toggleTile,
-  toggleDoor,
+  paintRect,
+  paintWallsRect,
   flushSave,
 } = useMap();
 
@@ -180,14 +180,16 @@ watch(
   { immediate: true },
 );
 
-function onTileToggled(x: number, y: number) {
+type RectPayload = { x1: number; y1: number; x2: number; y2: number; mode: 'add' | 'remove' };
+
+function onTilesRect(rect: RectPayload) {
   if (!isAdmin.value || !buildMode.value) return;
-  toggleTile(x, y);
+  paintRect(rect.x1, rect.y1, rect.x2, rect.y2, rect.mode);
 }
 
-function onDoorToggled(x: number, y: number, side: 'top' | 'bottom' | 'left' | 'right') {
+function onWallsRect(rect: RectPayload) {
   if (!isAdmin.value || !buildMode.value) return;
-  toggleDoor(x, y, side);
+  paintWallsRect(rect.x1, rect.y1, rect.x2, rect.y2, rect.mode);
 }
 
 async function toggleBuildMode() {
@@ -238,8 +240,8 @@ async function handleSignOut() {
         :build-tool="buildTool"
         @zone-picked="onZonePicked"
         @zone-cancel="onZoneCancel"
-        @tile-toggled="onTileToggled"
-        @door-toggled="onDoorToggled"
+        @tiles-rect="onTilesRect"
+        @walls-rect="onWallsRect"
       />
     </ClientOnly>
 
@@ -441,55 +443,6 @@ async function handleSignOut() {
           />
         </button>
 
-        <!-- Build tool selector (admin + build mode only) -->
-        <template v-if="isAdmin && buildMode">
-          <button
-            class="relative flex h-8 items-center gap-2 rounded-xl transition-all duration-150"
-            :class="railExpanded ? 'px-2 justify-start' : 'justify-center'"
-            :style="
-              buildTool === 'tile'
-                ? 'background: rgba(244,180,77,0.18); color: rgba(252,211,77,1)'
-                : 'color: rgba(255,255,255,0.3)'
-            "
-            title="Outil dalle"
-            @click="buildTool = 'tile'"
-          >
-            <svg
-              class="flex-shrink-0"
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <path d="M3 3h18v18H3z" />
-            </svg>
-            <span v-if="railExpanded" class="truncate text-xs font-medium">Dalle</span>
-          </button>
-
-          <button
-            class="relative flex h-8 items-center gap-2 rounded-xl transition-all duration-150"
-            :class="railExpanded ? 'px-2 justify-start' : 'justify-center'"
-            :style="
-              buildTool === 'door'
-                ? 'background: rgba(244,180,77,0.18); color: rgba(252,211,77,1)'
-                : 'color: rgba(255,255,255,0.3)'
-            "
-            title="Outil porte"
-            @click="buildTool = 'door'"
-          >
-            <svg
-              class="flex-shrink-0"
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <path d="M19 19V3H5v16H3v2h18v-2h-2zm-9-6h2v2h-2v-2z" />
-            </svg>
-            <span v-if="railExpanded" class="truncate text-xs font-medium">Porte</span>
-          </button>
-        </template>
-
         <!-- Create channel -->
         <button
           class="relative flex h-8 items-center gap-2 rounded-xl transition-all duration-150"
@@ -682,6 +635,17 @@ async function handleSignOut() {
     <!-- Voice panel -->
     <ClientOnly>
       <VoicePanel />
+    </ClientOnly>
+
+    <!-- Build panel (admin + build mode only) -->
+    <ClientOnly>
+      <WorldBuildPanel
+        v-if="isAdmin && buildMode"
+        :tool="buildTool"
+        :is-saving="isMapSaving"
+        @update:tool="buildTool = $event"
+        @close="toggleBuildMode"
+      />
     </ClientOnly>
 
     <!-- Invite modal -->
