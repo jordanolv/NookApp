@@ -74,12 +74,6 @@ function formatTime(iso: string) {
 
 <template>
   <div class="flex flex-1 flex-col overflow-hidden">
-    <!-- Header -->
-    <header class="flex items-center gap-2 border-b border-neutral-800 px-4 py-3 flex-shrink-0">
-      <span class="text-neutral-500">#</span>
-      <span class="font-semibold">{{ channel?.name ?? '…' }}</span>
-    </header>
-
     <!-- Messages -->
     <div ref="listEl" class="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-1">
       <div v-if="loading" class="flex items-center justify-center h-24 text-neutral-500 text-sm">
