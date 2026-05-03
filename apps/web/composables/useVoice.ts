@@ -1,89 +1,31 @@
-import { Room, RoomEvent, Track, type LocalVideoTrack, type RemoteTrack } from 'livekit-client';
-import type { VoiceParticipant, VoiceSnapshotPayload } from '@nookapp/protocol';
+import { Track, type LocalVideoTrack } from 'livekit-client';
+import { cleanupRoom } from './voice/cleanup';
+import { applyVoiceJoined, applyVoiceLeft, applyVoiceSnapshot } from './voice/presence';
+import { bindRoomEvents, createRoom } from './voice/room';
+import { setParticipantMedia } from './voice/tracks';
+import {
+  activeSpeakers,
+  audioEls,
+  currentChannelId,
+  currentServerId,
+  isCameraOn,
+  isDeafened,
+  isMuted,
+  isScreenSharing,
+  localCameraTrack,
+  mediaPanelFocusKey,
+  mediaViewMode,
+  participantMedia,
+  remoteScreenTracks,
+  remoteVideoTracks,
+  room,
+  voicePresence,
+} from './voice/state';
 
-// Module-level singletons — voice state persists across component lifecycle
-const room = shallowRef<Room | null>(null);
-const currentChannelId = ref<string | null>(null);
-const currentServerId = ref<string | null>(null);
-const isMuted = ref(false);
-const isDeafened = ref(false);
-const isScreenSharing = ref(false);
-
-// Camera track — tied to the LiveKit room, null when not in a voice channel or cam off
-const localCameraTrack = shallowRef<LocalVideoTrack | null>(null);
-const isCameraOn = computed(() => localCameraTrack.value !== null);
-
-const activeSpeakers = ref<Set<string>>(new Set());
-
-// channelId → participants in that channel
-const voicePresence = ref<Map<string, VoiceParticipant[]>>(new Map());
-
-// userId → { cam, screen } — populated from LiveKit TrackSubscribed (same channel only)
-const participantMedia = ref<Map<string, { cam: boolean; screen: boolean }>>(new Map());
-
-// Remote video/screen tracks for in-world bubbles — keyed by userId
-const remoteVideoTracks = ref<Map<string, RemoteTrack>>(new Map());
-const remoteScreenTracks = ref<Map<string, RemoteTrack>>(new Map());
-
-// Audio elements keyed by participant identity (= userId)
-const audioEls = new Map<string, HTMLAudioElement>();
-
-// Incremented on every join/leave to cancel in-flight joins
+// Cancellation token: bumped by every join() and leave(). An in-flight join()
+// captures this at start and re-checks after every await — if it changed, a
+// newer call has superseded this one and it must abort.
 let joinSeq = 0;
-
-// 'world' = cam bubbles above players; 'panel' = Discord-style floating grid
-const mediaViewMode = ref<'world' | 'panel'>('world');
-const mediaPanelFocusKey = ref<string | null>(null);
-
-function applyVoiceSnapshot(payload: VoiceSnapshotPayload) {
-  const map = new Map<string, VoiceParticipant[]>();
-  for (const p of payload.participants) {
-    if (!map.has(p.channelId)) map.set(p.channelId, []);
-    map.get(p.channelId)!.push(p);
-  }
-  voicePresence.value = map;
-}
-
-function applyVoiceJoined(data: VoiceParticipant) {
-  const map = new Map(voicePresence.value);
-  const list = map.get(data.channelId) ?? [];
-  if (!list.find((p) => p.userId === data.userId)) {
-    map.set(data.channelId, [...list, data]);
-  }
-  voicePresence.value = map;
-}
-
-function applyVoiceLeft(data: { userId: string; channelId: string }) {
-  const map = new Map(voicePresence.value);
-  const list = (map.get(data.channelId) ?? []).filter((p) => p.userId !== data.userId);
-  if (list.length === 0) map.delete(data.channelId);
-  else map.set(data.channelId, list);
-  voicePresence.value = map;
-}
-
-function cleanupAudio() {
-  for (const el of audioEls.values()) el.remove();
-  audioEls.clear();
-}
-
-function cleanupRoom() {
-  room.value = null;
-  currentChannelId.value = null;
-  currentServerId.value = null;
-  isScreenSharing.value = false;
-  localCameraTrack.value = null;
-  activeSpeakers.value = new Set();
-  participantMedia.value = new Map();
-  remoteVideoTracks.value = new Map();
-  remoteScreenTracks.value = new Map();
-  cleanupAudio();
-}
-
-function setParticipantMedia(userId: string, patch: Partial<{ cam: boolean; screen: boolean }>) {
-  const map = new Map(participantMedia.value);
-  map.set(userId, { ...(map.get(userId) ?? { cam: false, screen: false }), ...patch });
-  participantMedia.value = map;
-}
 
 export function useVoice() {
   const { public: runtimePublic } = useRuntimeConfig();
@@ -100,133 +42,59 @@ export function useVoice() {
     };
   }
 
-  async function join(serverId: string, channelId: string) {
-    const seq = ++joinSeq;
-
-    if (room.value) await leave();
-    if (seq !== joinSeq) return;
-
+  async function fetchToken(serverId: string, channelId: string): Promise<string> {
     const { token } = await $fetch<{ token: string }>(
       `${runtimePublic.apiBase}/servers/${serverId}/channels/${channelId}/livekit-token`,
       { credentials: 'include' },
     );
-    if (seq !== joinSeq) return;
+    return token;
+  }
 
-    const lkRoom = new Room({
-      adaptiveStream: true,
-      dynacast: true,
-      audioCaptureDefaults: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
-      publishDefaults: {
-        audioPreset: { maxBitrate: 96_000 },
-        dtx: true,
-        red: true,
-      },
-    });
+  // Tear down the active room without bumping joinSeq. Used by both leave()
+  // (user-facing) and join() (when switching channels). cleanupRoom() runs
+  // synchronously so the UI updates instantly and concurrent callers see a
+  // null room.value and short-circuit.
+  async function disconnectActiveRoom() {
+    const lkRoom = room.value;
+    if (!lkRoom) return;
+    cleanupRoom();
+    socket.emitVoiceLeave();
+    await lkRoom.disconnect();
+  }
 
-    lkRoom.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
-      const uid = participant.identity;
+  async function join(serverId: string, channelId: string) {
+    const seq = ++joinSeq;
+    const stale = () => seq !== joinSeq;
 
-      if (track.kind === Track.Kind.Audio && pub.source !== Track.Source.ScreenShareAudio) {
-        const el = track.attach() as HTMLAudioElement;
-        el.style.display = 'none';
-        el.muted = isDeafened.value;
-        document.body.appendChild(el);
-        audioEls.set(uid, el);
-        return;
-      }
+    await disconnectActiveRoom();
+    if (stale()) return;
 
-      if (track.kind === Track.Kind.Video) {
-        if (pub.source === Track.Source.Camera) {
-          setParticipantMedia(uid, { cam: true });
-          remoteVideoTracks.value = new Map(remoteVideoTracks.value).set(uid, track as RemoteTrack);
-        } else if (pub.source === Track.Source.ScreenShare) {
-          setParticipantMedia(uid, { screen: true });
-          remoteScreenTracks.value = new Map(remoteScreenTracks.value).set(
-            uid,
-            track as RemoteTrack,
-          );
-        }
-      }
-    });
+    const token = await fetchToken(serverId, channelId);
+    if (stale()) return;
 
-    lkRoom.on(RoomEvent.TrackUnsubscribed, (track, pub, participant) => {
-      const uid = participant.identity;
-
-      if (track.kind === Track.Kind.Audio) {
-        track.detach().forEach((el) => el.remove());
-        audioEls.delete(uid);
-        return;
-      }
-
-      if (track.kind === Track.Kind.Video) {
-        if (pub.source === Track.Source.Camera) {
-          setParticipantMedia(uid, { cam: false });
-          const vt = new Map(remoteVideoTracks.value);
-          vt.delete(uid);
-          remoteVideoTracks.value = vt;
-        } else if (pub.source === Track.Source.ScreenShare) {
-          setParticipantMedia(uid, { screen: false });
-          const st = new Map(remoteScreenTracks.value);
-          st.delete(uid);
-          remoteScreenTracks.value = st;
-        }
-      }
-    });
-
-    lkRoom.on(RoomEvent.LocalTrackUnpublished, (pub) => {
-      if (pub.source === Track.Source.ScreenShare) {
-        isScreenSharing.value = false;
-      }
-      if (pub.source === Track.Source.Camera) {
-        localCameraTrack.value = null;
-      }
-    });
-
-    // setCameraEnabled(false) mutes the track rather than unpublishing — TrackUnsubscribed never fires.
-    // TrackMuted/TrackUnmuted are the reliable signal for remote cam state changes.
-    lkRoom.on(RoomEvent.TrackMuted, (pub, participant) => {
-      const uid = participant.identity;
-      if (pub.source === Track.Source.Camera) setParticipantMedia(uid, { cam: false });
-      if (pub.source === Track.Source.ScreenShare) setParticipantMedia(uid, { screen: false });
-    });
-
-    lkRoom.on(RoomEvent.TrackUnmuted, (pub, participant) => {
-      const uid = participant.identity;
-      if (pub.source === Track.Source.Camera) setParticipantMedia(uid, { cam: true });
-      if (pub.source === Track.Source.ScreenShare) setParticipantMedia(uid, { screen: true });
-    });
-
-    lkRoom.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
-      activeSpeakers.value = new Set(speakers.map((p) => p.identity));
-    });
-
-    lkRoom.on(RoomEvent.Disconnected, cleanupRoom);
-
+    const lkRoom = createRoom();
+    bindRoomEvents(lkRoom);
     await lkRoom.connect(runtimePublic.livekitUrl as string, token);
-    if (seq !== joinSeq) {
-      lkRoom.disconnect();
+    if (stale()) {
+      await lkRoom.disconnect();
       return;
     }
 
-    await lkRoom.localParticipant.setMicrophoneEnabled(!isMuted.value);
-
+    // Commit state BEFORE the last await so a concurrent leave() sees room.value
+    // set and can disconnect this room properly instead of returning a no-op.
     room.value = lkRoom;
     currentChannelId.value = channelId;
     currentServerId.value = serverId;
-
     socket.emitVoiceJoin({ channelId });
+
+    // setMicrophoneEnabled may reject if a concurrent leave() already disconnected
+    // the room — that's fine, the state already reflects the user's final intent.
+    await lkRoom.localParticipant.setMicrophoneEnabled(!isMuted.value).catch(() => {});
   }
 
   async function leave() {
-    joinSeq++;
-    if (!room.value) return;
-    socket.emitVoiceLeave();
-    await room.value.disconnect();
-    cleanupRoom();
+    joinSeq++; // invalidates any in-flight join()
+    await disconnectActiveRoom();
   }
 
   async function toggleMute() {
