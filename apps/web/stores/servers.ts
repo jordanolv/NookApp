@@ -18,7 +18,9 @@ export const useServersStore = defineStore('servers', {
   getters: {
     textChannels: (s) => s.channels.filter((c) => c.type === 'text'),
     voiceChannels: (s) => s.channels.filter((c) => c.type === 'voice'),
+    forumChannels: (s) => s.channels.filter((c) => c.type === 'forum'),
     gameChannels: (s) => s.channels.filter((c) => c.type === 'game'),
+    postChannels: (s) => (parentId: string) => s.channels.filter((c) => c.parentId === parentId),
   },
   actions: {
     setList(servers: ServerPublic[]) {

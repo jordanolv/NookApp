@@ -1,4 +1,4 @@
-import { index, integer, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 import { user } from './users';
 
 export const server = pgTable(
@@ -26,12 +26,13 @@ export const channel = pgTable(
     serverId: text('server_id')
       .notNull()
       .references(() => server.id, { onDelete: 'cascade' }),
-    type: text('type', { enum: ['text', 'voice', 'game'] })
+    type: text('type', { enum: ['text', 'voice', 'forum', 'game'] })
       .notNull()
       .default('text'),
     name: text('name').notNull(),
     position: integer('position').notNull().default(0),
     parentId: text('parent_id'),
+    mapZone: jsonb('map_zone'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({

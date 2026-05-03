@@ -9,8 +9,6 @@ const WORLD_H = WORLD_ROWS * TILE_SIZE;
 const PLAYER_SPEED = 170;
 const EMIT_INTERVAL_MS = 1000 / 15; // 15 Hz
 
-const WALL_T = TILE_SIZE * 2; // 64px wall thickness
-const DOOR_W = TILE_SIZE * 3; // 96px door opening
 const ROOM_W = TILE_SIZE * 9; // 288px room width
 const ROOM_H = TILE_SIZE * 8; // 256px room height
 
@@ -67,6 +65,8 @@ export interface RoomZone {
   name: string;
   x: number;
   y: number;
+  w?: number;
+  h?: number;
 }
 
 interface ActiveRoom extends RoomZone {
@@ -151,15 +151,17 @@ export class NookScene extends Phaser.Scene {
 
   setRooms(zones: RoomZone[]) {
     this.activeRooms = zones.slice(0, ROOM_POSITIONS.length).map((zone, i) => {
-      const pos = ROOM_POSITIONS[i]!;
+      const hasCustomZone = zone.x !== 0 || zone.y !== 0;
+      const pos = hasCustomZone ? { x: zone.x, y: zone.y } : ROOM_POSITIONS[i]!;
+      const w = zone.w ?? ROOM_W;
+      const h = zone.h ?? ROOM_H;
       return {
         ...zone,
         x: pos.x,
         y: pos.y,
-        bounds: new Phaser.Geom.Rectangle(pos.x, pos.y, ROOM_W, ROOM_H),
-        // Label above the door opening (bottom-center of room)
-        doorLabelWorldX: pos.x + ROOM_W / 2,
-        doorLabelWorldY: pos.y + ROOM_H + 8,
+        bounds: new Phaser.Geom.Rectangle(pos.x, pos.y, w, h),
+        doorLabelWorldX: pos.x + w / 2,
+        doorLabelWorldY: pos.y + h + 8,
       };
     });
     this.redrawRooms();
@@ -212,6 +214,10 @@ export class NookScene extends Phaser.Scene {
     this.remotePlayers.delete(userId);
   }
 
+  hasRemotePlayer(userId: string): boolean {
+    return this.remotePlayers.has(userId);
+  }
+
   spawnWorldObject(spec: WorldObjectSpec) {
     this.removeWorldObject(spec.id);
 
@@ -260,30 +266,55 @@ export class NookScene extends Phaser.Scene {
 
     for (const room of this.activeRooms) {
       const { x, y } = room;
-      const isActive = this.currentRoomChannelId === room.channelId;
+      const rw = room.bounds.width;
+      const rh = room.bounds.height;
+      // Subtle dashed outline only — no walls, no floor tint
+      g.lineStyle(1, 0xc8bfff, 0.7);
+      this.strokeDashedRect(g, x, y, rw, rh, 5, 4);
+    }
+  }
 
-      // Floor tint — warm beige slightly different from open area
-      g.fillStyle(isActive ? 0xf0e0b0 : 0xe8d8a8, 1);
-      g.fillRect(x + WALL_T, y + WALL_T, ROOM_W - WALL_T * 2, ROOM_H - WALL_T);
+  private strokeDashedRect(
+    g: Phaser.GameObjects.Graphics,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    dash: number,
+    gap: number,
+  ) {
+    this.strokeDashedLine(g, x, y, x + w, y, dash, gap);
+    this.strokeDashedLine(g, x + w, y, x + w, y + h, dash, gap);
+    this.strokeDashedLine(g, x + w, y + h, x, y + h, dash, gap);
+    this.strokeDashedLine(g, x, y + h, x, y, dash, gap);
+  }
 
-      // Walls
-      const wallColor = 0x3a3028;
-      g.fillStyle(wallColor, 1);
-      // Top wall
-      g.fillRect(x, y, ROOM_W, WALL_T);
-      // Left wall
-      g.fillRect(x, y, WALL_T, ROOM_H);
-      // Right wall
-      g.fillRect(x + ROOM_W - WALL_T, y, WALL_T, ROOM_H);
-      // Bottom wall — two halves with door gap in the center
-      const doorLeft = x + ROOM_W / 2 - DOOR_W / 2;
-      g.fillRect(x, y + ROOM_H - WALL_T, doorLeft - x, WALL_T);
-      g.fillRect(doorLeft + DOOR_W, y + ROOM_H - WALL_T, x + ROOM_W - (doorLeft + DOOR_W), WALL_T);
-
-      // Door frame highlights
-      g.fillStyle(isActive ? 0x6c8fa0 : 0x5a7080, 1);
-      g.fillRect(doorLeft - 4, y + ROOM_H - WALL_T - 4, 4, WALL_T + 4);
-      g.fillRect(doorLeft + DOOR_W, y + ROOM_H - WALL_T - 4, 4, WALL_T + 4);
+  private strokeDashedLine(
+    g: Phaser.GameObjects.Graphics,
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    dash: number,
+    gap: number,
+  ) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    const nx = dx / len;
+    const ny = dy / len;
+    let pos = 0;
+    let drawing = true;
+    while (pos < len) {
+      const seg = Math.min(drawing ? dash : gap, len - pos);
+      if (drawing) {
+        g.beginPath();
+        g.moveTo(x1 + nx * pos, y1 + ny * pos);
+        g.lineTo(x1 + nx * (pos + seg), y1 + ny * (pos + seg));
+        g.strokePath();
+      }
+      pos += seg;
+      drawing = !drawing;
     }
   }
 
