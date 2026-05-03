@@ -5,11 +5,15 @@ const {
   currentChannelId,
   isMuted,
   isDeafened,
+  isCameraOn,
+  isScreenSharing,
   voicePresence,
   activeSpeakers,
   leave,
   toggleMute,
   toggleDeafen,
+  toggleCamera,
+  toggleScreenShare,
 } = useVoice();
 const { store } = useServers();
 const { user } = useAuth();
@@ -243,6 +247,47 @@ const participants = computed(() =>
             <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
               <path
                 d="M12 1c-4.97 0-9 4.03-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h3c1.66 0 3-1.34 3-3v-7c0-4.97-4.03-9-9-9zM1 12l2 2 2-2-2-2-2 2zm18 0l2 2 2-2-2-2-2 2z"
+              />
+            </svg>
+          </button>
+
+          <button
+            v-if="currentChannelId"
+            class="rounded-xl p-1.5 transition-all duration-150"
+            :style="
+              isCameraOn
+                ? 'color:rgb(99,102,241);background:rgba(99,102,241,0.15)'
+                : 'color:rgba(255,255,255,0.4)'
+            "
+            :title="isCameraOn ? 'Désactiver la caméra' : 'Activer la caméra'"
+            @click="toggleCamera"
+          >
+            <svg v-if="!isCameraOn" width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"
+              />
+            </svg>
+            <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M21 6.5l-4-4-9.65 9.65-1.85-1.85L3.5 12.3l2.5 2.5-2 2H2v2h2l2-2 2.5 2.5 2-2-1.85-1.85L21 6.5zM5 18V8.5l2 2V16l6-6 2 2-6 6h5.5l2 2H5z"
+              />
+            </svg>
+          </button>
+
+          <button
+            v-if="currentChannelId"
+            class="rounded-xl p-1.5 transition-all duration-150"
+            :style="
+              isScreenSharing
+                ? 'color:rgb(99,102,241);background:rgba(99,102,241,0.15)'
+                : 'color:rgba(255,255,255,0.4)'
+            "
+            :title="isScreenSharing ? 'Arrêter le partage' : 'Partager l\'écran'"
+            @click="toggleScreenShare"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"
               />
             </svg>
           </button>
