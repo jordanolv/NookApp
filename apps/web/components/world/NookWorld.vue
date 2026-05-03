@@ -11,16 +11,21 @@ import type { PlayerState } from '@nookapp/protocol';
 const serversStore = useServers().store;
 const voice = useVoice();
 
+import type { MapData } from '@nookapp/protocol';
+
 const props = defineProps<{
   serverId: string;
   userId: string;
   playerName: string;
   zonePickerActive?: boolean;
+  mapData?: MapData | null;
+  buildMode?: boolean;
 }>();
 
 const emit = defineEmits<{
   'zone-picked': [zone: { x: number; y: number; w: number; h: number }];
   'zone-cancel': [];
+  'tile-toggled': [x: number, y: number];
 }>();
 
 const zoneDrag = ref<{ startX: number; startY: number; curX: number; curY: number } | null>(null);
@@ -132,9 +137,10 @@ const CAM_BUBBLE_STYLE_BASE =
   'border:3px solid rgba(255,255,255,0.2);box-shadow:0 4px 12px rgba(0,0,0,0.4);' +
   'z-index:10;pointer-events:auto;cursor:pointer;background:#1d1b26;';
 
-// eslint-disable-next-line no-unused-vars
 type AttachableTrack = {
+  // eslint-disable-next-line no-unused-vars
   attach: (el: HTMLVideoElement) => HTMLVideoElement;
+  // eslint-disable-next-line no-unused-vars
   detach: (el: HTMLVideoElement) => HTMLVideoElement;
 };
 
@@ -316,6 +322,22 @@ function updateNameTags(tags: NameTagUpdate[], cam: Phaser.Cameras.Scene2D.Camer
   }
 }
 
+// Push prop changes into the scene whenever the parent updates them after mount.
+watch(
+  () => props.mapData,
+  (data) => {
+    if (data && _scene) _scene.applyMapData(data);
+  },
+  { deep: true },
+);
+
+watch(
+  () => props.buildMode ?? false,
+  (active) => {
+    if (_scene) _scene.setBuildMode(active);
+  },
+);
+
 onMounted(() => {
   if (!canvasRef.value) return;
 
@@ -403,6 +425,11 @@ onMounted(() => {
     scene.events.on('world-object-clicked', (objectId: string) => {
       rawSocket.emit('world:object:click', { objectId });
     });
+
+    scene.events.on('tile-toggled', (x: number, y: number) => emit('tile-toggled', x, y));
+
+    if (props.mapData) scene.applyMapData(props.mapData);
+    if (props.buildMode) scene.setBuildMode(true);
 
     // Voice rooms — build zones from the server's voice channels and auto-join on proximity
     const voiceChannels = serversStore.voiceChannels;

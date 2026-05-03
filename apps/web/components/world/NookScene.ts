@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { PlayerMovedPayload } from '@nookapp/protocol';
+import type { MapData, PlayerMovedPayload } from '@nookapp/protocol';
 
 const TILE_SIZE = 32;
 const WORLD_COLS = 40;
@@ -99,6 +99,12 @@ export class NookScene extends Phaser.Scene {
   private currentRoomChannelId: string | null = null;
   private roomGraphics!: Phaser.GameObjects.Graphics;
 
+  // Map state — drives floor cutouts and the build-mode editor.
+  private mapData: MapData | null = null;
+  private voidGraphics?: Phaser.GameObjects.Graphics;
+  private buildOverlay?: Phaser.GameObjects.Graphics;
+  private buildModeActive = false;
+
   localUserId: string;
   readonly localUserName: string;
   onReady?: () => void;
@@ -133,9 +139,26 @@ export class NookScene extends Phaser.Scene {
 
     this.drawFloor();
 
+    // Void graphics layer painted on top of the floor for "removed" tiles.
+    this.voidGraphics = this.add.graphics();
+    this.voidGraphics.setDepth(0.4);
+
+    // Build-mode overlay (grid + tile-toggle clicks). Hidden by default.
+    this.buildOverlay = this.add.graphics();
+    this.buildOverlay.setDepth(20);
+    this.buildOverlay.setVisible(false);
+
     // Room graphics layer drawn below players
     this.roomGraphics = this.add.graphics();
     this.roomGraphics.setDepth(0.5);
+
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (!this.buildModeActive) return;
+      const tx = Math.floor(pointer.worldX / TILE_SIZE);
+      const ty = Math.floor(pointer.worldY / TILE_SIZE);
+      if (tx < 0 || ty < 0 || tx >= WORLD_COLS || ty >= WORLD_ROWS) return;
+      this.events.emit('tile-toggled', tx, ty);
+    });
 
     this.spawnLocalPlayer();
     this.cameras.main.startFollow(this.localBody, true, 0.15, 0.15);
@@ -148,6 +171,44 @@ export class NookScene extends Phaser.Scene {
   }
 
   // --- Public API ---
+
+  applyMapData(data: MapData) {
+    this.mapData = data;
+    this.redrawVoids();
+    this.redrawBuildOverlay();
+  }
+
+  setBuildMode(active: boolean) {
+    if (this.buildModeActive === active) return;
+    this.buildModeActive = active;
+    this.buildOverlay?.setVisible(active);
+    this.redrawBuildOverlay();
+  }
+
+  private redrawVoids() {
+    const g = this.voidGraphics;
+    if (!g) return;
+    g.clear();
+    if (!this.mapData) return;
+    g.fillStyle(0xcdd0d4, 1);
+    for (const [x, y] of this.mapData.removed) {
+      g.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+    }
+  }
+
+  private redrawBuildOverlay() {
+    const g = this.buildOverlay;
+    if (!g) return;
+    g.clear();
+    if (!this.buildModeActive) return;
+    g.lineStyle(1, 0x6366f1, 0.5);
+    for (let x = 0; x <= WORLD_COLS; x++) {
+      g.lineBetween(x * TILE_SIZE, 0, x * TILE_SIZE, WORLD_H);
+    }
+    for (let y = 0; y <= WORLD_ROWS; y++) {
+      g.lineBetween(0, y * TILE_SIZE, WORLD_W, y * TILE_SIZE);
+    }
+  }
 
   setRooms(zones: RoomZone[]) {
     this.activeRooms = zones.slice(0, ROOM_POSITIONS.length).map((zone, i) => {

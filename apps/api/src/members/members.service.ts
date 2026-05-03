@@ -24,6 +24,16 @@ export class MembersService {
     return rows.map(toMemberPublic);
   }
 
+  async getMember(serverId: string, userId: string): Promise<MemberPublic> {
+    const [row] = await this.db
+      .select()
+      .from(member)
+      .where(and(eq(member.serverId, serverId), eq(member.userId, userId)))
+      .limit(1);
+    if (!row) throw new NotFoundException('Member not found');
+    return toMemberPublic(row);
+  }
+
   async updateMember(
     serverId: string,
     targetUserId: string,
