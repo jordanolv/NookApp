@@ -13,6 +13,7 @@ function toChannelPublic(row: typeof channel.$inferSelect): ChannelPublic {
     name: row.name,
     position: row.position,
     parentId: row.parentId ?? null,
+    mapZone: (row.mapZone as { x: number; y: number; w: number; h: number } | null) ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -49,6 +50,7 @@ export class ChannelsService {
         name: input.name,
         position,
         parentId: input.parentId ?? null,
+        mapZone: input.mapZone ?? null,
       })
       .returning();
 
@@ -69,6 +71,7 @@ export class ChannelsService {
         ...(input.name !== undefined && { name: input.name }),
         ...(input.position !== undefined && { position: input.position }),
         ...(input.parentId !== undefined && { parentId: input.parentId }),
+        ...(input.mapZone !== undefined && { mapZone: input.mapZone }),
       })
       .where(and(eq(channel.id, channelId), eq(channel.serverId, serverId)))
       .returning();
