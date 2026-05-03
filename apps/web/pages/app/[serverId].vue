@@ -11,7 +11,16 @@ const { createInvite } = useInvites();
 const socket = useSocket();
 const voice = useVoice();
 const { isAdmin, loadMember } = useMember();
-const { currentMap, buildMode, isSaving: isMapSaving, loadMap, toggleTile, flushSave } = useMap();
+const {
+  currentMap,
+  buildMode,
+  buildTool,
+  isSaving: isMapSaving,
+  loadMap,
+  toggleTile,
+  toggleDoor,
+  flushSave,
+} = useMap();
 
 // ── Multi-window chat ──
 interface ChatWin {
@@ -176,6 +185,11 @@ function onTileToggled(x: number, y: number) {
   toggleTile(x, y);
 }
 
+function onDoorToggled(x: number, y: number, side: 'top' | 'bottom' | 'left' | 'right') {
+  if (!isAdmin.value || !buildMode.value) return;
+  toggleDoor(x, y, side);
+}
+
 async function toggleBuildMode() {
   buildMode.value = !buildMode.value;
   if (!buildMode.value) await flushSave();
@@ -221,9 +235,11 @@ async function handleSignOut() {
         :zone-picker-active="zonePickerActive"
         :map-data="currentMap"
         :build-mode="buildMode"
+        :build-tool="buildTool"
         @zone-picked="onZonePicked"
         @zone-cancel="onZoneCancel"
         @tile-toggled="onTileToggled"
+        @door-toggled="onDoorToggled"
       />
     </ClientOnly>
 
@@ -424,6 +440,55 @@ async function handleSignOut() {
             title="Sauvegarde…"
           />
         </button>
+
+        <!-- Build tool selector (admin + build mode only) -->
+        <template v-if="isAdmin && buildMode">
+          <button
+            class="relative flex h-8 items-center gap-2 rounded-xl transition-all duration-150"
+            :class="railExpanded ? 'px-2 justify-start' : 'justify-center'"
+            :style="
+              buildTool === 'tile'
+                ? 'background: rgba(244,180,77,0.18); color: rgba(252,211,77,1)'
+                : 'color: rgba(255,255,255,0.3)'
+            "
+            title="Outil dalle"
+            @click="buildTool = 'tile'"
+          >
+            <svg
+              class="flex-shrink-0"
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path d="M3 3h18v18H3z" />
+            </svg>
+            <span v-if="railExpanded" class="truncate text-xs font-medium">Dalle</span>
+          </button>
+
+          <button
+            class="relative flex h-8 items-center gap-2 rounded-xl transition-all duration-150"
+            :class="railExpanded ? 'px-2 justify-start' : 'justify-center'"
+            :style="
+              buildTool === 'door'
+                ? 'background: rgba(244,180,77,0.18); color: rgba(252,211,77,1)'
+                : 'color: rgba(255,255,255,0.3)'
+            "
+            title="Outil porte"
+            @click="buildTool = 'door'"
+          >
+            <svg
+              class="flex-shrink-0"
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path d="M19 19V3H5v16H3v2h18v-2h-2zm-9-6h2v2h-2v-2z" />
+            </svg>
+            <span v-if="railExpanded" class="truncate text-xs font-medium">Porte</span>
+          </button>
+        </template>
 
         <!-- Create channel -->
         <button

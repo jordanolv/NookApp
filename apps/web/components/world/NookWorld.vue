@@ -11,7 +11,8 @@ import type { PlayerState } from '@nookapp/protocol';
 const serversStore = useServers().store;
 const voice = useVoice();
 
-import type { MapData } from '@nookapp/protocol';
+import type { MapData, Side } from '@nookapp/protocol';
+import type { BuildTool } from './NookScene';
 
 const props = defineProps<{
   serverId: string;
@@ -20,12 +21,14 @@ const props = defineProps<{
   zonePickerActive?: boolean;
   mapData?: MapData | null;
   buildMode?: boolean;
+  buildTool?: BuildTool;
 }>();
 
 const emit = defineEmits<{
   'zone-picked': [zone: { x: number; y: number; w: number; h: number }];
   'zone-cancel': [];
   'tile-toggled': [x: number, y: number];
+  'door-toggled': [x: number, y: number, side: Side];
 }>();
 
 const zoneDrag = ref<{ startX: number; startY: number; curX: number; curY: number } | null>(null);
@@ -338,6 +341,13 @@ watch(
   },
 );
 
+watch(
+  () => props.buildTool ?? 'tile',
+  (tool) => {
+    if (_scene) _scene.setBuildTool(tool);
+  },
+);
+
 onMounted(() => {
   if (!canvasRef.value) return;
 
@@ -427,8 +437,12 @@ onMounted(() => {
     });
 
     scene.events.on('tile-toggled', (x: number, y: number) => emit('tile-toggled', x, y));
+    scene.events.on('door-toggled', (x: number, y: number, side: Side) =>
+      emit('door-toggled', x, y, side),
+    );
 
     if (props.mapData) scene.applyMapData(props.mapData);
+    if (props.buildTool) scene.setBuildTool(props.buildTool);
     if (props.buildMode) scene.setBuildMode(true);
 
     // Voice rooms — build zones from the server's voice channels and auto-join on proximity

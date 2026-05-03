@@ -1,9 +1,11 @@
-import { DEFAULT_MAP, type MapData, type MapPublic } from '@nookapp/protocol';
+import { DEFAULT_MAP, type MapData, type MapPublic, type Side } from '@nookapp/protocol';
 
-// Module-level state: a single active map at a time, mirroring the active server.
+export type BuildTool = 'tile' | 'door';
+
 const currentMap = ref<MapData>(DEFAULT_MAP);
 const currentServerId = ref<string | null>(null);
 const buildMode = ref(false);
+const buildTool = ref<BuildTool>('tile');
 const isSaving = ref(false);
 
 const SAVE_DEBOUNCE_MS = 500;
@@ -17,6 +19,7 @@ export function useMap() {
     currentMap.value = result.data;
     currentServerId.value = serverId;
     buildMode.value = false;
+    buildTool.value = 'tile';
     return result.data;
   }
 
@@ -43,8 +46,6 @@ export function useMap() {
     }, SAVE_DEBOUNCE_MS);
   }
 
-  // Toggle a tile's presence. Removed tiles are tracked sparsely so the default
-  // (full grid) serializes as an empty array.
   function toggleTile(x: number, y: number) {
     const data = currentMap.value;
     const idx = data.tiles.findIndex(([tx, ty]) => tx === x && ty === y);
@@ -56,12 +57,27 @@ export function useMap() {
     scheduleSave();
   }
 
+  function toggleDoor(x: number, y: number, side: Side) {
+    const data = currentMap.value;
+    const idx = data.items.findIndex(
+      (item) => item.type === 'door' && item.x === x && item.y === y && item.side === side,
+    );
+    const items =
+      idx >= 0
+        ? data.items.filter((_, i) => i !== idx)
+        : [...data.items, { type: 'door' as const, x, y, side }];
+    currentMap.value = { ...data, items };
+    scheduleSave();
+  }
+
   return {
     currentMap,
     buildMode,
+    buildTool,
     isSaving: readonly(isSaving),
     loadMap,
     toggleTile,
+    toggleDoor,
     flushSave,
   };
 }

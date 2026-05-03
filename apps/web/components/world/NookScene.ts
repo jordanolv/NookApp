@@ -1,14 +1,22 @@
 import Phaser from 'phaser';
-import type { MapData, PlayerMovedPayload } from '@nookapp/protocol';
+import type { MapData, PlayerMovedPayload, Side } from '@nookapp/protocol';
+import { drawGrassBackground } from './scene/background';
+import { BuildOverlay } from './scene/build-overlay';
+import {
+  SPAWN_TILE_X,
+  SPAWN_TILE_Y,
+  TILE_SIZE,
+  WORLD_COLS,
+  WORLD_H,
+  WORLD_ROWS,
+  WORLD_W,
+} from './scene/constants';
+import { FloorRenderer } from './scene/floor-renderer';
+import { MapModel } from './scene/map-model';
+import { WallRenderer } from './scene/wall-renderer';
 
-const TILE_SIZE = 32;
-const WORLD_COLS = 70;
-const WORLD_ROWS = 70;
-const WORLD_W = WORLD_COLS * TILE_SIZE;
-const WORLD_H = WORLD_ROWS * TILE_SIZE;
-const SPAWN_TILE_X = 35;
-const SPAWN_TILE_Y = 35;
-const WALL_THICKNESS = 4;
+export type BuildTool = 'tile' | 'door';
+
 const PLAYER_SPEED = 170;
 const EMIT_INTERVAL_MS = 1000 / 15; // 15 Hz
 
@@ -102,15 +110,13 @@ export class NookScene extends Phaser.Scene {
   private currentRoomChannelId: string | null = null;
   private roomGraphics!: Phaser.GameObjects.Graphics;
 
-  // Map state — drives floor rendering, walls, and tile collision.
-  private mapData: MapData | null = null;
-  private floorGraphics?: Phaser.GameObjects.Graphics;
-  private wallGraphics?: Phaser.GameObjects.Graphics;
-  private buildOverlay?: Phaser.GameObjects.Graphics;
-  private wallGroup?: Phaser.Physics.Arcade.StaticGroup;
+  // Map editing
+  private model: MapModel | null = null;
+  private floorRenderer?: FloorRenderer;
+  private wallRenderer?: WallRenderer;
+  private buildOverlay?: BuildOverlay;
   private wallCollider?: Phaser.Physics.Arcade.Collider;
-  private buildModeActive = false;
-  private tilesSet = new Set<string>();
+  private buildTool: BuildTool = 'tile';
 
   localUserId: string;
   readonly localUserName: string;
@@ -144,31 +150,20 @@ export class NookScene extends Phaser.Scene {
     this.cameras.main.setRoundPixels(true);
     this.cameras.main.setBackgroundColor('#cdd0d4');
 
-    this.drawBackground();
+    drawGrassBackground(this);
 
-    this.floorGraphics = this.add.graphics().setDepth(0);
-    this.wallGraphics = this.add.graphics().setDepth(0.3);
-    this.wallGroup = this.physics.add.staticGroup();
-
-    this.buildOverlay = this.add.graphics().setDepth(20);
-    this.buildOverlay.setVisible(false);
+    this.floorRenderer = new FloorRenderer(this);
+    this.wallRenderer = new WallRenderer(this);
+    this.buildOverlay = new BuildOverlay(this);
 
     // Room graphics layer drawn below players
     this.roomGraphics = this.add.graphics();
     this.roomGraphics.setDepth(0.5);
 
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (!this.buildModeActive) return;
-      const tx = Math.floor(pointer.worldX / TILE_SIZE);
-      const ty = Math.floor(pointer.worldY / TILE_SIZE);
-      if (tx < 0 || ty < 0 || tx >= WORLD_COLS || ty >= WORLD_ROWS) return;
-      this.events.emit('tile-toggled', tx, ty);
-    });
+    this.input.on('pointerdown', this.onBuildPointerDown, this);
 
     this.spawnLocalPlayer();
-    if (this.wallGroup) {
-      this.wallCollider = this.physics.add.collider(this.localBody, this.wallGroup);
-    }
+    this.wallCollider = this.wallRenderer.collideWith(this.localBody);
     this.cameras.main.startFollow(this.localBody, true, 0.15, 0.15);
     this.setupInput();
     this.buildAnims();
@@ -181,78 +176,54 @@ export class NookScene extends Phaser.Scene {
   // --- Public API ---
 
   applyMapData(data: MapData) {
-    this.mapData = data;
-    this.redrawTiles();
-    this.redrawBuildOverlay();
+    this.model = new MapModel(data);
+    this.floorRenderer?.apply(this.model);
+    this.wallRenderer?.apply(this.model);
   }
 
   setBuildMode(active: boolean) {
-    if (this.buildModeActive === active) return;
-    this.buildModeActive = active;
-    this.buildOverlay?.setVisible(active);
+    if (!this.buildOverlay || this.buildOverlay.isActive() === active) return;
+    this.buildOverlay.setActive(active);
     if (this.wallCollider) this.wallCollider.active = !active;
-    this.redrawBuildOverlay();
   }
 
-  private redrawTiles() {
-    const floor = this.floorGraphics;
-    const wall = this.wallGraphics;
-    const group = this.wallGroup;
-    if (!floor || !wall || !group) return;
-    floor.clear();
-    wall.clear();
-    group.clear(true, true);
-    if (!this.mapData) return;
+  setBuildTool(tool: BuildTool) {
+    this.buildTool = tool;
+  }
 
-    this.tilesSet = new Set(this.mapData.tiles.map(([x, y]) => `${x},${y}`));
+  private onBuildPointerDown(pointer: Phaser.Input.Pointer) {
+    if (!this.buildOverlay?.isActive()) return;
+    const tx = Math.floor(pointer.worldX / TILE_SIZE);
+    const ty = Math.floor(pointer.worldY / TILE_SIZE);
+    if (tx < 0 || ty < 0 || tx >= WORLD_COLS || ty >= WORLD_ROWS) return;
 
-    floor.fillStyle(0xf3ead4, 1);
-    for (const [tx, ty] of this.mapData.tiles) {
-      floor.fillRect(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+    if (this.buildTool === 'tile') {
+      this.events.emit('tile-toggled', tx, ty);
+      return;
     }
 
-    wall.fillStyle(0x2d2d2d, 1);
-    for (const [tx, ty] of this.mapData.tiles) {
-      const px = tx * TILE_SIZE;
-      const py = ty * TILE_SIZE;
-      if (!this.tilesSet.has(`${tx},${ty - 1}`)) {
-        wall.fillRect(px, py, TILE_SIZE, WALL_THICKNESS);
-        this.addWallCollider(px, py, TILE_SIZE, WALL_THICKNESS);
-      }
-      if (!this.tilesSet.has(`${tx},${ty + 1}`)) {
-        wall.fillRect(px, py + TILE_SIZE - WALL_THICKNESS, TILE_SIZE, WALL_THICKNESS);
-        this.addWallCollider(px, py + TILE_SIZE - WALL_THICKNESS, TILE_SIZE, WALL_THICKNESS);
-      }
-      if (!this.tilesSet.has(`${tx - 1},${ty}`)) {
-        wall.fillRect(px, py, WALL_THICKNESS, TILE_SIZE);
-        this.addWallCollider(px, py, WALL_THICKNESS, TILE_SIZE);
-      }
-      if (!this.tilesSet.has(`${tx + 1},${ty}`)) {
-        wall.fillRect(px + TILE_SIZE - WALL_THICKNESS, py, WALL_THICKNESS, TILE_SIZE);
-        this.addWallCollider(px + TILE_SIZE - WALL_THICKNESS, py, WALL_THICKNESS, TILE_SIZE);
-      }
+    if (this.buildTool === 'door') {
+      const side = this.pickClosestSide(pointer.worldX, pointer.worldY, tx, ty);
+      if (!this.model?.hasFloor(tx, ty)) return;
+      if (!this.model.isExternalEdge(tx, ty, side)) return;
+      this.events.emit('door-toggled', tx, ty, side);
     }
   }
 
-  private addWallCollider(x: number, y: number, w: number, h: number) {
-    if (!this.wallGroup) return;
-    const zone = this.add.zone(x + w / 2, y + h / 2, w, h);
-    this.physics.add.existing(zone, true);
-    this.wallGroup.add(zone);
-  }
-
-  private redrawBuildOverlay() {
-    const g = this.buildOverlay;
-    if (!g) return;
-    g.clear();
-    if (!this.buildModeActive) return;
-    g.lineStyle(1, 0x6366f1, 0.5);
-    for (let x = 0; x <= WORLD_COLS; x++) {
-      g.lineBetween(x * TILE_SIZE, 0, x * TILE_SIZE, WORLD_H);
+  private pickClosestSide(worldX: number, worldY: number, tx: number, ty: number): Side {
+    const dx = worldX - tx * TILE_SIZE;
+    const dy = worldY - ty * TILE_SIZE;
+    const distances: Record<Side, number> = {
+      top: dy,
+      bottom: TILE_SIZE - dy,
+      left: dx,
+      right: TILE_SIZE - dx,
+    };
+    let best: Side = 'top';
+    for (const side of ['top', 'bottom', 'left', 'right'] as Side[]) {
+      if (distances[side] < distances[best]) best = side;
     }
-    for (let y = 0; y <= WORLD_ROWS; y++) {
-      g.lineBetween(0, y * TILE_SIZE, WORLD_W, y * TILE_SIZE);
-    }
+    return best;
   }
 
   setRooms(zones: RoomZone[]) {
@@ -422,27 +393,6 @@ export class NookScene extends Phaser.Scene {
       pos += seg;
       drawing = !drawing;
     }
-  }
-
-  private drawBackground() {
-    const grassKey = 'grass_tile';
-    if (!this.textures.exists(grassKey)) {
-      const g = this.make.graphics({ x: 0, y: 0 }, false);
-      g.fillStyle(0x6fa766, 1);
-      g.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
-      g.fillStyle(0x5e9659, 1);
-      g.fillRect(8, 4, 2, 2);
-      g.fillRect(20, 12, 2, 2);
-      g.fillRect(4, 22, 2, 2);
-      g.fillRect(24, 26, 2, 2);
-      g.fillStyle(0x82b870, 1);
-      g.fillRect(14, 6, 2, 2);
-      g.fillRect(2, 14, 2, 2);
-      g.fillRect(28, 18, 2, 2);
-      g.generateTexture(grassKey, TILE_SIZE, TILE_SIZE);
-      g.destroy();
-    }
-    this.add.tileSprite(0, 0, WORLD_W, WORLD_H, grassKey).setOrigin(0, 0).setDepth(-10);
   }
 
   private spawnLocalPlayer() {
