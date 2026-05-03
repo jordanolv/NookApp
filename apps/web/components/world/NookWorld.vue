@@ -88,9 +88,18 @@ const game = ref<Phaser.Game | null>(null);
 
 const socket = useSocket();
 
-// Direct DOM name tag management — no Vue reactivity in the 60fps render path
+// ─── DOM overlay maps — no Vue reactivity in the 60fps render path ───
 const nameTagEls = new Map<string, HTMLDivElement>();
+const camBubbleEls = new Map<string, HTMLVideoElement>();
+// eslint-disable-next-line no-unused-vars
+const camBubbleTracks = new Map<string, { detach: (el: HTMLVideoElement) => void }>();
 let cachedRect: DOMRect | null = null;
+
+// ─── Phaser-space screen share rings (behind sprites via depth sorting) ─
+let _scene: NookScene | null = null;
+const screenRingArcs = new Map<string, Phaser.GameObjects.Arc>();
+
+// ─── Name tags ───────────────────────────────────────────────────────
 
 function ensureNameTag(userId: string, name: string): HTMLDivElement {
   let el = nameTagEls.get(userId);
@@ -111,12 +120,92 @@ function ensureNameTag(userId: string, name: string): HTMLDivElement {
 }
 
 function removeNameTag(userId: string) {
-  const el = nameTagEls.get(userId);
-  if (el) {
-    el.remove();
-    nameTagEls.delete(userId);
+  nameTagEls.get(userId)?.remove();
+  nameTagEls.delete(userId);
+}
+
+// ─── Camera indicator (above name tag) ───────────────────────────────
+
+// Cam bubble: circular video element above the head, mirrored for local player (POC pattern)
+const CAM_BUBBLE_STYLE_BASE =
+  'position:absolute;width:72px;height:72px;border-radius:50%;object-fit:cover;' +
+  'border:3px solid rgba(255,255,255,0.2);box-shadow:0 4px 12px rgba(0,0,0,0.4);' +
+  'z-index:10;pointer-events:auto;cursor:pointer;background:#1d1b26;';
+
+// eslint-disable-next-line no-unused-vars
+type AttachableTrack = {
+  attach: (el: HTMLVideoElement) => HTMLVideoElement;
+  detach: (el: HTMLVideoElement) => HTMLVideoElement;
+};
+
+function ensureCamBubble(
+  userId: string,
+  track: AttachableTrack,
+  mirror: boolean,
+): HTMLVideoElement {
+  let el = camBubbleEls.get(userId);
+  const prevTrack = camBubbleTracks.get(userId);
+  if (!el) {
+    el = document.createElement('video');
+    el.autoplay = true;
+    el.playsInline = true;
+    el.muted = true;
+    el.style.cssText = CAM_BUBBLE_STYLE_BASE + (mirror ? 'transform:scaleX(-1);' : '');
+    const feedKey = mirror ? 'local-cam' : `cam-${userId}`;
+    el.addEventListener('click', () => voice.openMediaPanel(feedKey));
+    nameTagsContainer.value?.appendChild(el);
+    camBubbleEls.set(userId, el);
+  }
+  if (prevTrack !== track) {
+    if (prevTrack) prevTrack.detach(el);
+    track.attach(el);
+    camBubbleTracks.set(userId, track);
+  }
+  return el;
+}
+
+function removeCamBubble(userId: string) {
+  const el = camBubbleEls.get(userId);
+  const track = camBubbleTracks.get(userId);
+  if (el && track) track.detach(el);
+  el?.remove();
+  camBubbleEls.delete(userId);
+  camBubbleTracks.delete(userId);
+}
+
+// ─── Screen share breathing ring (Phaser Arc — renders behind sprites) ─
+
+function ensureScreenRing(userId: string): Phaser.GameObjects.Arc | null {
+  if (!_scene) return null;
+  let arc = screenRingArcs.get(userId);
+  if (!arc) {
+    arc = _scene.add.arc(0, 0, 22, 0, 360, false);
+    arc.setStrokeStyle(1.5, 0x93c5fd, 0.85);
+    arc.setFillStyle();
+    _scene.tweens.add({
+      targets: arc,
+      scaleX: { from: 0.9, to: 1.1 },
+      scaleY: { from: 0.9, to: 1.1 },
+      alpha: { from: 0.55, to: 0.95 },
+      duration: 1000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+    screenRingArcs.set(userId, arc);
+  }
+  return arc;
+}
+
+function removeScreenRing(userId: string) {
+  const arc = screenRingArcs.get(userId);
+  if (arc) {
+    arc.destroy();
+    screenRingArcs.delete(userId);
   }
 }
+
+// ─── Object labels ────────────────────────────────────────────────────
 
 const objectLabelEls = new Map<string, HTMLDivElement>();
 
@@ -153,10 +242,14 @@ function updateObjectLabels(labels: ObjectLabelUpdate[], cam: Phaser.Cameras.Sce
   }
 }
 
+// ─── Status icons ─────────────────────────────────────────────────────
+
 const ICON_MUTED =
   '<svg width="10" height="10" viewBox="0 0 24 24" fill="rgb(248,113,113)" style="flex-shrink:0"><path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/></svg>';
 const ICON_DEAFENED =
   '<svg width="10" height="10" viewBox="0 0 24 24" fill="rgb(248,113,113)" style="flex-shrink:0"><path d="M12 1c-4.97 0-9 4.03-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h3c1.66 0 3-1.34 3-3v-7c0-4.97-4.03-9-9-9zM1 12l2 2 2-2-2-2-2 2zm18 0l2 2 2-2-2-2-2 2z"/></svg>';
+
+// ─── Main overlay update (runs in POST_RENDER, 60fps) ─────────────────
 
 function updateNameTags(tags: NameTagUpdate[], cam: Phaser.Cameras.Scene2D.Camera) {
   if (!cachedRect) return;
@@ -164,7 +257,7 @@ function updateNameTags(tags: NameTagUpdate[], cam: Phaser.Cameras.Scene2D.Camer
   for (const t of tags) {
     seen.add(t.userId);
     const el = ensureNameTag(t.userId, t.name);
-    // Project 60 world-units above the body anchor (head top ≈ y - 54) so the offset scales with zoom
+    // Project 60 world-units above the body anchor so the offset scales with zoom
     const { x, y } = NookScene.projectToScreen(cam, cachedRect, t.worldX, t.worldY - 60);
     el.style.left = `${x}px`;
     el.style.top = `${y}px`;
@@ -174,10 +267,52 @@ function updateNameTags(tags: NameTagUpdate[], cam: Phaser.Cameras.Scene2D.Camer
       const icon = voice.isDeafened.value ? ICON_DEAFENED : voice.isMuted.value ? ICON_MUTED : '';
       if (iconSpan.innerHTML !== icon) iconSpan.innerHTML = icon;
     }
+
+    // Local player: read state directly so indicators work without a voice channel.
+    // Remote players: state comes from LiveKit TrackSubscribed events (same channel only).
+    // Local player reads cam/screen state directly; remote players via LiveKit events
+    const isLocalPlayer = t.userId === props.userId;
+    const media = isLocalPlayer
+      ? { cam: voice.isCameraOn.value, screen: voice.isScreenSharing.value }
+      : voice.participantMedia.value.get(t.userId);
+
+    // Cam bubble — 72×72 circular video above the head (matches POC "world-cam-bubble" pattern)
+    const camTrack = isLocalPlayer
+      ? (voice.localCameraTrack.value as AttachableTrack | null)
+      : ((voice.remoteVideoTracks.value.get(t.userId) as AttachableTrack | undefined) ?? null);
+    const worldMode = voice.mediaViewMode.value === 'world';
+
+    if (worldMode && media?.cam && camTrack) {
+      const bubble = ensureCamBubble(t.userId, camTrack, isLocalPlayer);
+      const { x: cx, y: cy } = NookScene.projectToScreen(cam, cachedRect, t.worldX, t.worldY - 50);
+      bubble.style.left = `${cx - 36}px`;
+      bubble.style.top = `${cy - 72 - 11}px`;
+      const speaking = voice.activeSpeakers.value.has(t.userId);
+      bubble.style.border = speaking ? '3px solid #2bd47b' : '3px solid rgba(255,255,255,0.2)';
+      bubble.style.boxShadow = speaking
+        ? '0 6px 16px rgba(0,0,0,0.55),0 0 18px rgba(43,212,123,0.45)'
+        : '0 4px 12px rgba(0,0,0,0.4)';
+    } else {
+      removeCamBubble(t.userId);
+    }
+
+    if (worldMode && media?.screen) {
+      const arc = ensureScreenRing(t.userId);
+      if (arc) {
+        arc.x = t.worldX;
+        arc.y = t.worldY;
+        arc.setDepth(t.worldY - 0.5);
+      }
+    } else {
+      removeScreenRing(t.userId);
+    }
   }
-  // Remove tags for players no longer present
   for (const userId of nameTagEls.keys()) {
-    if (!seen.has(userId)) removeNameTag(userId);
+    if (!seen.has(userId)) {
+      removeNameTag(userId);
+      removeCamBubble(userId);
+      removeScreenRing(userId);
+    }
   }
 }
 
@@ -186,8 +321,7 @@ onMounted(() => {
 
   // CRITICAL: ensure the socket exists before registering listeners.
   // Vue mounts children before parents, so we cannot rely on the parent's
-  // onMounted to have called connect() yet — without this, socket?.on(...)
-  // is a silent no-op and every listener is lost.
+  // onMounted to have called connect() yet.
   socket.connect();
 
   const ro = new ResizeObserver(() => {
@@ -217,7 +351,6 @@ onMounted(() => {
   // listener-registration are silently lost.
 
   const offSnapshot = socket.onSnapshot(({ you, others }) => {
-    // Authoritative userId from the server, in case props.userId was stale
     scene.setLocalUserId(you.userId);
     for (const p of others) {
       scene.updateRemotePlayer(
@@ -242,6 +375,8 @@ onMounted(() => {
   const offLeft = socket.onPlayerLeft(({ userId }) => {
     scene.removeRemotePlayer(userId);
     removeNameTag(userId);
+    removeCamBubble(userId);
+    removeScreenRing(userId);
   });
 
   // World object socket listeners
@@ -260,6 +395,7 @@ onMounted(() => {
 
   // Scene-level wiring once the scene is fully created
   scene.onReady = () => {
+    _scene = scene;
     scene.events.on('player-moved', (payload: Parameters<typeof socket.emitPlayerMoved>[0]) => {
       socket.emitPlayerMoved(payload);
     });
@@ -330,6 +466,12 @@ onMounted(() => {
     game.value = null;
     nameTagEls.clear();
     objectLabelEls.clear();
+    for (const [uid] of camBubbleEls) removeCamBubble(uid);
+    camBubbleEls.clear();
+    camBubbleTracks.clear();
+    for (const arc of screenRingArcs.values()) arc.destroy();
+    screenRingArcs.clear();
+    _scene = null;
   });
 
   nextTick(() => {
@@ -346,6 +488,9 @@ onMounted(() => {
   <div class="relative w-full h-full overflow-hidden">
     <div ref="canvasRef" class="absolute inset-0" />
     <div ref="nameTagsContainer" class="absolute inset-0 pointer-events-none" />
+
+    <!-- Media panel — camera / screen share feeds for same-channel participants -->
+    <VoiceMediaPanel />
 
     <!-- Zone picker overlay — admin draws a rect to define a voice room area -->
     <div
