@@ -95,6 +95,7 @@ const zoneDragRect = computed(() => {
 const canvasRef = ref<HTMLDivElement | null>(null);
 const nameTagsContainer = ref<HTMLDivElement | null>(null);
 const game = ref<Phaser.Game | null>(null);
+const playerPopup = ref<{ userId: string; name: string; x: number; y: number } | null>(null);
 
 const socket = useSocket();
 
@@ -441,6 +442,21 @@ onMounted(() => {
     scene.events.on('tiles-rect', (rect: RectPayload) => emit('tiles-rect', rect));
     scene.events.on('walls-rect', (rect: RectPayload) => emit('walls-rect', rect));
 
+    scene.events.on(
+      'player:interact',
+      (payload: { userId: string; name: string; worldX: number; worldY: number }) => {
+        if (!cachedRect) return;
+        const cam = scene.cameras.main;
+        const { x, y } = NookScene.projectToScreen(
+          cam,
+          cachedRect,
+          payload.worldX,
+          payload.worldY - 60,
+        );
+        playerPopup.value = { userId: payload.userId, name: payload.name, x, y };
+      },
+    );
+
     if (props.mapData) scene.applyMapData(props.mapData);
     if (props.buildTool) scene.setBuildTool(props.buildTool);
     if (props.buildMode) scene.setBuildMode(true);
@@ -529,6 +545,16 @@ onMounted(() => {
   <div class="relative w-full h-full overflow-hidden">
     <div ref="canvasRef" class="absolute inset-0" />
     <div ref="nameTagsContainer" class="absolute inset-0 pointer-events-none" />
+
+    <!-- Player interaction popup -->
+    <WorldPlayerPopup
+      v-if="playerPopup"
+      :user-id="playerPopup.userId"
+      :name="playerPopup.name"
+      :x="playerPopup.x"
+      :y="playerPopup.y"
+      @close="playerPopup = null"
+    />
 
     <!-- Media panel — camera / screen share feeds for same-channel participants -->
     <VoiceMediaPanel />
