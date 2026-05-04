@@ -95,6 +95,8 @@ export default [
         useVoice: 'readonly',
         usePlugins: 'readonly',
         useInvites: 'readonly',
+        useMember: 'readonly',
+        useMap: 'readonly',
         useServersStore: 'readonly',
         $fetch: 'readonly',
         // Pinia

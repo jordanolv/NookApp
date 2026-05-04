@@ -43,6 +43,13 @@
       "when": 1746267600000,
       "tag": "0005_channel_types",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777828897971,
+      "tag": "0006_bored_slapstick",
+      "breakpoints": true
     }
   ]
 }

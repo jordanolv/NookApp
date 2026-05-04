@@ -19,6 +19,11 @@ export class MembersController {
     return this.membersService.listMembers(serverId, user.id);
   }
 
+  @Get('me')
+  me(@CurrentUser() user: AuthSession['user'], @Param('serverId') serverId: string) {
+    return this.membersService.getMember(serverId, user.id);
+  }
+
   @Patch(':userId')
   update(
     @CurrentUser() user: AuthSession['user'],

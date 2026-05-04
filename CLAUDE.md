@@ -511,6 +511,8 @@ Branch order, each PR to `dev` before starting the next:
 
 ## What NOT to do
 
+- **Don't use `grep` for code exploration** — use `grepai search "<natural language query>"` instead. It's a semantic (vector) search tool installed at `/opt/homebrew/bin/grepai` that understands meaning. Reserve raw `grep` only for exact string matches (e.g. finding a specific constant value).
+
 - **Don't add features beyond the current sprint**. Scope creep is the #1 risk on a 5-sprint project. Slot machine, card game, music bot, etc. live in `plugins/` — they wait until Sprint 3.
 - **Don't write multi-paragraph comments or ASCII art docstrings**. The codebase prefers terse code with named identifiers over long prose.
 - **Don't use `any` to bypass type errors**. Fix the type or add a justified `@ts-expect-error` with a comment.

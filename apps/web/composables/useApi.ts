@@ -31,9 +31,22 @@ export function useApi() {
     });
   }
 
+  function put<T>(
+    path: string,
+    body: Record<string, unknown>,
+    opts?: Parameters<typeof $fetch>[1],
+  ) {
+    return $fetch<T>(`${apiBase}${path}`, {
+      method: 'PUT',
+      body,
+      credentials: 'include',
+      ...opts,
+    });
+  }
+
   function del(path: string, opts?: Parameters<typeof $fetch>[1]) {
     return $fetch(`${apiBase}${path}`, { method: 'DELETE', credentials: 'include', ...opts });
   }
 
-  return { get, post, patch, del };
+  return { get, post, patch, put, del };
 }

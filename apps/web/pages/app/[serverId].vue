@@ -10,6 +10,17 @@ const { user, signOut } = useAuth();
 const { createInvite } = useInvites();
 const socket = useSocket();
 const voice = useVoice();
+const { isAdmin, loadMember } = useMember();
+const {
+  currentMap,
+  buildMode,
+  buildTool,
+  isSaving: isMapSaving,
+  loadMap,
+  paintRect,
+  paintWallsRect,
+  flushSave,
+} = useMap();
 
 // ── Multi-window chat ──
 interface ChatWin {
@@ -157,10 +168,34 @@ watch(
   async (id) => {
     const found = store.list.find((s) => s.id === id) ?? null;
     store.setCurrent(found);
-    if (found) await fetchChannels(id);
+    if (!found) return;
+    // Each request is isolated: a 404 on /map (e.g. API not yet deployed with
+    // the new module) must not block the channel list or member fetch.
+    await Promise.all([
+      fetchChannels(id),
+      loadMember(id).catch((err) => console.warn('loadMember failed', err)),
+      loadMap(id).catch((err) => console.warn('loadMap failed', err)),
+    ]);
   },
   { immediate: true },
 );
+
+type RectPayload = { x1: number; y1: number; x2: number; y2: number; mode: 'add' | 'remove' };
+
+function onTilesRect(rect: RectPayload) {
+  if (!isAdmin.value || !buildMode.value) return;
+  paintRect(rect.x1, rect.y1, rect.x2, rect.y2, rect.mode);
+}
+
+function onWallsRect(rect: RectPayload) {
+  if (!isAdmin.value || !buildMode.value) return;
+  paintWallsRect(rect.x1, rect.y1, rect.x2, rect.y2, rect.mode);
+}
+
+async function toggleBuildMode() {
+  buildMode.value = !buildMode.value;
+  if (!buildMode.value) await flushSave();
+}
 
 async function handleVoiceChannelClick(channelId: string) {
   if (voice.currentChannelId.value === channelId) {
@@ -179,6 +214,7 @@ onMounted(() => {
 
 onUnmounted(async () => {
   if (voice.currentChannelId.value) await voice.leave();
+  await flushSave();
   teardownVoiceListeners?.();
   socket.disconnect();
 });
@@ -199,8 +235,13 @@ async function handleSignOut() {
         :user-id="user.id"
         :player-name="user.name"
         :zone-picker-active="zonePickerActive"
+        :map-data="currentMap"
+        :build-mode="buildMode"
+        :build-tool="buildTool"
         @zone-picked="onZonePicked"
         @zone-cancel="onZoneCancel"
+        @tiles-rect="onTilesRect"
+        @walls-rect="onWallsRect"
       />
     </ClientOnly>
 
@@ -373,6 +414,34 @@ async function handleSignOut() {
       <!-- Bottom actions -->
       <div class="flex flex-col gap-0.5 px-1.5">
         <div class="mx-1 mb-1" style="height: 1px; background: rgba(255, 255, 255, 0.04)" />
+
+        <!-- Build mode (admin-only) -->
+        <button
+          v-if="isAdmin"
+          class="relative flex h-8 items-center gap-2 rounded-xl transition-all duration-150"
+          :class="railExpanded ? 'px-2 justify-start' : 'justify-center'"
+          :style="
+            buildMode
+              ? 'background: rgba(99,102,241,0.25); color: rgba(165,180,252,1)'
+              : 'color: rgba(255,255,255,0.3)'
+          "
+          :title="buildMode ? 'Quitter le mode build' : 'Mode build'"
+          @click="toggleBuildMode"
+        >
+          <svg class="flex-shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M22 9l-3.39-.34-1.46-3.15-2.91 1.81L11 6l-1.24 3.32-2.91-1.81L5.39 10.66 2 11l1.81 2.91L2 16.83l3.39.34 1.46 3.15 2.91-1.81L11 22l1.24-3.32 2.91 1.81 1.46-3.15L22 17l-1.81-2.91z"
+            />
+          </svg>
+          <span v-if="railExpanded" class="truncate text-xs font-medium">
+            {{ buildMode ? 'Mode build (on)' : 'Mode build' }}
+          </span>
+          <span
+            v-if="isMapSaving"
+            class="ml-auto h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-400"
+            title="Sauvegarde…"
+          />
+        </button>
 
         <!-- Create channel -->
         <button
@@ -566,6 +635,17 @@ async function handleSignOut() {
     <!-- Voice panel -->
     <ClientOnly>
       <VoicePanel />
+    </ClientOnly>
+
+    <!-- Build panel (admin + build mode only) -->
+    <ClientOnly>
+      <WorldBuildPanel
+        v-if="isAdmin && buildMode"
+        :tool="buildTool"
+        :is-saving="isMapSaving"
+        @update:tool="buildTool = $event"
+        @close="toggleBuildMode"
+      />
     </ClientOnly>
 
     <!-- Invite modal -->

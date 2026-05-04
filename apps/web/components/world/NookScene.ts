@@ -1,11 +1,23 @@
 import Phaser from 'phaser';
-import type { PlayerMovedPayload } from '@nookapp/protocol';
+import type { MapData, PlayerMovedPayload } from '@nookapp/protocol';
+import { drawGrassBackground } from './scene/background';
+import { BuildOverlay } from './scene/build-overlay';
+import {
+  SPAWN_TILE_X,
+  SPAWN_TILE_Y,
+  TILE_SIZE,
+  WORLD_COLS,
+  WORLD_H,
+  WORLD_ROWS,
+  WORLD_W,
+} from './scene/constants';
+import { FloorRenderer } from './scene/floor-renderer';
+import { MapModel } from './scene/map-model';
+import { RectPaintTool } from './scene/rect-paint-tool';
+import { WallRenderer } from './scene/wall-renderer';
 
-const TILE_SIZE = 32;
-const WORLD_COLS = 40;
-const WORLD_ROWS = 40;
-const WORLD_W = WORLD_COLS * TILE_SIZE;
-const WORLD_H = WORLD_ROWS * TILE_SIZE;
+export type BuildTool = 'tile' | 'wall';
+
 const PLAYER_SPEED = 170;
 const EMIT_INTERVAL_MS = 1000 / 15; // 15 Hz
 
@@ -99,6 +111,16 @@ export class NookScene extends Phaser.Scene {
   private currentRoomChannelId: string | null = null;
   private roomGraphics!: Phaser.GameObjects.Graphics;
 
+  // Map editing
+  private model: MapModel | null = null;
+  private floorRenderer?: FloorRenderer;
+  private wallRenderer?: WallRenderer;
+  private buildOverlay?: BuildOverlay;
+  private tilePaintTool?: RectPaintTool;
+  private wallPaintTool?: RectPaintTool;
+  private wallCollider?: Phaser.Physics.Arcade.Collider;
+  private buildTool: BuildTool = 'tile';
+
   localUserId: string;
   readonly localUserName: string;
   onReady?: () => void;
@@ -128,17 +150,26 @@ export class NookScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, WORLD_W, WORLD_H);
     this.cameras.main.setBounds(0, 0, WORLD_W, WORLD_H);
     this.cameras.main.setZoom(1.5);
-    this.cameras.main.setRoundPixels(true);
     this.cameras.main.setBackgroundColor('#cdd0d4');
 
-    this.drawFloor();
+    drawGrassBackground(this);
+
+    this.floorRenderer = new FloorRenderer(this);
+    this.wallRenderer = new WallRenderer(this);
+    this.buildOverlay = new BuildOverlay(this);
+    this.tilePaintTool = new RectPaintTool(this, { add: 0x6366f1, remove: 0xef4444 });
+    this.wallPaintTool = new RectPaintTool(this, { add: 0x9a9a9a, remove: 0xef4444 });
 
     // Room graphics layer drawn below players
     this.roomGraphics = this.add.graphics();
     this.roomGraphics.setDepth(0.5);
 
+    this.input.on('pointerdown', this.onBuildPointerDown, this);
+    this.input.on('pointermove', this.onBuildPointerMove, this);
+    this.input.on('pointerup', this.onBuildPointerUp, this);
+
     this.spawnLocalPlayer();
-    this.cameras.main.startFollow(this.localBody, true, 0.15, 0.15);
+    this.wallCollider = this.wallRenderer.collideWith(this.localBody);
     this.setupInput();
     this.buildAnims();
 
@@ -148,6 +179,70 @@ export class NookScene extends Phaser.Scene {
   }
 
   // --- Public API ---
+
+  applyMapData(data: MapData) {
+    this.model = new MapModel(data);
+    this.floorRenderer?.apply(this.model);
+    this.wallRenderer?.apply(this.model);
+  }
+
+  setBuildMode(active: boolean) {
+    if (!this.buildOverlay || this.buildOverlay.isActive() === active) return;
+    this.buildOverlay.setActive(active);
+    if (this.wallCollider) this.wallCollider.active = !active;
+    if (!active) {
+      this.tilePaintTool?.cancel();
+      this.wallPaintTool?.cancel();
+    }
+  }
+
+  setBuildTool(tool: BuildTool) {
+    if (this.buildTool === tool) return;
+    this.buildTool = tool;
+    this.tilePaintTool?.cancel();
+    this.wallPaintTool?.cancel();
+  }
+
+  private activeTool(): RectPaintTool | undefined {
+    return this.buildTool === 'tile' ? this.tilePaintTool : this.wallPaintTool;
+  }
+
+  private isPresentAtPointer(tx: number, ty: number): boolean {
+    if (!this.model) return false;
+    return this.buildTool === 'tile' ? this.model.hasFloor(tx, ty) : this.model.hasWall(tx, ty);
+  }
+
+  private commitEventName(): 'tiles-rect' | 'walls-rect' {
+    return this.buildTool === 'tile' ? 'tiles-rect' : 'walls-rect';
+  }
+
+  private isBuildActive() {
+    return this.buildOverlay?.isActive() ?? false;
+  }
+
+  private pointerToTile(pointer: Phaser.Input.Pointer): [number, number] {
+    return [Math.floor(pointer.worldX / TILE_SIZE), Math.floor(pointer.worldY / TILE_SIZE)];
+  }
+
+  private onBuildPointerDown(pointer: Phaser.Input.Pointer) {
+    if (!this.isBuildActive() || !this.model) return;
+    const [tx, ty] = this.pointerToTile(pointer);
+    if (tx < 0 || ty < 0 || tx >= WORLD_COLS || ty >= WORLD_ROWS) return;
+    this.activeTool()?.beginDrag(tx, ty, this.isPresentAtPointer(tx, ty));
+  }
+
+  private onBuildPointerMove(pointer: Phaser.Input.Pointer) {
+    const [tx, ty] = this.pointerToTile(pointer);
+    this.activeTool()?.updateDrag(tx, ty);
+  }
+
+  private onBuildPointerUp(pointer: Phaser.Input.Pointer) {
+    const tool = this.activeTool();
+    if (!tool) return;
+    const [tx, ty] = this.pointerToTile(pointer);
+    const result = tool.endDrag(tx, ty);
+    if (result) this.events.emit(this.commitEventName(), result);
+  }
 
   setRooms(zones: RoomZone[]) {
     this.activeRooms = zones.slice(0, ROOM_POSITIONS.length).map((zone, i) => {
@@ -318,31 +413,11 @@ export class NookScene extends Phaser.Scene {
     }
   }
 
-  private drawFloor() {
-    const tileKey = 'floor_tile';
-    if (!this.textures.exists(tileKey)) {
-      const g = this.make.graphics({ x: 0, y: 0 }, false);
-      g.fillStyle(0xf3ead4, 1);
-      g.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
-      g.lineStyle(1, 0xe6dcc2, 0.6);
-      g.lineBetween(0, TILE_SIZE - 0.5, TILE_SIZE, TILE_SIZE - 0.5);
-      g.lineBetween(TILE_SIZE - 0.5, 0, TILE_SIZE - 0.5, TILE_SIZE);
-      g.generateTexture(tileKey, TILE_SIZE, TILE_SIZE);
-      g.destroy();
-    }
-    this.add.tileSprite(0, 0, WORLD_W, WORLD_H, tileKey).setOrigin(0, 0);
-
-    const wall = this.add.graphics();
-    wall.fillStyle(0x2d2d2d, 1);
-    wall.fillRect(0, 0, WORLD_W, 16);
-    wall.fillRect(0, WORLD_H - 16, WORLD_W, 16);
-    wall.fillRect(0, 0, 16, WORLD_H);
-    wall.fillRect(WORLD_W - 16, 0, 16, WORLD_H);
-    wall.setDepth(15);
-  }
-
   private spawnLocalPlayer() {
-    this.localLayers = this.spawnLayers(WORLD_W / 2, WORLD_H / 2);
+    this.localLayers = this.spawnLayers(
+      SPAWN_TILE_X * TILE_SIZE + TILE_SIZE / 2,
+      SPAWN_TILE_Y * TILE_SIZE + TILE_SIZE / 2,
+    );
     this.physics.add.existing(this.localLayers[0]);
     this.localBody = this.localLayers[0] as Phaser.Physics.Arcade.Sprite;
     const pb = this.localBody.body as Phaser.Physics.Arcade.Body;
@@ -422,6 +497,21 @@ export class NookScene extends Phaser.Scene {
     }
 
     (this.localBody.body as Phaser.Physics.Arcade.Body).setVelocity(vx, vy);
+
+    // Manual camera lerp + pixel snap — Phaser 3.90 applies startFollow inside
+    // Camera.preRender(), overriding any external snap. Doing it here in update()
+    // means preRender() sees our already-snapped value and only applies Math.floor
+    // (which is a no-op on an even integer). Even-integer snap: even × 1.5 = integer
+    // screen position → no sub-pixel gaps between adjacent 32px wall tiles.
+    {
+      const cam = this.cameras.main;
+      const tx = this.localBody.x - cam.width / 2;
+      const ty = this.localBody.y - cam.height / 2;
+      const lx = cam.scrollX + (tx - cam.scrollX) * 0.15;
+      const ly = cam.scrollY + (ty - cam.scrollY) * 0.15;
+      cam.scrollX = Math.round(lx / 2) * 2;
+      cam.scrollY = Math.round(ly / 2) * 2;
+    }
 
     // Lerp remote players toward their last-known target position each frame
     for (const remote of this.remotePlayers.values()) {

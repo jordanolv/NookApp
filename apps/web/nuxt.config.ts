@@ -19,4 +19,10 @@ export default defineNuxtConfig({
     strict: true,
     typeCheck: false,
   },
+  // Pre-bundle @nookapp/protocol so Vite serves an ESM wrapper around its CJS output.
+  vite: {
+    optimizeDeps: {
+      include: ['@nookapp/protocol'],
+    },
+  },
 });
