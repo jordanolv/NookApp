@@ -6,6 +6,7 @@ import { toNodeHandler } from 'better-auth/node';
 import type { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
 import { AUTH, type AuthInstance } from './auth/auth.types';
+import { CollaborationService } from './collaboration/collaboration.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
@@ -53,6 +54,9 @@ async function bootstrap() {
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port);
   console.log(`api listening on http://localhost:${port}`);
+
+  const collab = app.get(CollaborationService);
+  await collab.listen();
 }
 
 void bootstrap();

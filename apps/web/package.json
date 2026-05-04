@@ -13,6 +13,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@hocuspocus/provider": "^4.0.0",
     "@nookapp/protocol": "workspace:*",
     "@pinia/nuxt": "^0.7.0",
     "@vueuse/core": "^11.1.0",
@@ -24,6 +25,7 @@
     "socket.io-client": "^4.8.3",
     "vue": "^3.5.12",
     "vue-router": "^4.4.5",
+    "yjs": "^13.6.30",
     "zod": "^4.4.2"
   },
   "devDependencies": {
