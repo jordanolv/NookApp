@@ -8,6 +8,48 @@
       "when": 1777724358329,
       "tag": "0000_abandoned_silver_fox",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777730243355,
+      "tag": "0001_closed_exodus",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777731376559,
+      "tag": "0002_rare_human_cannonball",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777753431087,
+      "tag": "0003_fixed_firebird",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777754310296,
+      "tag": "0004_plugin_kv",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1746267600000,
+      "tag": "0005_channel_types",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777828897971,
+      "tag": "0006_bored_slapstick",
+      "breakpoints": true
     }
   ]
 }
