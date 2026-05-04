@@ -56,6 +56,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@hocuspocus/server':
+        specifier: ^4.0.0
+        version: 4.0.0(srvx@0.11.15)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30)
       '@nestjs/common':
         specifier: ^10.4.6
         version: 10.4.22(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -122,6 +125,9 @@ importers:
       socket.io:
         specifier: ^4.8.3
         version: 4.8.3
+      yjs:
+        specifier: ^13.6.30
+        version: 13.6.30
       zod:
         specifier: ^4.4.2
         version: 4.4.2
@@ -174,6 +180,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@hocuspocus/provider':
+        specifier: ^4.0.0
+        version: 4.0.0(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30)
       '@nookapp/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -207,6 +216,9 @@ importers:
       vue-router:
         specifier: ^4.4.5
         version: 4.6.4(vue@3.5.33(typescript@5.9.3))
+      yjs:
+        specifier: ^13.6.30
+        version: 13.6.30
       zod:
         specifier: ^4.4.2
         version: 4.4.2
@@ -1531,6 +1543,22 @@ packages:
   '@floating-ui/vue@1.1.11':
     resolution: {integrity: sha512-HzHKCNVxnGS35r9fCHBc3+uCnjw9IWIlCPL683cGgM9Kgj2BiAl8x1mS7vtvP6F9S/e/q4O6MApwSHj8hNLGfw==}
 
+  '@hocuspocus/common@4.0.0':
+    resolution: {integrity: sha512-7BE8TsKBkdiOZO6tfm3ny6bIHPbxkIZb3hsYdVn/X5xbXI8n8w9pnE6pXgEMKQhJm6zsWsa9IDRJIp/c9u+DmA==}
+
+  '@hocuspocus/provider@4.0.0':
+    resolution: {integrity: sha512-08gpeNZ6x2pmRD6m4XwRD52yQKnTl32a0HS9VSXZ5A1dIBVqxMz/x8Z06XbkKM2X8sp6vWEUCZCtzAGFSsofgg==}
+    peerDependencies:
+      y-protocols: ^1.0.6
+      yjs: ^13.6.8
+
+  '@hocuspocus/server@4.0.0':
+    resolution: {integrity: sha512-Pgm+kVtTrVvybIJUVot5XumSzD8rPLQglUV0QAAiN6J64dkYc2wWNdGcMwJz3q3yJPV0dO+eRU9JEck+iVdgzQ==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      y-protocols: ^1.0.6
+      yjs: ^13.6.8
+
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
     engines: {node: '>=18.18.0'}
@@ -1674,6 +1702,9 @@ packages:
 
   '@kwsites/promise-deferred@1.1.1':
     resolution: {integrity: sha512-GaHYm+c0O9MjZRu0ongGBRbinu8gVAMd2UZjji6jVmqKtZluZnptXGWhz1E8j8D2HJ3f/yMxKAUC0b+57wncIw==}
+
+  '@lifeomic/attempt@3.1.0':
+    resolution: {integrity: sha512-QZqem4QuAnAyzfz+Gj5/+SLxqwCAw2qmt7732ZXodr6VDWGeYLG6w1i/vYLa55JQM9wRuBKLmXmiZ2P0LtE5rw==}
 
   '@livekit/mutex@1.1.1':
     resolution: {integrity: sha512-EsshAucklmpuUAfkABPxJNhzj9v2sG7JuzFDL4ML1oJQSV14sqrpTYnsaOudMAw9yOaW53NU3QQTlUQoRs4czw==}
@@ -3220,6 +3251,9 @@ packages:
   ast-walker-scope@0.8.3:
     resolution: {integrity: sha512-cbdCP0PGOBq0ASG+sjnKIoYkWMKhhz+F/h9pRexUdX2Hd38+WOlBkRKlqkGOSm0YQpcFMQBJeK4WspUAkwsEdg==}
     engines: {node: '>=20.19.0'}
+
+  async-mutex@0.5.0:
+    resolution: {integrity: sha512-1A94B18jkJ3DYq284ohPxoXbfTA5HsQ7/Mf4DEhcyLx3Bz27Rh59iScbB6EPiP+B+joue6YCxcMXSbFC1tZKwA==}
 
   async-sema@3.1.1:
     resolution: {integrity: sha512-tLRNUXati5MFePdAk8dw7Qt7DpxPB60ofAgn8WRhW6a2rcimZnYBP9oxHiv0OHy+Wz7kPMG+t4LGdt31+4EmGg==}
@@ -5016,6 +5050,9 @@ packages:
     resolution: {integrity: sha512-FFUtZMpoZ8RqHS3XeXEmHWLA4thH+ZxCv2lOiPIn1Xc7CxrqhWzNSDzD+/chS/zbYezmiwWLdQC09JdQKmthOw==}
     engines: {node: '>=20'}
 
+  isomorphic.js@0.2.5:
+    resolution: {integrity: sha512-PIeMbHqMt4DnUP3MA/Flc0HElYjMXArsw1qwJZcm9sqR8mq3l8NYizFMty0pWwE/tzIGH3EKK5+jes5mAr85yw==}
+
   istanbul-lib-coverage@3.2.2:
     resolution: {integrity: sha512-O8dpsF+r0WV/8MNRKfnmrtCWhuKjxrq2w+jpzBL5UZKTi2LeVWnWOmWRxFlesJONmc+wLAGvKQZEOanko0LFTg==}
     engines: {node: '>=8'}
@@ -5312,6 +5349,11 @@ packages:
   levn@0.4.1:
     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
     engines: {node: '>= 0.8.0'}
+
+  lib0@0.2.117:
+    resolution: {integrity: sha512-DeXj9X5xDCjgKLU/7RR+/HQEVzuuEUiwldwOGsHK/sfAfELGWEyTcf0x+uOvCvK3O2zPmZePXWL85vtia6GyZw==}
+    engines: {node: '>=16'}
+    hasBin: true
 
   libphonenumber-js@1.12.42:
     resolution: {integrity: sha512-oKQFPTibqQwZZkChCDVMFVJXMZdyJNqDWZWYNn8BgyAaK/6yFJEowxCY0RVFirRyWP63hMRuKlkSEd9qlvbWXg==}
@@ -7602,6 +7644,12 @@ packages:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
     engines: {node: '>=0.4'}
 
+  y-protocols@1.0.7:
+    resolution: {integrity: sha512-YSVsLoXxO67J6eE/nV4AtFtT3QEotZf5sK5BHxFBXso7VDUT3Tx07IfA6hsu5Q5OmBdMkQVmFZ9QOA7fikWvnw==}
+    engines: {node: '>=16.0.0', npm: '>=8.0.0'}
+    peerDependencies:
+      yjs: ^13.0.0
+
   y18n@5.0.8:
     resolution: {integrity: sha512-0pfFzegeDWJHJIAmTLRP2DwHjdF5s7jo9tuztdQxAhINCdvS+3nGINqPd00AphqJR/0LhANUS6/+7SCb98YOfA==}
     engines: {node: '>=10'}
@@ -7633,6 +7681,10 @@ packages:
   yargs@18.0.0:
     resolution: {integrity: sha512-4UEqdc2RYGHZc7Doyqkrqiln3p9X2DZVxaGbwhn2pi7MrRagKaOcIKe8L3OxYcbhXLgLFUS3zAYuQjKBQgmuNg==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=23}
+
+  yjs@13.6.30:
+    resolution: {integrity: sha512-vv/9h42eCMC81ZHDFswuu/MKzkl/vyq1BhaNGfHyOonwlG4CJbQF4oiBBJPvfdeCt/PlVDWh7Nov9D34YY09uQ==}
+    engines: {node: '>=16.0.0', npm: '>=8.0.0'}
 
   ylru@1.4.0:
     resolution: {integrity: sha512-2OQsPNEmBCvXuFlIni/a+Rn+R2pHW9INm0BxXJ4hVDA8TirqMj+J/Rp9ItLatT/5pZqWwefVrTQcHpixsxnVlA==}
@@ -8624,6 +8676,34 @@ snapshots:
       - '@vue/composition-api'
       - vue
 
+  '@hocuspocus/common@4.0.0':
+    dependencies:
+      lib0: 0.2.117
+
+  '@hocuspocus/provider@4.0.0(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30)':
+    dependencies:
+      '@hocuspocus/common': 4.0.0
+      '@lifeomic/attempt': 3.1.0
+      lib0: 0.2.117
+      ws: 8.20.0
+      y-protocols: 1.0.7(yjs@13.6.30)
+      yjs: 13.6.30
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
+  '@hocuspocus/server@4.0.0(srvx@0.11.15)(y-protocols@1.0.7(yjs@13.6.30))(yjs@13.6.30)':
+    dependencies:
+      '@hocuspocus/common': 4.0.0
+      async-mutex: 0.5.0
+      crossws: 0.4.5(srvx@0.11.15)
+      kleur: 4.1.5
+      lib0: 0.2.117
+      y-protocols: 1.0.7(yjs@13.6.30)
+      yjs: 13.6.30
+    transitivePeerDependencies:
+      - srvx
+
   '@humanfs/core@0.19.2':
     dependencies:
       '@humanfs/types': 0.15.0
@@ -8881,6 +8961,8 @@ snapshots:
       - supports-color
 
   '@kwsites/promise-deferred@1.1.1': {}
+
+  '@lifeomic/attempt@3.1.0': {}
 
   '@livekit/mutex@1.1.1': {}
 
@@ -10652,6 +10734,10 @@ snapshots:
     dependencies:
       '@babel/parser': 7.29.3
       ast-kit: 2.2.0
+
+  async-mutex@0.5.0:
+    dependencies:
+      tslib: 2.8.1
 
   async-sema@3.1.1: {}
 
@@ -12515,6 +12601,8 @@ snapshots:
 
   isexe@4.0.0: {}
 
+  isomorphic.js@0.2.5: {}
+
   istanbul-lib-coverage@3.2.2: {}
 
   istanbul-lib-instrument@5.2.1:
@@ -13015,6 +13103,10 @@ snapshots:
     dependencies:
       prelude-ls: 1.2.1
       type-check: 0.4.0
+
+  lib0@0.2.117:
+    dependencies:
+      isomorphic.js: 0.2.5
 
   libphonenumber-js@1.12.42: {}
 
@@ -15561,6 +15653,11 @@ snapshots:
 
   xtend@4.0.2: {}
 
+  y-protocols@1.0.7(yjs@13.6.30):
+    dependencies:
+      lib0: 0.2.117
+      yjs: 13.6.30
+
   y18n@5.0.8: {}
 
   yallist@3.1.1: {}
@@ -15591,6 +15688,10 @@ snapshots:
       string-width: 7.2.0
       y18n: 5.0.8
       yargs-parser: 22.0.0
+
+  yjs@13.6.30:
+    dependencies:
+      lib0: 0.2.117
 
   ylru@1.4.0: {}
 

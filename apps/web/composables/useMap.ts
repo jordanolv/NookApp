@@ -1,48 +1,73 @@
-import { DEFAULT_MAP, type MapData, type MapItem, type MapPublic } from '@nookapp/protocol';
+import * as Y from 'yjs';
+import { HocuspocusProvider } from '@hocuspocus/provider';
+import { DEFAULT_MAP, type MapData, type MapItem } from '@nookapp/protocol';
 import type { BuildTool } from '~/components/world/NookScene';
 
-const currentMap = ref<MapData>(DEFAULT_MAP);
+// Module-level singletons — one Y.Doc, one provider at a time
+const ydoc = new Y.Doc();
+const tilesArray = ydoc.getArray<number[]>('tiles');
+const itemsArray = ydoc.getArray<MapItem>('items');
+
+let provider: HocuspocusProvider | null = null;
+
 const currentServerId = ref<string | null>(null);
 const buildMode = ref(false);
 const buildTool = ref<BuildTool>('tile');
+const isSynced = ref(false);
 const isSaving = ref(false);
 
-const SAVE_DEBOUNCE_MS = 500;
-let saveTimer: ReturnType<typeof setTimeout> | null = null;
+// Derived reactive map — updates automatically when Y.js arrays change
+const currentMap = ref<MapData>(DEFAULT_MAP);
+
+function syncCurrentMap() {
+  currentMap.value = {
+    tiles: tilesArray.toArray() as [number, number][],
+    items: itemsArray.toArray(),
+  };
+}
+
+tilesArray.observe(() => syncCurrentMap());
+itemsArray.observe(() => syncCurrentMap());
 
 export function useMap() {
   const api = useApi();
+  const config = useRuntimeConfig();
 
   async function loadMap(serverId: string): Promise<MapData> {
-    const result = await api.get<MapPublic>(`/servers/${serverId}/map`);
-    currentMap.value = result.data;
+    // Tear down previous provider if switching servers
+    if (provider && currentServerId.value !== serverId) {
+      provider.destroy();
+      provider = null;
+      isSynced.value = false;
+      ydoc.transact(() => {
+        tilesArray.delete(0, tilesArray.length);
+        itemsArray.delete(0, itemsArray.length);
+      });
+    }
+
     currentServerId.value = serverId;
     buildMode.value = false;
     buildTool.value = 'tile';
-    return result.data;
-  }
 
-  async function flushSave() {
-    const sid = currentServerId.value;
-    if (!sid) return;
-    if (saveTimer) {
-      clearTimeout(saveTimer);
-      saveTimer = null;
-    }
-    isSaving.value = true;
-    try {
-      await api.put(`/servers/${sid}/map`, { data: currentMap.value });
-    } finally {
-      isSaving.value = false;
-    }
-  }
+    if (!provider) {
+      const { token } = await api.get<{ token: string }>('/collaboration/token');
 
-  function scheduleSave() {
-    if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      saveTimer = null;
-      void flushSave();
-    }, SAVE_DEBOUNCE_MS);
+      await new Promise<void>((resolve, reject) => {
+        provider = new HocuspocusProvider({
+          url: config.public.collabUrl as string,
+          name: serverId,
+          document: ydoc,
+          token,
+          onSynced: () => {
+            isSynced.value = true;
+            resolve();
+          },
+          onAuthenticationFailed: () => reject(new Error('collaboration auth failed')),
+        });
+      });
+    }
+
+    return currentMap.value;
   }
 
   function paintRect(x1: number, y1: number, x2: number, y2: number, mode: 'add' | 'remove') {
@@ -50,24 +75,33 @@ export function useMap() {
     const maxX = Math.max(x1, x2);
     const minY = Math.min(y1, y2);
     const maxY = Math.max(y1, y2);
-    const data = currentMap.value;
 
-    if (mode === 'add') {
-      const existing = new Set(data.tiles.map(([x, y]) => `${x},${y}`));
-      const additions: [number, number][] = [];
-      for (let x = minX; x <= maxX; x++) {
-        for (let y = minY; y <= maxY; y++) {
-          if (!existing.has(`${x},${y}`)) additions.push([x, y]);
+    ydoc.transact(() => {
+      if (mode === 'add') {
+        const existing = new Set(tilesArray.toArray().map(([x, y]) => `${x},${y}`));
+        const additions: [number, number][] = [];
+        for (let x = minX; x <= maxX; x++) {
+          for (let y = minY; y <= maxY; y++) {
+            if (!existing.has(`${x},${y}`)) additions.push([x, y]);
+          }
         }
+        if (additions.length) tilesArray.push(additions);
+      } else {
+        const keep: [number, number][] = [];
+        let changed = false;
+        for (const tile of tilesArray.toArray()) {
+          const [tx, ty] = tile as [number, number];
+          if (tx >= minX && tx <= maxX && ty >= minY && ty <= maxY) {
+            changed = true;
+          } else {
+            keep.push([tx, ty]);
+          }
+        }
+        if (!changed) return;
+        tilesArray.delete(0, tilesArray.length);
+        if (keep.length) tilesArray.push(keep);
       }
-      if (!additions.length) return;
-      currentMap.value = { ...data, tiles: [...data.tiles, ...additions] };
-    } else {
-      const tiles = data.tiles.filter(([x, y]) => x < minX || x > maxX || y < minY || y > maxY);
-      if (tiles.length === data.tiles.length) return;
-      currentMap.value = { ...data, tiles };
-    }
-    scheduleSave();
+    });
   }
 
   function paintWallsRect(x1: number, y1: number, x2: number, y2: number, mode: 'add' | 'remove') {
@@ -75,45 +109,53 @@ export function useMap() {
     const maxX = Math.max(x1, x2);
     const minY = Math.min(y1, y2);
     const maxY = Math.max(y1, y2);
-    const data = currentMap.value;
 
-    if (mode === 'add') {
-      const existing = new Set(
-        data.items.filter((item) => item.type === 'wall').map((item) => `${item.x},${item.y}`),
-      );
-      const additions: MapItem[] = [];
-      for (let x = minX; x <= maxX; x++) {
-        for (let y = minY; y <= maxY; y++) {
-          if (!existing.has(`${x},${y}`)) additions.push({ type: 'wall', x, y });
+    ydoc.transact(() => {
+      if (mode === 'add') {
+        const existing = new Set(
+          itemsArray
+            .toArray()
+            .filter((it) => it.type === 'wall')
+            .map((it) => `${it.x},${it.y}`),
+        );
+        const additions: MapItem[] = [];
+        for (let x = minX; x <= maxX; x++) {
+          for (let y = minY; y <= maxY; y++) {
+            if (!existing.has(`${x},${y}`)) additions.push({ type: 'wall', x, y });
+          }
         }
-      }
-      if (!additions.length) return;
-      currentMap.value = { ...data, items: [...data.items, ...additions] };
-    } else {
-      const items = data.items.filter(
-        (item) =>
-          !(
+        if (additions.length) itemsArray.push(additions);
+      } else {
+        const keep: MapItem[] = [];
+        let changed = false;
+        for (const item of itemsArray.toArray()) {
+          if (
             item.type === 'wall' &&
             item.x >= minX &&
             item.x <= maxX &&
             item.y >= minY &&
             item.y <= maxY
-          ),
-      );
-      if (items.length === data.items.length) return;
-      currentMap.value = { ...data, items };
-    }
-    scheduleSave();
+          ) {
+            changed = true;
+          } else {
+            keep.push(item);
+          }
+        }
+        if (!changed) return;
+        itemsArray.delete(0, itemsArray.length);
+        if (keep.length) itemsArray.push(keep);
+      }
+    });
   }
 
   return {
     currentMap,
     buildMode,
     buildTool,
+    isSynced: readonly(isSynced),
     isSaving: readonly(isSaving),
     loadMap,
     paintRect,
     paintWallsRect,
-    flushSave,
   };
 }

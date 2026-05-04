@@ -19,7 +19,6 @@ const {
   loadMap,
   paintRect,
   paintWallsRect,
-  flushSave,
 } = useMap();
 
 // ── Multi-window chat ──
@@ -192,9 +191,8 @@ function onWallsRect(rect: RectPayload) {
   paintWallsRect(rect.x1, rect.y1, rect.x2, rect.y2, rect.mode);
 }
 
-async function toggleBuildMode() {
+function toggleBuildMode() {
   buildMode.value = !buildMode.value;
-  if (!buildMode.value) await flushSave();
 }
 
 async function handleVoiceChannelClick(channelId: string) {
@@ -214,7 +212,6 @@ onMounted(() => {
 
 onUnmounted(async () => {
   if (voice.currentChannelId.value) await voice.leave();
-  await flushSave();
   teardownVoiceListeners?.();
   socket.disconnect();
 });

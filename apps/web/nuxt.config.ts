@@ -13,6 +13,7 @@ export default defineNuxtConfig({
       apiBase: process.env.NUXT_PUBLIC_API_BASE ?? 'http://localhost:3000/api/v1',
       authBase: process.env.NUXT_PUBLIC_AUTH_BASE ?? 'http://localhost:3000/api/auth',
       livekitUrl: process.env.NUXT_PUBLIC_LIVEKIT_URL ?? 'ws://localhost:7880',
+      collabUrl: process.env.NUXT_PUBLIC_COLLAB_URL ?? 'ws://localhost:1234',
     },
   },
   typescript: {
@@ -22,7 +23,7 @@ export default defineNuxtConfig({
   // Pre-bundle @nookapp/protocol so Vite serves an ESM wrapper around its CJS output.
   vite: {
     optimizeDeps: {
-      include: ['@nookapp/protocol'],
+      include: ['@nookapp/protocol', 'yjs', '@hocuspocus/provider'],
     },
   },
 });

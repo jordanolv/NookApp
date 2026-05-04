@@ -14,6 +14,7 @@ import { ServersModule } from './servers/servers.module';
 import { UsersModule } from './users/users.module';
 import { VoiceModule } from './voice/voice.module';
 import { PluginsModule } from './plugins/plugins.module';
+import { CollaborationModule } from './collaboration/collaboration.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { PluginsModule } from './plugins/plugins.module';
     RealtimeModule,
     VoiceModule,
     PluginsModule,
+    CollaborationModule,
   ],
 })
 export class AppModule {}
