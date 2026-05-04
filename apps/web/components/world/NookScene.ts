@@ -98,6 +98,8 @@ interface RemotePlayer {
 export class NookScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: Record<string, Phaser.Input.Keyboard.Key>;
+  private interactKey!: Phaser.Input.Keyboard.Key;
+  private interactKeyWasDown = false;
   localBody!: Phaser.Physics.Arcade.Sprite;
   private localLayers!: Phaser.GameObjects.Sprite[];
   private lastDir = 'down';
@@ -268,6 +270,16 @@ export class NookScene extends Phaser.Scene {
     let remote = this.remotePlayers.get(payload.userId);
     if (!remote) {
       remote = this.spawnRemotePlayer(payload.x, payload.y, name ?? payload.userId);
+      const body = remote.layers[0];
+      body.setInteractive();
+      body.on('pointerdown', () => {
+        this.events.emit('player:interact', {
+          userId: payload.userId,
+          name: remote!.name,
+          worldX: body.x,
+          worldY: body.y,
+        });
+      });
       this.remotePlayers.set(payload.userId, remote);
     }
     if (name) remote.name = name;
@@ -311,6 +323,24 @@ export class NookScene extends Phaser.Scene {
 
   hasRemotePlayer(userId: string): boolean {
     return this.remotePlayers.has(userId);
+  }
+
+  private tryInteractNearest() {
+    const px = this.localBody.x;
+    const py = this.localBody.y;
+    let nearest: { userId: string; name: string; worldX: number; worldY: number } | null = null;
+    let minDist = 80;
+    for (const [userId, remote] of this.remotePlayers) {
+      const spr = remote.layers[0];
+      const dx = spr.x - px;
+      const dy = spr.y - py;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < minDist) {
+        minDist = dist;
+        nearest = { userId, name: remote.name, worldX: spr.x, worldY: spr.y };
+      }
+    }
+    if (nearest) this.events.emit('player:interact', nearest);
   }
 
   spawnWorldObject(spec: WorldObjectSpec) {
@@ -451,6 +481,7 @@ export class NookScene extends Phaser.Scene {
       left: kb.addKey(Phaser.Input.Keyboard.KeyCodes.A),
       right: kb.addKey(Phaser.Input.Keyboard.KeyCodes.D),
     };
+    this.interactKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
   }
 
   private buildAnims() {
@@ -497,6 +528,13 @@ export class NookScene extends Phaser.Scene {
     }
 
     (this.localBody.body as Phaser.Physics.Arcade.Body).setVelocity(vx, vy);
+
+    // E key: open profile popup for the nearest remote player (fire once per press)
+    const eNow = this.interactKey.isDown;
+    if (eNow && !this.interactKeyWasDown && !this.isBuildActive()) {
+      this.tryInteractNearest();
+    }
+    this.interactKeyWasDown = eNow;
 
     // Manual camera lerp + pixel snap — Phaser 3.90 applies startFollow inside
     // Camera.preRender(), overriding any external snap. Doing it here in update()
