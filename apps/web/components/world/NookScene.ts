@@ -150,7 +150,6 @@ export class NookScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, WORLD_W, WORLD_H);
     this.cameras.main.setBounds(0, 0, WORLD_W, WORLD_H);
     this.cameras.main.setZoom(1.5);
-    this.cameras.main.setRoundPixels(true);
     this.cameras.main.setBackgroundColor('#cdd0d4');
 
     drawGrassBackground(this);
@@ -171,7 +170,6 @@ export class NookScene extends Phaser.Scene {
 
     this.spawnLocalPlayer();
     this.wallCollider = this.wallRenderer.collideWith(this.localBody);
-    this.cameras.main.startFollow(this.localBody, true, 0.15, 0.15);
     this.setupInput();
     this.buildAnims();
 
@@ -499,6 +497,21 @@ export class NookScene extends Phaser.Scene {
     }
 
     (this.localBody.body as Phaser.Physics.Arcade.Body).setVelocity(vx, vy);
+
+    // Manual camera lerp + pixel snap — Phaser 3.90 applies startFollow inside
+    // Camera.preRender(), overriding any external snap. Doing it here in update()
+    // means preRender() sees our already-snapped value and only applies Math.floor
+    // (which is a no-op on an even integer). Even-integer snap: even × 1.5 = integer
+    // screen position → no sub-pixel gaps between adjacent 32px wall tiles.
+    {
+      const cam = this.cameras.main;
+      const tx = this.localBody.x - cam.width / 2;
+      const ty = this.localBody.y - cam.height / 2;
+      const lx = cam.scrollX + (tx - cam.scrollX) * 0.15;
+      const ly = cam.scrollY + (ty - cam.scrollY) * 0.15;
+      cam.scrollX = Math.round(lx / 2) * 2;
+      cam.scrollY = Math.round(ly / 2) * 2;
+    }
 
     // Lerp remote players toward their last-known target position each frame
     for (const remote of this.remotePlayers.values()) {

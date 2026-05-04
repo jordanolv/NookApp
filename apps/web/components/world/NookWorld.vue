@@ -376,7 +376,7 @@ onMounted(() => {
     },
     scene,
     scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH },
-    render: { pixelArt: true, antialias: false },
+    render: { pixelArt: true, antialias: false, roundPixels: true },
     input: { keyboard: true },
   });
 

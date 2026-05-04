@@ -8,9 +8,9 @@ import {
 } from './constants';
 import type { MapModel } from './map-model';
 
-const WALL_THICKNESS = 14;
+const WALL_THICKNESS = 16;
 const HALF_THICKNESS = WALL_THICKNESS / 2;
-const TOP_FACE_HEIGHT = 9;
+const TOP_FACE_HEIGHT = 8;
 const CENTER = TILE_SIZE / 2;
 const BODY_LEFT = CENTER - HALF_THICKNESS;
 const BODY_RIGHT = CENTER + HALF_THICKNESS;
