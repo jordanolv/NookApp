@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useMessagesStore } from '~/stores/messages';
+import { renderMarkdown, isGifUrl } from '~/composables/useMarkdown';
 
 const props = defineProps<{
   channelId: string;
@@ -16,7 +17,6 @@ const channel = computed(() => store.channels.find((c) => c.id === props.channel
 const messages = computed(() => messagesStore.forChannel(props.channelId));
 const loading = computed(() => messagesStore.isLoading(props.channelId));
 
-const input = ref('');
 const sending = ref(false);
 const listEl = ref<HTMLElement | null>(null);
 
@@ -45,29 +45,24 @@ onMounted(() => {
   onUnmounted(off);
 });
 
-async function submit() {
-  const content = input.value.trim();
-  if (!content || sending.value) return;
+async function onSend(content: string) {
+  if (sending.value) return;
   sending.value = true;
-  input.value = '';
   try {
     await sendMessage(serverId.value, props.channelId, { content });
-  } catch {
-    input.value = content;
   } finally {
     sending.value = false;
   }
 }
 
-function handleKeydown(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    void submit();
-  }
-}
-
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function renderContent(content: string): string {
+  const gif = isGifUrl(content);
+  if (gif) return `<img src="${gif}" class="rounded-lg max-h-48 mt-1" style="max-width:100%" />`;
+  return renderMarkdown(content);
 }
 </script>
 
@@ -92,7 +87,7 @@ function formatTime(iso: string) {
         class="flex items-center justify-center h-24 text-xs"
         style="color: rgba(255, 255, 255, 0.2)"
       >
-        No messages yet
+        Aucun message
       </div>
       <template v-else>
         <div
@@ -122,40 +117,65 @@ function formatTime(iso: string) {
                 formatTime(msg.createdAt)
               }}</span>
             </div>
-            <p class="text-sm break-words leading-relaxed" style="color: rgba(255, 255, 255, 0.7)">
-              {{ msg.content }}
-            </p>
+            <div
+              class="text-sm break-words leading-relaxed message-content"
+              style="color: rgba(255, 255, 255, 0.7)"
+              v-html="renderContent(msg.content)"
+            />
           </div>
         </div>
       </template>
     </div>
 
-    <div
-      class="flex-shrink-0 px-3 pb-3 pt-2"
-      style="border-top: 1px solid rgba(255, 255, 255, 0.05)"
-    >
-      <div
-        class="flex items-end gap-2 rounded-xl px-3 py-2"
-        style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.07)"
-      >
-        <textarea
-          v-model="input"
-          :placeholder="`Message #${channel?.name ?? '…'}`"
-          rows="1"
-          class="flex-1 resize-none bg-transparent text-sm focus:outline-none"
-          style="color: rgba(255, 255, 255, 0.85)"
-          :class="{ 'opacity-50': sending }"
-          @keydown="handleKeydown"
-        />
-        <button
-          :disabled="!input.trim() || sending"
-          class="flex-shrink-0 rounded-lg px-3 py-1 text-xs font-medium transition-all disabled:opacity-30"
-          style="background: rgba(99, 102, 241, 0.8); color: white"
-          @click="void submit()"
-        >
-          Send
-        </button>
-      </div>
-    </div>
+    <ChatMessageInput
+      :placeholder="`Message #${channel?.name ?? '…'}`"
+      :disabled="sending"
+      @send="onSend"
+    />
   </div>
 </template>
+
+<style>
+.message-content p {
+  margin: 0;
+}
+.message-content p + p {
+  margin-top: 0.25rem;
+}
+.message-content strong {
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
+}
+.message-content em {
+  color: rgba(255, 255, 255, 0.75);
+}
+.message-content del {
+  opacity: 0.5;
+}
+.message-content code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.8em;
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(180, 190, 255, 0.9);
+}
+.message-content pre {
+  margin: 0.4rem 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  overflow-x: auto;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+.message-content pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.78em;
+  color: rgba(200, 210, 255, 0.85);
+}
+.message-content a {
+  color: rgba(130, 140, 255, 0.9);
+  text-decoration: underline;
+}
+</style>
