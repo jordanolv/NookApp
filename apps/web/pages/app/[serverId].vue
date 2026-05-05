@@ -25,30 +25,34 @@ const {
   paintWallsRect,
 } = useMap();
 
-// ── Multi-window chat ──
-interface ChatWin {
+// ── Chat: tab bar + floating windows ──
+interface FloatingWin {
   channelId: string;
   x: number;
   y: number;
 }
-const openWindows = ref<ChatWin[]>([]);
+const chatTabChannelIds = ref<string[]>([]);
+const chatTabActiveId = ref<string | null>(null);
+const floatingWindows = ref<FloatingWin[]>([]);
 let windowCounter = 0;
 
 function openChannel(channelId: string, e: MouseEvent) {
-  const alreadyOpen = openWindows.value.find((w) => w.channelId === channelId);
-  if (alreadyOpen) {
-    focusWindow(channelId);
-    return;
-  }
-  const stagger = (windowCounter % 6) * 28;
-  const x = import.meta.client ? Math.round(window.innerWidth / 2 - 200) + stagger : 300;
-  const y = import.meta.client ? Math.round(window.innerHeight / 2 - 270) + stagger : 100;
-  windowCounter++;
-
   if (e.ctrlKey || e.metaKey) {
-    openWindows.value = [...openWindows.value, { channelId, x, y }];
+    const existing = floatingWindows.value.find((w) => w.channelId === channelId);
+    if (existing) {
+      focusFloating(channelId);
+      return;
+    }
+    const stagger = (windowCounter % 6) * 28;
+    const x = import.meta.client ? Math.round(window.innerWidth / 2 - 200) + stagger : 300;
+    const y = import.meta.client ? Math.round(window.innerHeight / 2 - 270) + stagger : 100;
+    windowCounter++;
+    floatingWindows.value = [...floatingWindows.value, { channelId, x, y }];
   } else {
-    openWindows.value = [{ channelId, x, y }];
+    if (!chatTabChannelIds.value.includes(channelId)) {
+      chatTabChannelIds.value = [...chatTabChannelIds.value, channelId];
+    }
+    chatTabActiveId.value = channelId;
   }
 }
 
@@ -56,17 +60,43 @@ function openChannelById(channelId: string) {
   openChannel(channelId, { ctrlKey: false, metaKey: false } as MouseEvent);
 }
 
-function closeWindow(channelId: string) {
-  openWindows.value = openWindows.value.filter((w) => w.channelId !== channelId);
+function closeTab(channelId: string) {
+  const idx = chatTabChannelIds.value.indexOf(channelId);
+  chatTabChannelIds.value = chatTabChannelIds.value.filter((id) => id !== channelId);
+  if (chatTabActiveId.value === channelId) {
+    chatTabActiveId.value = chatTabChannelIds.value[Math.max(0, idx - 1)] ?? null;
+  }
 }
 
-function focusWindow(channelId: string) {
-  const win = openWindows.value.find((w) => w.channelId === channelId);
+function closeFloating(channelId: string) {
+  floatingWindows.value = floatingWindows.value.filter((w) => w.channelId !== channelId);
+}
+
+function focusFloating(channelId: string) {
+  const win = floatingWindows.value.find((w) => w.channelId === channelId);
   if (!win) return;
-  openWindows.value = [...openWindows.value.filter((w) => w.channelId !== channelId), win];
+  floatingWindows.value = [...floatingWindows.value.filter((w) => w.channelId !== channelId), win];
 }
 
-const activeChannelIds = computed(() => new Set(openWindows.value.map((w) => w.channelId)));
+function onTearOff(channelId: string, x: number, y: number) {
+  closeTab(channelId);
+  floatingWindows.value = [...floatingWindows.value, { channelId, x, y }];
+}
+
+const draggingFloatingId = ref<string | null>(null);
+
+function dockToTabBar(channelId: string) {
+  draggingFloatingId.value = null;
+  closeFloating(channelId);
+  if (!chatTabChannelIds.value.includes(channelId)) {
+    chatTabChannelIds.value = [...chatTabChannelIds.value, channelId];
+  }
+  chatTabActiveId.value = channelId;
+}
+
+const activeChannelIds = computed(
+  () => new Set([...chatTabChannelIds.value, ...floatingWindows.value.map((w) => w.channelId)]),
+);
 
 // ── Icon rail ──
 const railExpanded = ref(true);
@@ -1313,16 +1343,30 @@ async function handleSignOut() {
       @updated="editingChannel = null"
     />
 
-    <!-- ── Chat windows ── -->
+    <!-- ── Chat tab bar ── -->
+    <ChatTabBar
+      v-if="chatTabChannelIds.length > 0"
+      :channel-ids="chatTabChannelIds"
+      :active-id="chatTabActiveId"
+      :dragging-channel-id="draggingFloatingId"
+      @close="closeTab"
+      @set-active="chatTabActiveId = $event"
+      @tear-off="onTearOff"
+      @dock="dockToTabBar"
+    />
+
+    <!-- ── Floating chat windows (Ctrl+click or torn off) ── -->
     <ChatWindow
-      v-for="(win, i) in openWindows"
+      v-for="(win, i) in floatingWindows"
       :key="win.channelId"
       :channel-id="win.channelId"
       :initial-x="win.x"
       :initial-y="win.y"
       :z-index="45 + i"
-      @close="closeWindow(win.channelId)"
-      @focus="focusWindow(win.channelId)"
+      @close="closeFloating(win.channelId)"
+      @focus="focusFloating(win.channelId)"
+      @drag-start="draggingFloatingId = win.channelId"
+      @drag-end="draggingFloatingId = null"
     />
 
     <!-- Voice panel -->
