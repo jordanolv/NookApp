@@ -34,6 +34,7 @@ function toServerPublic(row: typeof server.$inferSelect): ServerPublic {
     name: row.name,
     ownerId: row.ownerId,
     iconUrl: row.iconUrl ?? null,
+    bannerUrl: row.bannerUrl ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -116,6 +117,7 @@ export class ServersService {
         ...(input.name && { name: input.name }),
         ...(input.slug && { slug: input.slug }),
         ...(input.iconUrl !== undefined && { iconUrl: input.iconUrl }),
+        ...(input.bannerUrl !== undefined && { bannerUrl: input.bannerUrl }),
       })
       .where(eq(server.id, serverId))
       .returning();

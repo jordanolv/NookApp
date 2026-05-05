@@ -1,0 +1,1 @@
+ALTER TABLE "server" ADD COLUMN "banner_url" text;

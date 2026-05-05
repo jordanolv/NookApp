@@ -1,4 +1,4 @@
-import type { CreateServerInput, ServerPublic } from '@nookapp/protocol';
+import type { CreateServerInput, ServerPublic, UpdateServerInput } from '@nookapp/protocol';
 import { useServersStore } from '~/stores/servers';
 
 export function useServers() {
@@ -17,10 +17,19 @@ export function useServers() {
     return server;
   }
 
+  async function updateServer(serverId: string, input: UpdateServerInput): Promise<ServerPublic> {
+    const updated = await api.patch<ServerPublic>(
+      `/servers/${serverId}`,
+      input as Record<string, unknown>,
+    );
+    store.upsertServer(updated);
+    return updated;
+  }
+
   async function deleteServer(serverId: string) {
     await api.del(`/servers/${serverId}`);
     store.removeServer(serverId);
   }
 
-  return { store, fetchServers, createServer, deleteServer };
+  return { store, fetchServers, createServer, updateServer, deleteServer };
 }
