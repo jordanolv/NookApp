@@ -97,6 +97,8 @@ export default [
         useInvites: 'readonly',
         useMember: 'readonly',
         useMap: 'readonly',
+        useCategories: 'readonly',
+        useChannelIcons: 'readonly',
         useServersStore: 'readonly',
         $fetch: 'readonly',
         // Pinia

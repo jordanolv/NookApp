@@ -1,11 +1,15 @@
 <script setup lang="ts">
+import { VueDraggable } from 'vue-draggable-plus';
+import type { ChannelPublic, CategoryPublic } from '@nookapp/protocol';
+
 definePageMeta({ layout: 'app' });
 
 const route = useRoute();
 const serverId = computed(() => route.params.serverId as string);
 
-const { store, fetchServers } = useServers();
+const { store, fetchServers, updateServer } = useServers();
 const { fetchChannels, updateChannel } = useChannels();
+const { fetchCategories, createCategory, updateCategory, deleteCategory } = useCategories();
 const { user, signOut } = useAuth();
 const { createInvite } = useInvites();
 const socket = useSocket();
@@ -66,7 +70,7 @@ const activeChannelIds = computed(() => new Set(openWindows.value.map((w) => w.c
 
 // ── Icon rail ──
 const railExpanded = ref(false);
-const forumPanelRight = computed(() => (railExpanded.value ? 212 : 76));
+const forumPanelRight = computed(() => (railExpanded.value ? 234 : 76));
 
 // ── Server picker ──
 const showServerPicker = ref(false);
@@ -92,6 +96,159 @@ const pickerTop = computed(() => {
 
 // ── Channel creation ──
 const showCreateModal = ref(false);
+
+// ── Channel editing ──
+const editingChannel = ref<import('@nookapp/protocol').ChannelPublic | null>(null);
+
+// ── Categories & ordered top-level layout ──
+type ChannelItem = { kind: 'channel'; id: string; channel: ChannelPublic };
+type CategoryItem = {
+  kind: 'category';
+  id: string;
+  category: CategoryPublic;
+  children: ChannelItem[];
+};
+type TopItem = ChannelItem | CategoryItem;
+
+const topItems = ref<TopItem[]>([]);
+const isCommitting = ref(false);
+
+function rebuildTopItems() {
+  const items: TopItem[] = [];
+  for (const cat of store.categories) {
+    items.push({
+      kind: 'category',
+      id: `cat:${cat.id}`,
+      category: cat,
+      children: store.channels
+        .filter((c) => c.categoryId === cat.id && !c.parentId)
+        .sort((a, b) => a.position - b.position)
+        .map((ch) => ({ kind: 'channel' as const, id: `ch:${ch.id}`, channel: ch })),
+    });
+  }
+  for (const ch of store.channels.filter((c) => !c.categoryId && !c.parentId)) {
+    items.push({ kind: 'channel', id: `ch:${ch.id}`, channel: ch });
+  }
+  items.sort((a, b) => {
+    const ap = a.kind === 'channel' ? a.channel.position : a.category.position;
+    const bp = b.kind === 'channel' ? b.channel.position : b.category.position;
+    return ap - bp;
+  });
+  topItems.value = items;
+}
+
+watch(
+  [() => store.channels, () => store.categories],
+  () => {
+    if (isCommitting.value) return;
+    rebuildTopItems();
+  },
+  { immediate: true, deep: true },
+);
+
+async function commitOrder() {
+  if (isCommitting.value) return;
+  isCommitting.value = true;
+  try {
+    const updates: Promise<unknown>[] = [];
+    for (let i = 0; i < topItems.value.length; i++) {
+      const item = topItems.value[i];
+      if (item.kind === 'channel') {
+        const ch = item.channel;
+        if (ch.position !== i || ch.categoryId !== null) {
+          updates.push(updateChannel(serverId.value, ch.id, { position: i, categoryId: null }));
+        }
+      } else {
+        const cat = item.category;
+        if (cat.position !== i) {
+          updates.push(updateCategory(serverId.value, cat.id, { position: i }));
+        }
+        for (let j = 0; j < item.children.length; j++) {
+          const ch = item.children[j].channel;
+          if (ch.position !== j || ch.categoryId !== cat.id) {
+            updates.push(updateChannel(serverId.value, ch.id, { position: j, categoryId: cat.id }));
+          }
+        }
+      }
+    }
+    await Promise.all(updates);
+  } finally {
+    isCommitting.value = false;
+    rebuildTopItems();
+  }
+}
+
+function innerPut(_to: unknown, _from: unknown, dragEl: HTMLElement) {
+  return dragEl.dataset.kind === 'channel';
+}
+
+const collapsedCategories = ref<Set<string>>(new Set());
+function toggleCategory(id: string) {
+  const s = new Set(collapsedCategories.value);
+  if (s.has(id)) s.delete(id);
+  else s.add(id);
+  collapsedCategories.value = s;
+}
+
+const editingCategoryId = ref<string | null>(null);
+const editingCategoryName = ref('');
+function startEditCategory(cat: import('@nookapp/protocol').CategoryPublic) {
+  editingCategoryId.value = cat.id;
+  editingCategoryName.value = cat.name;
+}
+async function submitEditCategory() {
+  if (!editingCategoryId.value || !editingCategoryName.value.trim()) {
+    editingCategoryId.value = null;
+    return;
+  }
+  await updateCategory(serverId.value, editingCategoryId.value, {
+    name: editingCategoryName.value.trim(),
+  });
+  editingCategoryId.value = null;
+}
+async function handleDeleteCategory(categoryId: string) {
+  await deleteCategory(serverId.value, categoryId);
+}
+
+const showCreateCategory = ref(false);
+const newCategoryName = ref('');
+async function submitCreateCategory() {
+  if (!newCategoryName.value.trim()) return;
+  await createCategory(serverId.value, { name: newCategoryName.value.trim() });
+  newCategoryName.value = '';
+  showCreateCategory.value = false;
+}
+
+function isChannelActive(ch: import('@nookapp/protocol').ChannelPublic): boolean {
+  if (ch.type === 'voice') return voice.currentChannelId.value === ch.id;
+  if (ch.type === 'forum') return forumPanelChannelId.value === ch.id;
+  return activeChannelIds.value.has(ch.id);
+}
+function channelActiveStyle(ch: import('@nookapp/protocol').ChannelPublic): string {
+  if (ch.type === 'voice' && voice.currentChannelId.value === ch.id)
+    return 'background: rgba(34,197,94,0.15); color: #4ade80';
+  if (ch.type === 'forum' && forumPanelChannelId.value === ch.id)
+    return 'background: rgba(251,191,36,0.2); color: rgba(252,211,77,1)';
+  if (activeChannelIds.value.has(ch.id))
+    return 'background: rgba(99,102,241,0.25); color: rgba(165,180,252,1)';
+  return 'color: rgba(255,255,255,0.3)';
+}
+function channelIndicatorClass(ch: import('@nookapp/protocol').ChannelPublic): string {
+  if (ch.type === 'voice') return 'bg-green-400';
+  if (ch.type === 'forum') return 'bg-yellow-400';
+  return 'bg-indigo-400';
+}
+function handleChannelClick(ch: import('@nookapp/protocol').ChannelPublic, e: MouseEvent) {
+  if (ch.type === 'voice') {
+    handleVoiceChannelClick(ch.id);
+    return;
+  }
+  if (ch.type === 'forum') {
+    openForumPanel(ch.id, ch.name, e);
+    return;
+  }
+  openChannel(ch.id, e);
+}
 
 // ── Forum panel ──
 const forumPanelChannelId = ref<string | null>(null);
@@ -129,6 +286,30 @@ async function onZonePicked(zone: { x: number; y: number; w: number; h: number }
 function onZoneCancel() {
   zonePickerActive.value = false;
   pendingVoiceChannelId.value = null;
+}
+
+const api = useApi();
+const { apiBase } = useRuntimeConfig().public;
+const apiOrigin = new URL(apiBase as string).origin;
+
+function resolveUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  return url.startsWith('/') ? `${apiOrigin}${url}` : url;
+}
+
+const bannerUploading = ref(false);
+async function uploadBanner(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  bannerUploading.value = true;
+  try {
+    const form = new FormData();
+    form.append('file', file);
+    const { url } = await api.postForm<{ url: string }>('/uploads', form);
+    await updateServer(serverId.value, { bannerUrl: url });
+  } finally {
+    bannerUploading.value = false;
+  }
 }
 
 const showInviteModal = ref(false);
@@ -172,6 +353,7 @@ watch(
     // the new module) must not block the channel list or member fetch.
     await Promise.all([
       fetchChannels(id),
+      fetchCategories(id),
       loadMember(id).catch((err) => console.warn('loadMember failed', err)),
       loadMap(id).catch((err) => console.warn('loadMap failed', err)),
     ]);
@@ -246,7 +428,7 @@ async function handleSignOut() {
     <div
       class="fixed top-4 right-4 bottom-4 z-40 flex flex-col rounded-2xl py-2 gap-1 overflow-hidden"
       :style="{
-        width: railExpanded ? '188px' : '52px',
+        width: railExpanded ? '210px' : '52px',
         transition: 'width 200ms cubic-bezier(0.4,0,0.2,1)',
         background: 'rgba(12, 12, 18, 0.75)',
         backdropFilter: 'blur(24px) saturate(160%)',
@@ -255,158 +437,447 @@ async function handleSignOut() {
         boxShadow: '0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)',
       }"
     >
-      <!-- Server header — click to open server picker -->
-      <button
-        data-server-header
-        class="flex items-center gap-2 flex-shrink-0 rounded-xl transition-all duration-150 outline-none"
-        :class="railExpanded ? 'px-2 w-full py-0.5 hover:bg-white/5' : 'justify-center relative'"
-        @click="openServerPicker"
-      >
-        <!-- Avatar -->
+      <!-- Server header -->
+      <template v-if="railExpanded">
+        <!-- Banner block -->
         <div
-          class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white select-none relative"
-          style="background: linear-gradient(135deg, #6366f1, #4338ca)"
+          class="relative flex-shrink-0 -mt-2 overflow-hidden group/banner"
+          style="aspect-ratio: 2/1; border-radius: 16px 16px 0 0"
         >
-          {{ server?.name?.[0]?.toUpperCase() }}
-          <!-- Collapsed chevron badge -->
-          <span
-            v-if="!railExpanded"
-            class="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full"
-            style="background: rgba(30, 30, 40, 0.95); border: 1px solid rgba(255, 255, 255, 0.1)"
+          <img
+            v-if="server?.bannerUrl"
+            :src="resolveUrl(server.bannerUrl)"
+            class="w-full h-full object-cover"
+          />
+          <div
+            class="absolute inset-0"
+            :style="
+              server?.bannerUrl
+                ? 'background: linear-gradient(to top, rgba(12,12,18,0.88) 0%, rgba(12,12,18,0.35) 50%, transparent 100%)'
+                : 'background: rgba(12,12,18,0.3)'
+            "
+          />
+          <!-- Admin upload button -->
+          <label
+            v-if="isAdmin"
+            class="absolute top-2 right-2 opacity-0 group-hover/banner:opacity-100 transition-opacity cursor-pointer z-10"
+          >
+            <span
+              class="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
+              style="background: rgba(0, 0, 0, 0.65); color: rgba(255, 255, 255, 0.75)"
+            >
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M12 15.2A3.2 3.2 0 0 1 8.8 12 3.2 3.2 0 0 1 12 8.8 3.2 3.2 0 0 1 15.2 12 3.2 3.2 0 0 1 12 15.2M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"
+                />
+              </svg>
+              {{ bannerUploading ? '…' : server?.bannerUrl ? 'Changer' : 'Bannière' }}
+            </span>
+            <input type="file" accept="image/*" class="hidden" @change="uploadBanner" />
+          </label>
+          <!-- Server name + picker trigger -->
+          <button
+            data-server-header
+            class="absolute bottom-0 left-0 right-0 px-2.5 py-2 flex items-center gap-2 outline-none"
+            @click="openServerPicker"
+          >
+            <div class="relative flex-shrink-0">
+              <div
+                class="flex h-6 w-6 items-center justify-center rounded-lg text-[10px] font-bold text-white select-none"
+                style="background: linear-gradient(135deg, #6366f1, #4338ca)"
+              >
+                {{ server?.name?.[0]?.toUpperCase() }}
+              </div>
+              <span
+                class="absolute -bottom-1 -left-1 flex h-3.5 w-3.5 items-center justify-center rounded-full"
+                style="
+                  background: rgba(20, 20, 30, 0.95);
+                  border: 1px solid rgba(255, 255, 255, 0.12);
+                "
+              >
+                <svg
+                  class="transition-transform duration-200"
+                  :class="{ 'rotate-180': showServerPicker }"
+                  width="8"
+                  height="8"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  style="color: rgba(255, 255, 255, 0.6)"
+                >
+                  <path d="M7 10l5 5 5-5z" />
+                </svg>
+              </span>
+            </div>
+            <span
+              class="flex-1 truncate text-xs font-semibold text-left min-w-0"
+              style="color: rgba(255, 255, 255, 0.85)"
+              >{{ server?.name }}</span
+            >
+          </button>
+        </div>
+      </template>
+
+      <!-- Collapsed header -->
+      <template v-else>
+        <button
+          data-server-header
+          class="flex justify-center relative flex-shrink-0 outline-none"
+          @click="openServerPicker"
+        >
+          <div
+            class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white select-none relative"
+            style="background: linear-gradient(135deg, #6366f1, #4338ca)"
+          >
+            {{ server?.name?.[0]?.toUpperCase() }}
+            <span
+              class="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full"
+              style="background: rgba(30, 30, 40, 0.95); border: 1px solid rgba(255, 255, 255, 0.1)"
+            >
+              <svg
+                class="transition-transform duration-200"
+                :class="{ 'rotate-180': showServerPicker }"
+                width="8"
+                height="8"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                style="color: rgba(255, 255, 255, 0.5)"
+              >
+                <path d="M7 10l5 5 5-5z" />
+              </svg>
+            </span>
+          </div>
+        </button>
+      </template>
+
+      <!-- Channel list (scrollable) -->
+      <div
+        class="flex-1 min-h-0 overflow-y-auto flex flex-col gap-0.5 px-1.5 py-0.5 relative z-10"
+        style="scrollbar-width: none"
+      >
+        <!-- ── Expanded: full draggable structure with categories ── -->
+        <VueDraggable
+          v-if="railExpanded"
+          v-model="topItems"
+          class="flex flex-col"
+          :group="{ name: 'channels', pull: true, put: true }"
+          :animation="180"
+          :force-fallback="true"
+          :handle="'.drag-handle'"
+          ghost-class="dnd-ghost"
+          chosen-class="dnd-chosen"
+          drag-class="dnd-drag"
+          fallback-class="dnd-fallback"
+          @end="commitOrder"
+        >
+          <div v-for="item in topItems" :key="item.id" :data-kind="item.kind" :data-id="item.id">
+            <!-- Top-level uncategorized channel -->
+            <template v-if="item.kind === 'channel'">
+              <div class="relative group">
+                <div
+                  v-if="isAdmin"
+                  class="drag-handle absolute right-[25px] top-1/2 -translate-y-1/2 z-10 flex items-center opacity-0 group-hover:opacity-100 cursor-grab"
+                  style="color: rgba(255, 255, 255, 0.2)"
+                  @click.stop
+                >
+                  <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
+                    <circle cx="2" cy="2" r="1.5" />
+                    <circle cx="6" cy="2" r="1.5" />
+                    <circle cx="2" cy="6" r="1.5" />
+                    <circle cx="6" cy="6" r="1.5" />
+                    <circle cx="2" cy="10" r="1.5" />
+                    <circle cx="6" cy="10" r="1.5" />
+                  </svg>
+                </div>
+                <button
+                  class="relative flex h-7 w-full items-center gap-2 rounded-lg px-2 justify-start transition-all duration-150 hover:bg-white/[0.06]"
+                  :style="channelActiveStyle(item.channel)"
+                  @click="handleChannelClick(item.channel, $event)"
+                >
+                  <span
+                    v-if="isChannelActive(item.channel)"
+                    class="absolute -left-1.5 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full"
+                    :class="channelIndicatorClass(item.channel)"
+                  />
+                  <div class="relative flex-shrink-0">
+                    <ChannelIconDisplay
+                      :icon-url="item.channel.iconUrl"
+                      :type="item.channel.type"
+                      :size="15"
+                    />
+                    <span
+                      v-if="
+                        item.channel.type === 'voice' &&
+                        voice.voicePresence.value.get(item.channel.id)?.length
+                      "
+                      class="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-green-500"
+                      style="border: 1.5px solid rgba(12, 12, 18, 0.9)"
+                    />
+                  </div>
+                  <span class="truncate text-xs font-medium flex-1 text-left">{{
+                    item.channel.name
+                  }}</span>
+                </button>
+                <ChannelEditButton v-if="isAdmin" @click="editingChannel = item.channel" />
+              </div>
+            </template>
+
+            <!-- Top-level category block -->
+            <template v-else>
+              <div class="category-block rounded-lg transition-colors duration-150">
+                <!-- Category header -->
+                <div class="flex h-6 items-center gap-1 px-1 group/cat">
+                  <button
+                    class="flex flex-1 items-center gap-1 min-w-0"
+                    @click="toggleCategory(item.category.id)"
+                  >
+                    <svg
+                      class="flex-shrink-0 transition-transform duration-150"
+                      :style="
+                        collapsedCategories.has(item.category.id) ? 'transform:rotate(-90deg)' : ''
+                      "
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      style="color: rgba(255, 255, 255, 0.25)"
+                    >
+                      <path d="M7 10l5 5 5-5z" />
+                    </svg>
+                    <span
+                      v-if="editingCategoryId !== item.category.id"
+                      class="cat-label truncate text-[10px] font-semibold uppercase tracking-wider transition-colors"
+                      style="color: rgba(255, 255, 255, 0.3)"
+                      >{{ item.category.name }}</span
+                    >
+                    <input
+                      v-else
+                      v-model="editingCategoryName"
+                      class="flex-1 min-w-0 bg-transparent text-[10px] font-semibold uppercase tracking-wider outline-none border-b"
+                      style="color: rgba(255, 255, 255, 0.7); border-color: rgba(99, 102, 241, 0.6)"
+                      @keydown.enter="submitEditCategory"
+                      @keydown.escape="editingCategoryId = null"
+                      @blur="submitEditCategory"
+                      @click.stop
+                    />
+                  </button>
+                  <div
+                    v-if="isAdmin"
+                    class="flex items-center gap-0.5 opacity-0 group-hover/cat:opacity-100 transition-opacity flex-shrink-0"
+                  >
+                    <div
+                      class="drag-handle flex items-center cursor-grab px-0.5"
+                      style="color: rgba(255, 255, 255, 0.3)"
+                      @click.stop
+                    >
+                      <svg width="8" height="10" viewBox="0 0 8 12" fill="currentColor">
+                        <circle cx="2" cy="2" r="1.5" />
+                        <circle cx="6" cy="2" r="1.5" />
+                        <circle cx="2" cy="6" r="1.5" />
+                        <circle cx="6" cy="6" r="1.5" />
+                        <circle cx="2" cy="10" r="1.5" />
+                        <circle cx="6" cy="10" r="1.5" />
+                      </svg>
+                    </div>
+                    <button
+                      class="rounded p-0.5 hover:bg-white/10"
+                      style="color: rgba(255, 255, 255, 0.3)"
+                      title="Renommer"
+                      @click.stop="startEditCategory(item.category)"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                          d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                        />
+                      </svg>
+                    </button>
+                    <button
+                      class="rounded p-0.5 hover:bg-white/10"
+                      style="color: rgba(255, 255, 255, 0.3)"
+                      title="Supprimer"
+                      @click.stop="handleDeleteCategory(item.category.id)"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                          d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Inner sortable: channels inside this category -->
+                <VueDraggable
+                  v-show="!collapsedCategories.has(item.category.id)"
+                  v-model="item.children"
+                  class="flex flex-col min-h-[6px] pl-2"
+                  :group="{ name: 'channels', pull: true, put: innerPut }"
+                  :animation="180"
+                  :empty-insert-threshold="0"
+                  :force-fallback="true"
+                  :handle="'.drag-handle'"
+                  ghost-class="dnd-ghost"
+                  chosen-class="dnd-chosen"
+                  drag-class="dnd-drag"
+                  fallback-class="dnd-fallback"
+                  @end="commitOrder"
+                >
+                  <div
+                    v-for="childItem in item.children"
+                    :key="childItem.id"
+                    :data-kind="'channel'"
+                    :data-id="childItem.id"
+                    class="relative group"
+                  >
+                    <div
+                      v-if="isAdmin"
+                      class="drag-handle absolute right-[25px] top-1/2 -translate-y-1/2 z-10 flex items-center opacity-0 group-hover:opacity-100 cursor-grab"
+                      style="color: rgba(255, 255, 255, 0.2)"
+                      @click.stop
+                    >
+                      <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
+                        <circle cx="2" cy="2" r="1.5" />
+                        <circle cx="6" cy="2" r="1.5" />
+                        <circle cx="2" cy="6" r="1.5" />
+                        <circle cx="6" cy="6" r="1.5" />
+                        <circle cx="2" cy="10" r="1.5" />
+                        <circle cx="6" cy="10" r="1.5" />
+                      </svg>
+                    </div>
+                    <button
+                      class="relative flex h-7 w-full items-center gap-2 rounded-lg px-2 justify-start transition-all duration-150 hover:bg-white/[0.06]"
+                      :style="channelActiveStyle(childItem.channel)"
+                      @click="handleChannelClick(childItem.channel, $event)"
+                    >
+                      <span
+                        v-if="isChannelActive(childItem.channel)"
+                        class="absolute -left-1.5 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full"
+                        :class="channelIndicatorClass(childItem.channel)"
+                      />
+                      <div class="relative flex-shrink-0">
+                        <ChannelIconDisplay
+                          :icon-url="childItem.channel.iconUrl"
+                          :type="childItem.channel.type"
+                          :size="15"
+                        />
+                        <span
+                          v-if="
+                            childItem.channel.type === 'voice' &&
+                            voice.voicePresence.value.get(childItem.channel.id)?.length
+                          "
+                          class="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-green-500"
+                          style="border: 1.5px solid rgba(12, 12, 18, 0.9)"
+                        />
+                      </div>
+                      <span class="truncate text-xs font-medium flex-1 text-left">{{
+                        childItem.channel.name
+                      }}</span>
+                    </button>
+                    <ChannelEditButton v-if="isAdmin" @click="editingChannel = childItem.channel" />
+                  </div>
+                </VueDraggable>
+              </div>
+            </template>
+          </div>
+        </VueDraggable>
+
+        <!-- ── Collapsed: flat icons, mirrors topItems order ── -->
+        <template v-else>
+          <template v-for="item in topItems" :key="item.id">
+            <template v-if="item.kind === 'channel'">
+              <button
+                class="relative flex h-8 w-full items-center justify-center rounded-xl transition-all duration-150"
+                :style="channelActiveStyle(item.channel)"
+                :title="item.channel.name"
+                @click="handleChannelClick(item.channel, $event)"
+              >
+                <span
+                  v-if="isChannelActive(item.channel)"
+                  class="absolute -left-1.5 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full"
+                  :class="channelIndicatorClass(item.channel)"
+                />
+                <div class="relative flex-shrink-0">
+                  <ChannelIconDisplay
+                    :icon-url="item.channel.iconUrl"
+                    :type="item.channel.type"
+                    :size="15"
+                  />
+                  <span
+                    v-if="
+                      item.channel.type === 'voice' &&
+                      voice.voicePresence.value.get(item.channel.id)?.length
+                    "
+                    class="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-green-500"
+                    style="border: 1.5px solid rgba(12, 12, 18, 0.9)"
+                  />
+                </div>
+              </button>
+            </template>
+            <template v-else>
+              <button
+                v-for="childItem in item.children"
+                :key="childItem.id"
+                class="relative flex h-8 w-full items-center justify-center rounded-xl transition-all duration-150"
+                :style="channelActiveStyle(childItem.channel)"
+                :title="childItem.channel.name"
+                @click="handleChannelClick(childItem.channel, $event)"
+              >
+                <span
+                  v-if="isChannelActive(childItem.channel)"
+                  class="absolute -left-1.5 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full"
+                  :class="channelIndicatorClass(childItem.channel)"
+                />
+                <div class="relative flex-shrink-0">
+                  <ChannelIconDisplay
+                    :icon-url="childItem.channel.iconUrl"
+                    :type="childItem.channel.type"
+                    :size="15"
+                  />
+                  <span
+                    v-if="
+                      childItem.channel.type === 'voice' &&
+                      voice.voicePresence.value.get(childItem.channel.id)?.length
+                    "
+                    class="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-green-500"
+                    style="border: 1.5px solid rgba(12, 12, 18, 0.9)"
+                  />
+                </div>
+              </button>
+            </template>
+          </template>
+        </template>
+
+        <!-- ── New category inline input ── -->
+        <div v-if="showCreateCategory && railExpanded" class="mt-2 px-0.5">
+          <div
+            class="flex h-8 items-center gap-2 rounded-xl px-2"
+            style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(99, 102, 241, 0.4)"
           >
             <svg
-              class="transition-transform duration-200"
-              :class="{ 'rotate-180': showServerPicker }"
-              width="8"
-              height="8"
+              width="10"
+              height="10"
               viewBox="0 0 24 24"
               fill="currentColor"
-              style="color: rgba(255, 255, 255, 0.5)"
+              style="flex-shrink: 0; color: rgba(99, 102, 241, 0.7)"
             >
-              <path d="M7 10l5 5 5-5z" />
-            </svg>
-          </span>
-        </div>
-
-        <!-- Expanded: name + chevron -->
-        <template v-if="railExpanded">
-          <span
-            class="flex-1 truncate text-xs font-semibold text-left min-w-0"
-            style="color: rgba(255, 255, 255, 0.7)"
-          >
-            {{ server?.name }}
-          </span>
-          <svg
-            class="flex-shrink-0 transition-transform duration-200"
-            :class="{ 'rotate-180': showServerPicker }"
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            style="color: rgba(255, 255, 255, 0.3)"
-          >
-            <path d="M7 10l5 5 5-5z" />
-          </svg>
-        </template>
-      </button>
-
-      <!-- Divider -->
-      <div
-        class="mx-3 my-1 flex-shrink-0"
-        style="height: 1px; background: rgba(255, 255, 255, 0.06)"
-      />
-
-      <!-- Text channels -->
-      <div class="flex flex-col gap-0.5 px-1.5">
-        <button
-          v-for="ch in store.textChannels"
-          :key="ch.id"
-          class="relative flex h-8 items-center gap-2 rounded-xl transition-all duration-150"
-          :class="railExpanded ? 'px-2 justify-start' : 'justify-center'"
-          :style="
-            activeChannelIds.has(ch.id)
-              ? 'background: rgba(99,102,241,0.25); color: rgba(165,180,252,1)'
-              : 'color: rgba(255,255,255,0.3)'
-          "
-          :title="railExpanded ? '' : ch.name + ' (Ctrl+click pour ouvrir plusieurs)'"
-          @click="openChannel(ch.id, $event)"
-        >
-          <span
-            v-if="activeChannelIds.has(ch.id)"
-            class="absolute -left-1.5 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full bg-indigo-400"
-          />
-          <svg class="flex-shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
-          </svg>
-          <span v-if="railExpanded" class="truncate text-xs font-medium">{{ ch.name }}</span>
-        </button>
-      </div>
-
-      <!-- Forum channels -->
-      <div v-if="store.forumChannels.length" class="flex flex-col gap-0.5 px-1.5">
-        <div class="mx-1 my-1" style="height: 1px; background: rgba(255, 255, 255, 0.04)" />
-        <button
-          v-for="ch in store.forumChannels"
-          :key="ch.id"
-          class="relative flex h-8 items-center gap-2 rounded-xl transition-all duration-150"
-          :class="railExpanded ? 'px-2 justify-start' : 'justify-center'"
-          :style="
-            forumPanelChannelId === ch.id
-              ? 'background: rgba(251,191,36,0.2); color: rgba(252,211,77,1)'
-              : 'color: rgba(255,255,255,0.3)'
-          "
-          :title="railExpanded ? '' : ch.name"
-          @click="openForumPanel(ch.id, ch.name, $event)"
-        >
-          <span
-            v-if="forumPanelChannelId === ch.id"
-            class="absolute -left-1.5 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full bg-yellow-400"
-          />
-          <svg class="flex-shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" />
-          </svg>
-          <span v-if="railExpanded" class="truncate text-xs font-medium">{{ ch.name }}</span>
-        </button>
-      </div>
-
-      <!-- Voice channels -->
-      <div v-if="store.voiceChannels.length" class="flex flex-col gap-0.5 px-1.5">
-        <div class="mx-1 my-1" style="height: 1px; background: rgba(255, 255, 255, 0.04)" />
-        <button
-          v-for="ch in store.voiceChannels"
-          :key="ch.id"
-          class="relative flex h-8 items-center gap-2 rounded-xl transition-all duration-150"
-          :class="railExpanded ? 'px-2 justify-start' : 'justify-center'"
-          :style="
-            voice.currentChannelId.value === ch.id
-              ? 'background: rgba(34,197,94,0.15); color: #4ade80'
-              : 'color: rgba(255,255,255,0.3)'
-          "
-          :title="railExpanded ? '' : ch.name"
-          @click="handleVoiceChannelClick(ch.id)"
-        >
-          <span
-            v-if="voice.currentChannelId.value === ch.id"
-            class="absolute -left-1.5 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full bg-green-400"
-          />
-          <div class="relative flex-shrink-0">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
               <path
-                d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"
+                d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"
               />
             </svg>
-            <span
-              v-if="voice.voicePresence.value.get(ch.id)?.length"
-              class="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-green-500"
-              style="border: 1.5px solid rgba(12, 12, 18, 0.9)"
+            <input
+              v-model="newCategoryName"
+              placeholder="Nom de la catégorie"
+              autofocus
+              class="flex-1 min-w-0 bg-transparent text-xs outline-none"
+              style="color: rgba(255, 255, 255, 0.8)"
+              @keydown.enter="submitCreateCategory"
+              @keydown.escape="
+                showCreateCategory = false;
+                newCategoryName = '';
+              "
             />
           </div>
-          <span v-if="railExpanded" class="truncate text-xs font-medium">{{ ch.name }}</span>
-        </button>
+        </div>
       </div>
-
-      <!-- Spacer -->
-      <div class="flex-1" />
 
       <!-- Bottom actions -->
       <div class="flex flex-col gap-0.5 px-1.5">
@@ -440,12 +911,45 @@ async function handleSignOut() {
           />
         </button>
 
-        <!-- Create channel -->
+        <!-- Create channel + create category (admin expanded: two buttons side by side) -->
+        <div v-if="isAdmin && railExpanded" class="flex gap-1">
+          <button
+            class="flex flex-1 h-8 items-center gap-2 px-2 rounded-xl transition-colors hover:bg-white/5"
+            style="color: rgba(255, 255, 255, 0.25)"
+            title="Nouveau canal"
+            @click="showCreateModal = true"
+          >
+            <svg
+              class="flex-shrink-0"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+            </svg>
+            <span class="truncate text-xs font-medium">Canal</span>
+          </button>
+          <button
+            class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl transition-colors hover:bg-white/5"
+            style="color: rgba(255, 255, 255, 0.25)"
+            title="Nouvelle catégorie"
+            @click="showCreateCategory = true"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"
+              />
+            </svg>
+          </button>
+        </div>
+        <!-- Collapsed or non-admin: single + button -->
         <button
-          class="relative flex h-8 items-center gap-2 rounded-xl transition-all duration-150"
+          v-else
+          class="relative flex h-8 w-full items-center gap-2 rounded-xl transition-colors hover:bg-white/5"
           :class="railExpanded ? 'px-2 justify-start' : 'justify-center'"
           style="color: rgba(255, 255, 255, 0.25)"
-          title="Créer un canal"
+          title="Nouveau canal"
           @click="showCreateModal = true"
         >
           <svg class="flex-shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
@@ -617,6 +1121,15 @@ async function handleSignOut() {
       @created="onChannelCreated"
     />
 
+    <!-- ── Edit channel modal ── -->
+    <ChannelEditChannelModal
+      v-if="editingChannel"
+      :server-id="serverId"
+      :channel="editingChannel"
+      @close="editingChannel = null"
+      @updated="editingChannel = null"
+    />
+
     <!-- ── Chat windows ── -->
     <ChatWindow
       v-for="(win, i) in openWindows"
@@ -715,5 +1228,27 @@ async function handleSignOut() {
 }
 .server-picker-row--active {
   background: rgba(99, 102, 241, 0.1);
+}
+
+.dnd-ghost {
+  opacity: 0.35;
+  background: rgba(99, 102, 241, 0.15);
+  border-radius: 12px;
+}
+
+.dnd-fallback {
+  opacity: 0.95 !important;
+  cursor: grabbing !important;
+  transform: scale(1.02);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.5);
+  border-radius: 12px;
+}
+
+.category-block:has(.dnd-ghost) {
+  background: rgba(99, 102, 241, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(165, 180, 252, 0.5);
+}
+.category-block:has(.dnd-ghost) .cat-label {
+  color: rgba(199, 210, 254, 0.95) !important;
 }
 </style>
