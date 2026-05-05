@@ -15,6 +15,8 @@ import { UsersModule } from './users/users.module';
 import { VoiceModule } from './voice/voice.module';
 import { PluginsModule } from './plugins/plugins.module';
 import { CollaborationModule } from './collaboration/collaboration.module';
+import { UploadsModule } from './uploads/uploads.module';
+import { CategoriesModule } from './categories/categories.module';
 
 @Module({
   imports: [
@@ -36,6 +38,8 @@ import { CollaborationModule } from './collaboration/collaboration.module';
     VoiceModule,
     PluginsModule,
     CollaborationModule,
+    UploadsModule,
+    CategoriesModule,
   ],
 })
 export class AppModule {}

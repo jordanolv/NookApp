@@ -50,6 +50,27 @@
       "when": 1777828897971,
       "tag": "0006_bored_slapstick",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1777904480592,
+      "tag": "0007_channel_icon_url",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1777909074913,
+      "tag": "0008_cold_ben_urich",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1777939691640,
+      "tag": "0009_third_iron_fist",
+      "breakpoints": true
     }
   ]
 }

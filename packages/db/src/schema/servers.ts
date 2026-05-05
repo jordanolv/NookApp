@@ -11,11 +11,28 @@ export const server = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'restrict' }),
     iconUrl: text('icon_url'),
+    bannerUrl: text('banner_url'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     slugUniq: uniqueIndex('server_slug_uniq').on(t.slug),
     ownerIdx: index('server_owner_idx').on(t.ownerId),
+  }),
+);
+
+export const channelCategory = pgTable(
+  'channel_category',
+  {
+    id: text('id').primaryKey(),
+    serverId: text('server_id')
+      .notNull()
+      .references(() => server.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    position: integer('position').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    serverIdx: index('channel_category_server_idx').on(t.serverId),
   }),
 );
 
@@ -26,6 +43,7 @@ export const channel = pgTable(
     serverId: text('server_id')
       .notNull()
       .references(() => server.id, { onDelete: 'cascade' }),
+    categoryId: text('category_id').references(() => channelCategory.id, { onDelete: 'set null' }),
     type: text('type', { enum: ['text', 'voice', 'forum', 'game'] })
       .notNull()
       .default('text'),
@@ -33,10 +51,12 @@ export const channel = pgTable(
     position: integer('position').notNull().default(0),
     parentId: text('parent_id'),
     mapZone: jsonb('map_zone'),
+    iconUrl: text('icon_url'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     serverIdx: index('channel_server_idx').on(t.serverId),
+    categoryIdx: index('channel_category_idx').on(t.categoryId),
   }),
 );
 

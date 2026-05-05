@@ -1,104 +1,87 @@
 import { randomUUID } from 'node:crypto';
 import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, eq } from 'drizzle-orm';
-import { channel, member, type Database } from '@nookapp/db';
-import type { ChannelPublic, CreateChannelInput, UpdateChannelInput } from '@nookapp/protocol';
+import { channelCategory, member, type Database } from '@nookapp/db';
+import type { CategoryPublic, CreateCategoryInput, UpdateCategoryInput } from '@nookapp/protocol';
 import { DB } from '../database/database.module';
 
-function toChannelPublic(row: typeof channel.$inferSelect): ChannelPublic {
+function toCategoryPublic(row: typeof channelCategory.$inferSelect): CategoryPublic {
   return {
     id: row.id,
     serverId: row.serverId,
-    categoryId: row.categoryId ?? null,
-    type: row.type,
     name: row.name,
     position: row.position,
-    parentId: row.parentId ?? null,
-    mapZone: (row.mapZone as { x: number; y: number; w: number; h: number } | null) ?? null,
-    iconUrl: row.iconUrl ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
 
 @Injectable()
-export class ChannelsService {
+export class CategoriesService {
   constructor(@Inject(DB) private readonly db: Database) {}
 
-  async listChannels(serverId: string, userId: string): Promise<ChannelPublic[]> {
+  async listCategories(serverId: string, userId: string): Promise<CategoryPublic[]> {
     await this.requireMember(serverId, userId);
     const rows = await this.db
       .select()
-      .from(channel)
-      .where(eq(channel.serverId, serverId))
-      .orderBy(asc(channel.position));
-    return rows.map(toChannelPublic);
+      .from(channelCategory)
+      .where(eq(channelCategory.serverId, serverId))
+      .orderBy(asc(channelCategory.position));
+    return rows.map(toCategoryPublic);
   }
 
-  async createChannel(
+  async createCategory(
     serverId: string,
     userId: string,
-    input: CreateChannelInput,
-  ): Promise<ChannelPublic> {
+    input: CreateCategoryInput,
+  ): Promise<CategoryPublic> {
     await this.requireRole(serverId, userId, ['owner', 'admin']);
 
     const position = input.position ?? (await this.nextPosition(serverId));
 
     const [created] = await this.db
-      .insert(channel)
-      .values({
-        id: randomUUID(),
-        serverId,
-        type: input.type,
-        name: input.name,
-        position,
-        parentId: input.parentId ?? null,
-        mapZone: input.mapZone ?? null,
-      })
+      .insert(channelCategory)
+      .values({ id: randomUUID(), serverId, name: input.name, position })
       .returning();
 
-    return toChannelPublic(created);
+    return toCategoryPublic(created);
   }
 
-  async updateChannel(
+  async updateCategory(
     serverId: string,
-    channelId: string,
+    categoryId: string,
     userId: string,
-    input: UpdateChannelInput,
-  ): Promise<ChannelPublic> {
+    input: UpdateCategoryInput,
+  ): Promise<CategoryPublic> {
     await this.requireRole(serverId, userId, ['owner', 'admin']);
 
     const [updated] = await this.db
-      .update(channel)
+      .update(channelCategory)
       .set({
         ...(input.name !== undefined && { name: input.name }),
         ...(input.position !== undefined && { position: input.position }),
-        ...(input.parentId !== undefined && { parentId: input.parentId }),
-        ...(input.mapZone !== undefined && { mapZone: input.mapZone }),
-        ...(input.iconUrl !== undefined && { iconUrl: input.iconUrl }),
-        ...(input.categoryId !== undefined && { categoryId: input.categoryId }),
       })
-      .where(and(eq(channel.id, channelId), eq(channel.serverId, serverId)))
+      .where(and(eq(channelCategory.id, categoryId), eq(channelCategory.serverId, serverId)))
       .returning();
 
-    if (!updated) throw new NotFoundException('Channel not found');
-    return toChannelPublic(updated);
+    if (!updated) throw new NotFoundException('Category not found');
+    return toCategoryPublic(updated);
   }
 
-  async deleteChannel(serverId: string, channelId: string, userId: string): Promise<void> {
+  async deleteCategory(serverId: string, categoryId: string, userId: string): Promise<void> {
     await this.requireRole(serverId, userId, ['owner', 'admin']);
     const result = await this.db
-      .delete(channel)
-      .where(and(eq(channel.id, channelId), eq(channel.serverId, serverId)))
+      .delete(channelCategory)
+      .where(and(eq(channelCategory.id, categoryId), eq(channelCategory.serverId, serverId)))
       .returning();
-    if (!result.length) throw new NotFoundException('Channel not found');
+    if (!result.length) throw new NotFoundException('Category not found');
   }
 
   private async nextPosition(serverId: string): Promise<number> {
     const rows = await this.db
-      .select({ position: channel.position })
-      .from(channel)
-      .where(eq(channel.serverId, serverId))
-      .orderBy(asc(channel.position));
+      .select({ position: channelCategory.position })
+      .from(channelCategory)
+      .where(eq(channelCategory.serverId, serverId))
+      .orderBy(asc(channelCategory.position));
     return rows.length === 0 ? 0 : rows[rows.length - 1].position + 1;
   }
 
