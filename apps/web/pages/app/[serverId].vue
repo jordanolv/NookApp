@@ -69,8 +69,135 @@ function focusWindow(channelId: string) {
 const activeChannelIds = computed(() => new Set(openWindows.value.map((w) => w.channelId)));
 
 // ── Icon rail ──
-const railExpanded = ref(false);
-const forumPanelRight = computed(() => (railExpanded.value ? 234 : 76));
+const railExpanded = ref(true);
+const railWidth = ref(210);
+const railHeight = ref<number | null>(null);
+const railPos = ref<{ x: number; y: number } | null>(null);
+const _railDrag = ref<{ startX: number; startY: number; origX: number; origY: number } | null>(
+  null,
+);
+const _railResize = ref<{
+  startX: number;
+  startY: number;
+  origW: number;
+  origH: number;
+  origX: number;
+  origY: number;
+  dir: 'left' | 'br' | 'bl' | 'tl' | 'tr';
+} | null>(null);
+
+const railStyle = computed(() => {
+  const w = railExpanded.value ? railWidth.value : 52;
+  const pos = railPos.value;
+  const h = railHeight.value;
+  const active = _railDrag.value !== null || _railResize.value !== null;
+  return {
+    width: w + 'px',
+    top: (pos ? pos.y : 16) + 'px',
+    bottom: pos ? 'auto' : '16px',
+    right: pos ? 'auto' : '16px',
+    left: pos ? pos.x + 'px' : 'auto',
+    height: pos ? (h !== null ? h + 'px' : `calc(100vh - ${pos.y + 16}px)`) : 'auto',
+    transition: active ? 'none' : 'width 200ms cubic-bezier(0.4,0,0.2,1)',
+    background: 'rgba(12, 12, 18, 0.75)',
+    backdropFilter: 'blur(24px) saturate(160%)',
+    WebkitBackdropFilter: 'blur(24px) saturate(160%)',
+    border: '1px solid rgba(255, 255, 255, 0.07)',
+    boxShadow: '0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)',
+  };
+});
+
+function initRailPos() {
+  if (railPos.value !== null || !import.meta.client) return;
+  railPos.value = { x: window.innerWidth - railWidth.value - 16, y: 16 };
+  railHeight.value = window.innerHeight - 32;
+}
+
+function startRailDrag(e: MouseEvent) {
+  initRailPos();
+  _railDrag.value = {
+    startX: e.clientX,
+    startY: e.clientY,
+    origX: railPos.value!.x,
+    origY: railPos.value!.y,
+  };
+  e.preventDefault();
+}
+
+function startRailResize(e: MouseEvent, dir: 'left' | 'br' | 'bl' | 'tl' | 'tr') {
+  initRailPos();
+  _railResize.value = {
+    startX: e.clientX,
+    startY: e.clientY,
+    origW: railWidth.value,
+    origH: railHeight.value ?? window.innerHeight - (railPos.value?.y ?? 16) - 16,
+    origX: railPos.value!.x,
+    origY: railPos.value!.y,
+    dir,
+  };
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+function onRailPointerMove(e: MouseEvent) {
+  const M = 4; // screen margin
+  if (_railDrag.value) {
+    const dx = e.clientX - _railDrag.value.startX;
+    const dy = e.clientY - _railDrag.value.startY;
+    const w = railExpanded.value ? railWidth.value : 52;
+    const h = railHeight.value ?? window.innerHeight - 32;
+    railPos.value = {
+      x: Math.max(M, Math.min(window.innerWidth - w - M, _railDrag.value.origX + dx)),
+      y: Math.max(M, Math.min(window.innerHeight - h - M, _railDrag.value.origY + dy)),
+    };
+  }
+  if (_railResize.value) {
+    const { startX, startY, origW, origH, origX, origY, dir } = _railResize.value;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    if (dir === 'left') {
+      const newW = Math.max(180, Math.min(origW + origX - M, origW - dx));
+      railWidth.value = newW;
+      if (railPos.value)
+        railPos.value = { ...railPos.value, x: Math.max(M, origX + (origW - newW)) };
+    } else if (dir === 'tl') {
+      const newW = Math.max(180, Math.min(origW + origX - M, origW - dx));
+      const newH = Math.max(200, Math.min(origH + origY - M, origH - dy));
+      railWidth.value = newW;
+      railHeight.value = newH;
+      if (railPos.value)
+        railPos.value = {
+          x: Math.max(M, origX + (origW - newW)),
+          y: Math.max(M, origY + (origH - newH)),
+        };
+    } else if (dir === 'tr') {
+      const newH = Math.max(200, Math.min(origH + origY - M, origH - dy));
+      railWidth.value = Math.max(180, Math.min(window.innerWidth - origX - M, origW + dx));
+      railHeight.value = newH;
+      if (railPos.value)
+        railPos.value = { ...railPos.value, y: Math.max(M, origY + (origH - newH)) };
+    } else if (dir === 'br') {
+      railWidth.value = Math.max(180, Math.min(window.innerWidth - origX - M, origW + dx));
+      railHeight.value = Math.max(200, Math.min(window.innerHeight - origY - M, origH + dy));
+    } else if (dir === 'bl') {
+      const newW = Math.max(180, Math.min(origW + origX - M, origW - dx));
+      railWidth.value = newW;
+      if (railPos.value)
+        railPos.value = { ...railPos.value, x: Math.max(M, origX + (origW - newW)) };
+      railHeight.value = Math.max(200, Math.min(window.innerHeight - origY - M, origH + dy));
+    }
+  }
+}
+
+function stopRailPointer() {
+  _railDrag.value = null;
+  _railResize.value = null;
+}
+
+const forumPanelRight = computed(() => {
+  if (railPos.value) return 0;
+  return (railExpanded.value ? railWidth.value : 52) + 24;
+});
 
 // ── Server picker ──
 const showServerPicker = ref(false);
@@ -390,12 +517,16 @@ let teardownVoiceListeners: (() => void) | null = null;
 onMounted(() => {
   socket.connect();
   teardownVoiceListeners = voice.setupListeners();
+  window.addEventListener('mousemove', onRailPointerMove);
+  window.addEventListener('mouseup', stopRailPointer);
 });
 
 onUnmounted(async () => {
   if (voice.currentChannelId.value) await voice.leave();
   teardownVoiceListeners?.();
   socket.disconnect();
+  window.removeEventListener('mousemove', onRailPointerMove);
+  window.removeEventListener('mouseup', stopRailPointer);
 });
 
 async function handleSignOut() {
@@ -426,17 +557,69 @@ async function handleSignOut() {
 
     <!-- ── Icon rail ── -->
     <div
-      class="fixed top-4 right-4 bottom-4 z-40 flex flex-col rounded-2xl py-2 gap-1 overflow-hidden"
-      :style="{
-        width: railExpanded ? '210px' : '52px',
-        transition: 'width 200ms cubic-bezier(0.4,0,0.2,1)',
-        background: 'rgba(12, 12, 18, 0.75)',
-        backdropFilter: 'blur(24px) saturate(160%)',
-        WebkitBackdropFilter: 'blur(24px) saturate(160%)',
-        border: '1px solid rgba(255, 255, 255, 0.07)',
-        boxShadow: '0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)',
-      }"
+      class="fixed z-40 flex flex-col rounded-2xl py-2 gap-1 overflow-hidden group/rail"
+      :style="railStyle"
     >
+      <!-- Top-left: resize (nw) -->
+      <div
+        class="absolute top-0 left-0 w-6 h-6 z-50 cursor-nw-resize opacity-0 hover:opacity-100 transition-opacity duration-150"
+        style="
+          border-top: 1.5px dashed rgba(255, 255, 255, 0.35);
+          border-left: 1.5px dashed rgba(255, 255, 255, 0.35);
+          border-radius: 16px 0 0 0;
+        "
+        @mousedown="(e) => startRailResize(e, 'tl')"
+      />
+      <!-- Top-right: resize (ne) -->
+      <div
+        class="absolute top-0 right-0 w-6 h-6 z-50 cursor-ne-resize opacity-0 hover:opacity-100 transition-opacity duration-150"
+        style="
+          border-top: 1.5px dashed rgba(255, 255, 255, 0.35);
+          border-right: 1.5px dashed rgba(255, 255, 255, 0.35);
+          border-radius: 0 16px 0 0;
+        "
+        @mousedown="(e) => startRailResize(e, 'tr')"
+      />
+      <!-- Bottom-left: resize (sw) -->
+      <div
+        class="absolute bottom-0 left-0 w-6 h-6 z-50 cursor-sw-resize opacity-0 hover:opacity-100 transition-opacity duration-150"
+        style="
+          border-bottom: 1.5px dashed rgba(255, 255, 255, 0.35);
+          border-left: 1.5px dashed rgba(255, 255, 255, 0.35);
+          border-radius: 0 0 0 16px;
+        "
+        @mousedown="(e) => startRailResize(e, 'bl')"
+      />
+      <!-- Bottom-right: resize (se) -->
+      <div
+        class="absolute bottom-0 right-0 w-6 h-6 z-50 cursor-se-resize opacity-0 hover:opacity-100 transition-opacity duration-150"
+        style="
+          border-bottom: 1.5px dashed rgba(255, 255, 255, 0.35);
+          border-right: 1.5px dashed rgba(255, 255, 255, 0.35);
+          border-radius: 0 0 16px 0;
+        "
+        @mousedown="(e) => startRailResize(e, 'br')"
+      />
+      <!-- Left edge: resize width -->
+      <div
+        class="absolute top-0 left-0 bottom-0 w-1 z-50 cursor-ew-resize opacity-0 hover:opacity-100 transition-opacity rounded-l-2xl"
+        style="background: rgba(99, 102, 241, 0.5)"
+        @mousedown="(e) => startRailResize(e, 'left')"
+      />
+      <!-- Top drag bar (between corners) -->
+      <div
+        class="absolute top-0 left-6 right-6 h-3 z-50 cursor-grab active:cursor-grabbing flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity"
+        @mousedown="startRailDrag"
+      >
+        <div class="flex gap-0.5">
+          <div
+            v-for="i in 4"
+            :key="i"
+            class="w-3 h-0.5 rounded-full"
+            style="background: rgba(255, 255, 255, 0.3)"
+          />
+        </div>
+      </div>
       <!-- Server header -->
       <template v-if="railExpanded">
         <!-- Banner block -->
@@ -446,7 +629,7 @@ async function handleSignOut() {
         >
           <img
             v-if="server?.bannerUrl"
-            :src="resolveUrl(server.bannerUrl)"
+            :src="resolveUrl(server.bannerUrl) ?? undefined"
             class="w-full h-full object-cover"
           />
           <div
