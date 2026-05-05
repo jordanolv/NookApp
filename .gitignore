@@ -49,3 +49,5 @@ CLAUDE.md
 
 # Compiled JS artefacts from TS packages
 packages/*/src/**/*.js
+.grepai/
+apps/api/uploads/
