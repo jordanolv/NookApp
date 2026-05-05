@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useDraggable } from '@vueuse/core';
+import { Settings } from 'lucide-vue-next';
 import { useMessagesStore } from '~/stores/messages';
 
 const props = defineProps<{
@@ -17,7 +18,10 @@ const emit = defineEmits<{
 const route = useRoute();
 const serverId = computed(() => route.params.serverId as string);
 const { store } = useServers();
+const { isAdmin } = useMember();
 const { fetchMessages, sendMessage } = useMessages();
+
+const showEdit = ref(false);
 const messagesStore = useMessagesStore();
 const socket = useSocket();
 
@@ -176,9 +180,23 @@ onUnmounted(() => {
         style="background: rgba(255, 255, 255, 0.08)"
       />
 
-      <span class="ml-2 text-xs font-semibold truncate" style="color: rgba(255, 255, 255, 0.5)">
+      <span
+        class="ml-2 text-xs font-semibold truncate flex-1"
+        style="color: rgba(255, 255, 255, 0.5)"
+      >
         # {{ channel?.name ?? '…' }}
       </span>
+
+      <button
+        v-if="isAdmin && channel"
+        class="flex-shrink-0 rounded-lg p-1 transition-colors hover:bg-white/10"
+        style="color: rgba(255, 255, 255, 0.4)"
+        title="Modifier le canal"
+        @mousedown.stop
+        @click.stop="showEdit = true"
+      >
+        <Settings :size="12" :stroke-width="1.75" />
+      </button>
     </div>
 
     <!-- Messages -->
@@ -270,6 +288,15 @@ onUnmounted(() => {
         </button>
       </div>
     </div>
+
+    <!-- Edit channel modal -->
+    <ChannelEditChannelModal
+      v-if="showEdit && channel"
+      :server-id="serverId"
+      :channel="channel"
+      @close="showEdit = false"
+      @updated="showEdit = false"
+    />
 
     <!-- Resize handles -->
     <div
