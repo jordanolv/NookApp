@@ -8,6 +8,7 @@ import {
 import { forwardRef, Inject } from '@nestjs/common';
 import type { Server, Socket } from 'socket.io';
 import type {
+  PlayerAppearancePayload,
   PlayerHelloPayload,
   PlayerMovedPayload,
   PlayerSnapshotPayload,
@@ -67,7 +68,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   @SubscribeMessage('player:hello')
   handlePlayerHello(client: Socket, payload: PlayerHelloPayload) {
-    const { serverId, name, x, y, dir } = payload;
+    const { serverId, name, x, y, dir, appearance } = payload;
     const userId = client.data.userId as string;
 
     client.join(`server:${serverId}`);
@@ -77,7 +78,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     if (!this.rooms.has(serverId)) this.rooms.set(serverId, new Map());
     const room = this.rooms.get(serverId)!;
 
-    const me: PlayerState = { userId, name, x, y, dir };
+    const me: PlayerState = { userId, name, x, y, dir, appearance };
     const snapshot: PlayerSnapshotPayload = {
       you: me,
       others: Array.from(room.values()).filter((p) => p.userId !== userId),
@@ -122,6 +123,25 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
 
     client.volatile.to(`server:${serverId}`).emit('player:moved', payload);
+  }
+
+  @SubscribeMessage('player:appearance')
+  handlePlayerAppearance(
+    client: Socket,
+    payload: { appearance: PlayerAppearancePayload['appearance'] },
+  ) {
+    const serverId = client.data.serverId as string | undefined;
+    const userId = client.data.userId as string | undefined;
+    if (!serverId || !userId) return;
+
+    const room = this.rooms.get(serverId);
+    const prev = room?.get(userId);
+    if (room && prev) {
+      room.set(userId, { ...prev, appearance: payload.appearance });
+    }
+
+    const out: PlayerAppearancePayload = { userId, appearance: payload.appearance };
+    client.to(`server:${serverId}`).emit('player:appearance', out);
   }
 
   @SubscribeMessage('voice:join')
