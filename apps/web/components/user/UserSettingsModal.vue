@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { UserCircle, PersonStanding, Mic, Palette, RotateCcw } from 'lucide-vue-next';
+import { UserCircle, PersonStanding, Mic, Palette, RotateCcw, Languages } from 'lucide-vue-next';
 import type { Component } from 'vue';
 import {
   CG_LAYER_ORDER,
@@ -13,18 +13,15 @@ const emit = defineEmits<{ close: [] }>();
 const { user, refreshUser } = useAuth();
 const { authBase } = useRuntimeConfig().public;
 const character = useCharacter();
+const { locale, setLocale, t } = useI18n();
 
-const LAYER_LABELS: Record<CgLayer, string> = {
-  body: 'Corps',
-  eyes: 'Yeux',
-  outfit: 'Tenue',
-  hair: 'Cheveux',
-  accessory: 'Accessoire',
-};
+function layerLabel(layer: CgLayer): string {
+  return t(`settings.user.character.layers.${layer}`);
+}
 
 function variantLabel(layer: CgLayer, variant: string): string {
   const stripped = variant.replace(/^[a-z]+_/, '').replace(/^acc_/, '');
-  return `${LAYER_LABELS[layer]} ${stripped}`;
+  return `${layerLabel(layer)} ${stripped}`;
 }
 
 function previewForLayer(layer: CgLayer, variant: string) {
@@ -47,14 +44,16 @@ function previewForLayer(layer: CgLayer, variant: string) {
 
 type TabId = 'profile' | 'character' | 'audio' | 'appearance';
 
-const tabs: { id: TabId; label: string; icon: Component }[] = [
-  { id: 'profile', label: 'Profil', icon: UserCircle },
-  { id: 'character', label: 'Personnage', icon: PersonStanding },
-  { id: 'audio', label: 'Audio & vidéo', icon: Mic },
-  { id: 'appearance', label: 'Apparence', icon: Palette },
+const tabs: { id: TabId; labelKey: string; icon: Component }[] = [
+  { id: 'profile', labelKey: 'settings.user.tabs.profile', icon: UserCircle },
+  { id: 'character', labelKey: 'settings.user.tabs.character', icon: PersonStanding },
+  { id: 'audio', labelKey: 'settings.user.tabs.audio', icon: Mic },
+  { id: 'appearance', labelKey: 'settings.user.tabs.appearance', icon: Palette },
 ];
 
 const activeTab = ref<TabId>('profile');
+
+const languageOptions = [{ code: 'fr' }, { code: 'en' }] as const;
 
 const nameDraft = ref(user.value?.name ?? '');
 watch(
@@ -85,8 +84,9 @@ async function saveProfile() {
     await refreshUser();
     saved.value = true;
     setTimeout(() => (saved.value = false), 1800);
-  } catch (e: any) {
-    error.value = e?.data?.message ?? 'Impossible de sauvegarder.';
+  } catch (e: unknown) {
+    error.value =
+      (e as { data?: { message?: string } })?.data?.message ?? t('settings.user.profile.saveError');
   } finally {
     saving.value = false;
   }
@@ -95,7 +95,9 @@ async function saveProfile() {
 
 <template>
   <UiFloatingWindow
-    :title="`Paramètres du compte${user?.name ? ` — ${user.name}` : ''}`"
+    :title="
+      user?.name ? t('settings.user.titleWithName', { name: user.name }) : t('settings.user.title')
+    "
     :initial-width="720"
     :initial-height="520"
     :min-width="520"
@@ -126,16 +128,18 @@ async function saveProfile() {
           "
         >
           <component :is="tab.icon" class="h-4 w-4 shrink-0" :stroke-width="1.75" />
-          <span class="truncate">{{ tab.label }}</span>
+          <span class="truncate">{{ t(tab.labelKey) }}</span>
         </button>
       </nav>
 
       <div class="flex-1 overflow-y-auto p-6">
         <section v-if="activeTab === 'profile'" class="space-y-6 max-w-md">
           <header>
-            <h3 class="text-sm font-semibold" style="color: rgba(255, 255, 255, 0.9)">Profil</h3>
+            <h3 class="text-sm font-semibold" style="color: rgba(255, 255, 255, 0.9)">
+              {{ t('settings.user.profile.heading') }}
+            </h3>
             <p class="text-xs mt-0.5" style="color: rgba(255, 255, 255, 0.45)">
-              Ce que les autres voient dans tes Nooks.
+              {{ t('settings.user.profile.description') }}
             </p>
           </header>
 
@@ -145,7 +149,7 @@ async function saveProfile() {
               style="color: rgba(255, 255, 255, 0.6)"
               for="user-name"
             >
-              Pseudo
+              {{ t('settings.user.profile.displayName') }}
             </label>
             <input
               id="user-name"
@@ -165,12 +169,14 @@ async function saveProfile() {
                 ($event.target as HTMLInputElement).style.borderColor = 'rgba(255, 255, 255, 0.08)'
               "
             />
-            <p class="text-[11px]" style="color: rgba(255, 255, 255, 0.35)">2 à 32 caractères.</p>
+            <p class="text-[11px]" style="color: rgba(255, 255, 255, 0.35)">
+              {{ t('settings.user.profile.displayNameHint') }}
+            </p>
           </div>
 
           <div class="space-y-2">
             <label class="block text-xs font-medium" style="color: rgba(255, 255, 255, 0.6)">
-              Email
+              {{ t('common.email') }}
             </label>
             <div
               class="px-3 py-2 rounded-lg text-sm"
@@ -184,6 +190,47 @@ async function saveProfile() {
             </div>
           </div>
 
+          <div class="space-y-2">
+            <div class="flex items-center gap-2">
+              <Languages
+                class="h-4 w-4"
+                :stroke-width="1.75"
+                style="color: rgba(255, 255, 255, 0.45)"
+              />
+              <label class="block text-xs font-medium" style="color: rgba(255, 255, 255, 0.6)">
+                {{ t('settings.user.profile.language') }}
+              </label>
+            </div>
+            <div
+              class="inline-flex rounded-lg p-1"
+              style="
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(255, 255, 255, 0.07);
+              "
+            >
+              <button
+                v-for="option in languageOptions"
+                :key="option.code"
+                type="button"
+                class="px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
+                :style="{
+                  background: locale === option.code ? 'rgba(88, 101, 242, 0.25)' : 'transparent',
+                  color:
+                    locale === option.code
+                      ? 'rgba(255, 255, 255, 0.95)'
+                      : 'rgba(255, 255, 255, 0.45)',
+                }"
+                :aria-pressed="locale === option.code"
+                @click="setLocale(option.code)"
+              >
+                {{ t(`locale.${option.code}`) }}
+              </button>
+            </div>
+            <p class="text-[11px]" style="color: rgba(255, 255, 255, 0.35)">
+              {{ t('settings.user.profile.languageHint') }}
+            </p>
+          </div>
+
           <div class="flex items-center gap-3 pt-2">
             <button
               class="px-4 py-2 rounded-lg text-sm font-medium transition-opacity"
@@ -195,9 +242,9 @@ async function saveProfile() {
               }"
               @click="saveProfile"
             >
-              {{ saving ? 'Sauvegarde…' : 'Sauvegarder' }}
+              {{ saving ? t('common.saving') : t('common.save') }}
             </button>
-            <span v-if="saved" class="text-xs" style="color: #22c55e">Enregistré.</span>
+            <span v-if="saved" class="text-xs" style="color: #22c55e">{{ t('common.saved') }}</span>
             <span v-if="error" class="text-xs" style="color: #ef4444">{{ error }}</span>
           </div>
         </section>
@@ -207,10 +254,10 @@ async function saveProfile() {
             <header class="flex items-start justify-between gap-4">
               <div>
                 <h3 class="text-sm font-semibold" style="color: rgba(255, 255, 255, 0.9)">
-                  Personnage
+                  {{ t('settings.user.character.heading') }}
                 </h3>
                 <p class="text-xs mt-0.5" style="color: rgba(255, 255, 255, 0.45)">
-                  Corps, yeux, tenue, cheveux, accessoire.
+                  {{ t('settings.user.character.description') }}
                 </p>
               </div>
               <button
@@ -223,20 +270,20 @@ async function saveProfile() {
                 @click="character.reset()"
               >
                 <RotateCcw class="h-3 w-3" :stroke-width="2" />
-                Réinitialiser
+                {{ t('settings.user.character.reset') }}
               </button>
             </header>
 
             <div v-for="layer in CG_LAYER_ORDER" :key="layer" class="space-y-2">
               <div class="flex items-baseline justify-between">
                 <span class="text-xs font-semibold" style="color: rgba(255, 255, 255, 0.7)">
-                  {{ LAYER_LABELS[layer] }}
+                  {{ layerLabel(layer) }}
                 </span>
                 <span class="text-[11px]" style="color: rgba(255, 255, 255, 0.35)">
                   {{
                     character.appearance.value[layer]
                       ?.replace(/^[a-z]+_/, '')
-                      .replace(/^acc_/, '') ?? 'Aucun'
+                      .replace(/^acc_/, '') ?? t('settings.user.character.none')
                   }}
                 </span>
               </div>
@@ -255,10 +302,10 @@ async function saveProfile() {
                         : '1px solid rgba(255, 255, 255, 0.06)',
                     color: 'rgba(255, 255, 255, 0.55)',
                   }"
-                  :title="`${LAYER_LABELS[layer]} — aucun`"
+                  :title="`${layerLabel(layer)} — ${t('settings.user.character.none')}`"
                   @click="character.setLayer(layer, null)"
                 >
-                  Aucun
+                  {{ t('settings.user.character.none') }}
                 </button>
                 <button
                   v-for="variant in CG_VARIANTS[layer]"
@@ -293,10 +340,10 @@ async function saveProfile() {
             <UserCharacterPreview :appearance="character.appearance.value" :scale="6" />
             <div class="text-center px-3">
               <p class="text-[11px] font-semibold" style="color: rgba(255, 255, 255, 0.75)">
-                Aperçu
+                {{ t('settings.user.character.preview') }}
               </p>
               <p class="text-[10px] mt-0.5" style="color: rgba(255, 255, 255, 0.4)">
-                Live dans le monde.
+                {{ t('settings.user.character.previewHint') }}
               </p>
             </div>
           </aside>
@@ -311,9 +358,11 @@ async function saveProfile() {
             :stroke-width="1.5"
             style="color: rgba(255, 255, 255, 0.25)"
           />
-          <p class="text-sm font-semibold" style="color: rgba(255, 255, 255, 0.7)">Audio & vidéo</p>
+          <p class="text-sm font-semibold" style="color: rgba(255, 255, 255, 0.7)">
+            {{ t('settings.user.audio.heading') }}
+          </p>
           <p class="text-xs mt-1 max-w-xs" style="color: rgba(255, 255, 255, 0.4)">
-            Bientôt — sélection du micro, du haut-parleur, de la caméra et test de niveau.
+            {{ t('settings.user.audio.description') }}
           </p>
         </section>
 
@@ -326,9 +375,11 @@ async function saveProfile() {
             :stroke-width="1.5"
             style="color: rgba(255, 255, 255, 0.25)"
           />
-          <p class="text-sm font-semibold" style="color: rgba(255, 255, 255, 0.7)">Apparence</p>
+          <p class="text-sm font-semibold" style="color: rgba(255, 255, 255, 0.7)">
+            {{ t('settings.user.appearance.heading') }}
+          </p>
           <p class="text-xs mt-1 max-w-xs" style="color: rgba(255, 255, 255, 0.4)">
-            Bientôt — thème, densité de l'interface et taille du chat.
+            {{ t('settings.user.appearance.description') }}
           </p>
         </section>
       </div>

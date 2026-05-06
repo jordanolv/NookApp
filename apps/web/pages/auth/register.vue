@@ -1,5 +1,7 @@
 <script setup lang="ts">
-useHead({ title: 'Register — NookApp' });
+const { t } = useI18n();
+
+useHead(() => ({ title: t('auth.register.title') }));
 
 const { signUp } = useAuth();
 const name = ref('');
@@ -17,7 +19,7 @@ async function onSubmit() {
   } catch (e: unknown) {
     console.error('[register] error:', e);
     const err = e as { data?: { message?: string }; message?: string };
-    error.value = err?.data?.message ?? err?.message ?? 'Registration failed';
+    error.value = err?.data?.message ?? err?.message ?? t('auth.register.failed');
   } finally {
     loading.value = false;
   }
@@ -26,15 +28,19 @@ async function onSubmit() {
 
 <template>
   <main class="mx-auto max-w-md px-6 py-16">
-    <h1 class="mb-2 text-3xl font-bold">Create your account</h1>
+    <h1 class="mb-2 text-3xl font-bold">{{ t('auth.register.heading') }}</h1>
     <p class="mb-8 text-neutral-500">
-      Already have one?
-      <NuxtLink to="/auth/login" class="text-indigo-600 hover:underline">Sign in</NuxtLink>
+      {{ t('auth.register.alreadyHaveAccount') }}
+      <NuxtLink to="/auth/login" class="text-indigo-600 hover:underline">{{
+        t('common.signIn')
+      }}</NuxtLink>
     </p>
 
     <form class="space-y-4" @submit.prevent="onSubmit">
       <div>
-        <label class="mb-1 block text-sm font-medium" for="name">Display name</label>
+        <label class="mb-1 block text-sm font-medium" for="name">{{
+          t('auth.register.displayName')
+        }}</label>
         <input
           id="name"
           v-model="name"
@@ -48,7 +54,7 @@ async function onSubmit() {
       </div>
 
       <div>
-        <label class="mb-1 block text-sm font-medium" for="email">Email</label>
+        <label class="mb-1 block text-sm font-medium" for="email">{{ t('common.email') }}</label>
         <input
           id="email"
           v-model="email"
@@ -60,7 +66,9 @@ async function onSubmit() {
       </div>
 
       <div>
-        <label class="mb-1 block text-sm font-medium" for="password">Password</label>
+        <label class="mb-1 block text-sm font-medium" for="password">{{
+          t('common.password')
+        }}</label>
         <input
           id="password"
           v-model="password"
@@ -70,7 +78,7 @@ async function onSubmit() {
           autocomplete="new-password"
           class="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-neutral-700 dark:bg-neutral-900"
         />
-        <p class="mt-1 text-xs text-neutral-400">At least 12 characters</p>
+        <p class="mt-1 text-xs text-neutral-400">{{ t('auth.register.passwordHint') }}</p>
       </div>
 
       <p v-if="error" class="text-sm text-red-500">{{ error }}</p>
@@ -80,7 +88,7 @@ async function onSubmit() {
         :disabled="loading"
         class="w-full rounded-lg bg-indigo-600 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
       >
-        {{ loading ? 'Creating account…' : 'Create account' }}
+        {{ loading ? t('auth.register.submitLoading') : t('auth.register.submit') }}
       </button>
     </form>
   </main>

@@ -1,8 +1,23 @@
 export default defineNuxtConfig({
   compatibilityDate: '2025-01-01',
   devtools: { enabled: true },
-  modules: ['@nuxtjs/tailwindcss', '@pinia/nuxt'],
+  modules: ['@nuxtjs/tailwindcss', '@pinia/nuxt', '@nuxtjs/i18n'],
   css: ['~/assets/css/main.css'],
+  i18n: {
+    strategy: 'no_prefix',
+    defaultLocale: 'fr',
+    langDir: 'locales',
+    locales: [
+      { code: 'fr', name: 'Français', language: 'fr-FR', file: 'fr.json' },
+      { code: 'en', name: 'English', language: 'en-US', file: 'en.json' },
+    ],
+    detectBrowserLanguage: {
+      useCookie: true,
+      cookieKey: 'nookapp_locale',
+      redirectOn: 'root',
+      fallbackLocale: 'fr',
+    },
+  },
   routeRules: {
     '/': { prerender: true },
     '/auth/**': { ssr: true },

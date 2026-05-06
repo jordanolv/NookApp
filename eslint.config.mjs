@@ -101,6 +101,7 @@ export default [
         useChannelIcons: 'readonly',
         useServersStore: 'readonly',
         useUiLayout: 'readonly',
+        useI18n: 'readonly',
         $fetch: 'readonly',
         // Pinia
         defineStore: 'readonly',

@@ -1,13 +1,14 @@
 <script setup lang="ts">
 const props = defineProps<{ serverId: string; serverName?: string | null }>();
 const emit = defineEmits<{ close: [] }>();
+const { t } = useI18n();
 
 type TabKey = 'general' | 'roles' | 'members';
 
-const tabs: Array<{ key: TabKey; label: string }> = [
-  { key: 'general', label: 'Général' },
-  { key: 'roles', label: 'Rôles' },
-  { key: 'members', label: 'Membres' },
+const tabs: Array<{ key: TabKey; labelKey: string }> = [
+  { key: 'general', labelKey: 'serverSettings.tabs.general' },
+  { key: 'roles', labelKey: 'serverSettings.tabs.roles' },
+  { key: 'members', labelKey: 'serverSettings.tabs.members' },
 ];
 
 const activeTab = ref<TabKey>('roles');
@@ -15,7 +16,11 @@ const activeTab = ref<TabKey>('roles');
 
 <template>
   <UiFloatingWindow
-    :title="`Paramètres du serveur${props.serverName ? ` — ${props.serverName}` : ''}`"
+    :title="
+      props.serverName
+        ? t('serverSettings.titleWithName', { name: props.serverName })
+        : t('serverSettings.title')
+    "
     :initial-width="860"
     :initial-height="600"
     :min-width="640"
@@ -29,17 +34,17 @@ const activeTab = ref<TabKey>('roles');
         style="background: rgba(0, 0, 0, 0.2)"
       >
         <button
-          v-for="t in tabs"
-          :key="t.key"
+          v-for="tab in tabs"
+          :key="tab.key"
           class="w-full text-left px-3 py-1.5 rounded text-sm transition-colors"
           :class="
-            activeTab === t.key
+            activeTab === tab.key
               ? 'bg-white/15 text-white'
               : 'text-white/60 hover:bg-white/5 hover:text-white'
           "
-          @click="activeTab = t.key"
+          @click="activeTab = tab.key"
         >
-          {{ t.label }}
+          {{ t(tab.labelKey) }}
         </button>
       </nav>
 
@@ -52,7 +57,7 @@ const activeTab = ref<TabKey>('roles');
           class="h-full flex items-center justify-center p-8 text-center text-xs"
           style="color: rgba(255, 255, 255, 0.4)"
         >
-          (Bientôt) — nom, bannière, suppression…
+          {{ t('serverSettings.generalSoon') }}
         </div>
       </div>
     </div>

@@ -6,6 +6,7 @@ const props = defineProps<{ serverId: string }>();
 
 const api = useApi();
 const rolesApi = useRoles();
+const { t } = useI18n();
 
 const members = ref<MemberPublic[]>([]);
 const roles = ref<RolePublic[]>([]);
@@ -32,7 +33,7 @@ async function refresh() {
     members.value = m;
     roles.value = r;
   } catch (e) {
-    error.value = (e as Error).message ?? 'Erreur de chargement';
+    error.value = (e as Error).message ?? t('serverSettings.members.loadError');
   } finally {
     loading.value = false;
   }
@@ -50,7 +51,7 @@ async function toggleRole(member: MemberPublic, roleId: string) {
     });
     members.value = members.value.map((m) => (m.id === member.id ? { ...m, roleIds: updated } : m));
   } catch (e) {
-    error.value = (e as Error).message ?? 'Impossible de modifier les rôles';
+    error.value = (e as Error).message ?? t('serverSettings.members.roleUpdateError');
   } finally {
     savingMemberId.value = null;
   }
@@ -61,12 +62,16 @@ onMounted(refresh);
 
 <template>
   <div class="h-full overflow-y-auto p-5">
-    <div v-if="loading" class="text-xs text-white/50">Chargement…</div>
+    <div v-if="loading" class="text-xs text-white/50">
+      {{ t('serverSettings.members.loading') }}
+    </div>
     <div v-else>
       <div class="mb-4 flex items-center justify-between">
-        <h3 class="text-sm font-medium text-white">Membres · {{ members.length }}</h3>
+        <h3 class="text-sm font-medium text-white">
+          {{ t('serverSettings.members.title', { count: members.length }) }}
+        </h3>
         <button class="text-xs text-white/60 hover:text-white" :disabled="loading" @click="refresh">
-          Actualiser
+          {{ t('serverSettings.members.refresh') }}
         </button>
       </div>
 
@@ -100,7 +105,7 @@ onMounted(refresh);
                 v-if="m.isOwner"
                 class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300"
               >
-                Owner
+                {{ t('serverSettings.members.owner') }}
               </span>
             </div>
 
@@ -125,8 +130,10 @@ onMounted(refresh);
               <summary
                 class="text-xs text-white/50 hover:text-white cursor-pointer select-none list-none"
               >
-                <span class="group-open:hidden">Assigner des rôles ▾</span>
-                <span class="hidden group-open:inline">Masquer ▴</span>
+                <span class="group-open:hidden">{{ t('serverSettings.members.assignRoles') }}</span>
+                <span class="hidden group-open:inline">{{
+                  t('serverSettings.members.hideRoles')
+                }}</span>
               </summary>
               <div class="mt-2 flex flex-wrap gap-1.5">
                 <button

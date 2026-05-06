@@ -44,9 +44,6 @@ assets-source/
 # Drizzle generated meta
 drizzle/meta/
 
-# Claude
-CLAUDE.md 
-
 # Compiled JS artefacts from TS packages
 packages/*/src/**/*.js
 .grepai/

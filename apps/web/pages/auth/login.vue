@@ -1,5 +1,7 @@
 <script setup lang="ts">
-useHead({ title: 'Sign in — NookApp' });
+const { t } = useI18n();
+
+useHead(() => ({ title: t('auth.login.title') }));
 
 const { signIn } = useAuth();
 const email = ref('');
@@ -15,7 +17,7 @@ async function onSubmit() {
     await navigateTo('/app');
   } catch (e: unknown) {
     const msg = (e as { data?: { message?: string } })?.data?.message;
-    error.value = msg ?? 'Invalid credentials';
+    error.value = msg ?? t('auth.login.invalidCredentials');
   } finally {
     loading.value = false;
   }
@@ -24,15 +26,17 @@ async function onSubmit() {
 
 <template>
   <main class="mx-auto max-w-md px-6 py-16">
-    <h1 class="mb-2 text-3xl font-bold">Sign in</h1>
+    <h1 class="mb-2 text-3xl font-bold">{{ t('auth.login.heading') }}</h1>
     <p class="mb-8 text-neutral-500">
-      No account?
-      <NuxtLink to="/auth/register" class="text-indigo-600 hover:underline">Create one</NuxtLink>
+      {{ t('auth.login.noAccount') }}
+      <NuxtLink to="/auth/register" class="text-indigo-600 hover:underline">{{
+        t('auth.login.createOne')
+      }}</NuxtLink>
     </p>
 
     <form class="space-y-4" @submit.prevent="onSubmit">
       <div>
-        <label class="mb-1 block text-sm font-medium" for="email">Email</label>
+        <label class="mb-1 block text-sm font-medium" for="email">{{ t('common.email') }}</label>
         <input
           id="email"
           v-model="email"
@@ -44,7 +48,9 @@ async function onSubmit() {
       </div>
 
       <div>
-        <label class="mb-1 block text-sm font-medium" for="password">Password</label>
+        <label class="mb-1 block text-sm font-medium" for="password">{{
+          t('common.password')
+        }}</label>
         <input
           id="password"
           v-model="password"
@@ -62,7 +68,7 @@ async function onSubmit() {
         :disabled="loading"
         class="w-full rounded-lg bg-indigo-600 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
       >
-        {{ loading ? 'Signing in…' : 'Sign in' }}
+        {{ loading ? t('auth.login.submitLoading') : t('common.signIn') }}
       </button>
     </form>
   </main>

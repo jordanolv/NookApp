@@ -1,0 +1,273 @@
+{
+  "common": {
+    "brand": "NookApp",
+    "cancel": "Annuler",
+    "email": "Email",
+    "language": "Langue",
+    "password": "Mot de passe",
+    "save": "Sauvegarder",
+    "saved": "Enregistré.",
+    "saving": "Sauvegarde…",
+    "signIn": "Se connecter"
+  },
+  "locale": {
+    "fr": "Français",
+    "en": "Anglais"
+  },
+  "home": {
+    "title": "NookApp — votre bureau virtuel",
+    "headline": "NookApp",
+    "description": "Un bureau virtuel pixel-art pour les petites équipes. Construisez votre carte, rejoignez un salon vocal et lancez des plugins.",
+    "getStarted": "Commencer"
+  },
+  "auth": {
+    "login": {
+      "title": "Connexion — NookApp",
+      "heading": "Se connecter",
+      "noAccount": "Pas encore de compte ?",
+      "createOne": "Créer un compte",
+      "submitLoading": "Connexion…",
+      "invalidCredentials": "Identifiants invalides"
+    },
+    "register": {
+      "title": "Inscription — NookApp",
+      "heading": "Créer votre compte",
+      "alreadyHaveAccount": "Vous avez déjà un compte ?",
+      "displayName": "Nom affiché",
+      "passwordHint": "Au moins 12 caractères",
+      "submit": "Créer le compte",
+      "submitLoading": "Création du compte…",
+      "failed": "L'inscription a échoué"
+    },
+    "verify": {
+      "title": "Vérification email — NookApp",
+      "heading": "Vérifiez votre boîte mail",
+      "sentPrefix": "Nous avons envoyé un lien de vérification à",
+      "fallbackEmail": "votre adresse email",
+      "sentSuffix": "Cliquez dessus pour activer votre compte.",
+      "alreadyVerified": "Déjà vérifié ?"
+    }
+  },
+  "settings": {
+    "user": {
+      "title": "Paramètres du compte",
+      "titleWithName": "Paramètres du compte — {name}",
+      "tabs": {
+        "profile": "Profil",
+        "character": "Personnage",
+        "audio": "Audio & vidéo",
+        "appearance": "Apparence"
+      },
+      "profile": {
+        "heading": "Profil",
+        "description": "Ce que les autres voient dans tes Nooks.",
+        "displayName": "Pseudo",
+        "displayNameHint": "2 à 32 caractères.",
+        "language": "Langue",
+        "languageHint": "Change la langue de l'interface sur cet appareil.",
+        "saveError": "Impossible de sauvegarder."
+      },
+      "character": {
+        "heading": "Personnage",
+        "description": "Corps, yeux, tenue, cheveux, accessoire.",
+        "reset": "Réinitialiser",
+        "none": "Aucun",
+        "preview": "Aperçu",
+        "previewHint": "Live dans le monde.",
+        "layers": {
+          "body": "Corps",
+          "eyes": "Yeux",
+          "outfit": "Tenue",
+          "hair": "Cheveux",
+          "accessory": "Accessoire"
+        }
+      },
+      "audio": {
+        "heading": "Audio & vidéo",
+        "description": "Bientôt — sélection du micro, du haut-parleur, de la caméra et test de niveau."
+      },
+      "appearance": {
+        "heading": "Apparence",
+        "description": "Bientôt — thème, densité de l'interface et taille du chat."
+      }
+    }
+  },
+  "voice": {
+    "connected": "Voice connecté",
+    "leave": "Quitter le vocal",
+    "mute": "Couper le micro",
+    "unmute": "Réactiver le micro",
+    "deafen": "Couper le son",
+    "undeafen": "Réactiver le son",
+    "enableCamera": "Activer la caméra",
+    "disableCamera": "Désactiver la caméra",
+    "shareScreen": "Partager l'écran",
+    "stopSharing": "Arrêter le partage",
+    "labels": {
+      "muted": "Muet",
+      "microphone": "Micro",
+      "deafened": "Sourd",
+      "sound": "Son",
+      "camera": "Caméra",
+      "sharing": "Partage",
+      "screen": "Écran"
+    },
+    "status": {
+      "inNook": "Dans le Nook"
+    },
+    "accountSettings": "Paramètres du compte",
+    "signOut": "Se déconnecter"
+  },
+  "channels": {
+    "create": {
+      "title": "Créer un canal",
+      "channelType": "TYPE DE CANAL",
+      "widgetType": "TYPE DE WIDGET",
+      "name": "NOM DU CANAL",
+      "voiceZoneHint": "Après la création, tu pourras définir la zone sur la map.",
+      "error": "Erreur lors de la création.",
+      "creating": "Création…",
+      "createAndPlace": "Créer et placer →",
+      "submit": "Créer le canal",
+      "placeholders": {
+        "text": "général",
+        "forum": "gaming",
+        "notes": "Mes notes",
+        "gaming": "Gaming",
+        "voice": "Salon vocal"
+      }
+    },
+    "edit": {
+      "title": "Modifier le canal",
+      "iconType": "TYPE D'ICÔNE",
+      "icon": "Icône",
+      "emoji": "Emoji",
+      "image": "Image",
+      "none": "Aucune",
+      "iconLabel": "ICÔNE",
+      "color": "COULEUR",
+      "chooseEmoji": "CHOISIR UN EMOJI",
+      "change": "Changer",
+      "browse": "Parcourir…",
+      "fileHint": "JPG, PNG, GIF, WebP · max 8 Mo",
+      "name": "NOM DU CANAL",
+      "category": "CATÉGORIE",
+      "noCategory": "Aucune catégorie",
+      "error": "Une erreur est survenue.",
+      "saving": "Enregistrement…",
+      "save": "Enregistrer"
+    },
+    "types": {
+      "text": {
+        "label": "Texte",
+        "hint": "Messages, liens, fichiers"
+      },
+      "forum": {
+        "label": "Forum",
+        "hint": "Threads organisés par sujet"
+      },
+      "voice": {
+        "label": "Vocal",
+        "hint": "Zone vocale sur la map"
+      },
+      "widget": {
+        "label": "Widget",
+        "hint": "Notes, library, …"
+      }
+    },
+    "widgets": {
+      "notes": {
+        "label": "Notes",
+        "hint": "Notes rapides style Apple"
+      },
+      "gaming": {
+        "label": "Gaming",
+        "hint": "Library de jeux + discussions"
+      }
+    }
+  },
+  "serverSettings": {
+    "title": "Paramètres du serveur",
+    "titleWithName": "Paramètres du serveur — {name}",
+    "tabs": {
+      "general": "Général",
+      "roles": "Rôles",
+      "members": "Membres"
+    },
+    "generalSoon": "(Bientôt) — nom, bannière, suppression…",
+    "members": {
+      "loading": "Chargement…",
+      "loadError": "Erreur de chargement",
+      "title": "Membres · {count}",
+      "refresh": "Actualiser",
+      "owner": "Owner",
+      "assignRoles": "Assigner des rôles ▾",
+      "hideRoles": "Masquer ▴",
+      "roleUpdateError": "Impossible de modifier les rôles"
+    },
+    "roles": {
+      "loading": "Chargement…",
+      "loadError": "Erreur de chargement",
+      "title": "Rôles · {count}",
+      "empty": "Aucun rôle.",
+      "newRole": "+ Nouveau rôle",
+      "newRoleName": "Nouveau rôle",
+      "createError": "Impossible de créer le rôle",
+      "saveError": "Impossible d'enregistrer",
+      "deleteError": "Suppression impossible",
+      "deleteConfirm": "Supprimer le rôle \"{name}\" ?",
+      "roleName": "Nom du rôle",
+      "color": "Couleur",
+      "reset": "Réinitialiser",
+      "permissions": "Permissions",
+      "delete": "Supprimer le rôle"
+    }
+  },
+  "permissions": {
+    "groups": {
+      "general": "Général",
+      "moderation": "Modération",
+      "management": "Gestion"
+    },
+    "ViewChannels": {
+      "label": "Voir les salons",
+      "description": "Voir la liste des salons et leur contenu."
+    },
+    "SendMessages": {
+      "label": "Envoyer des messages",
+      "description": "Envoyer des messages dans les salons texte."
+    },
+    "ManageMessages": {
+      "label": "Gérer les messages",
+      "description": "Supprimer les messages des autres membres."
+    },
+    "CreateInvite": {
+      "label": "Créer une invitation",
+      "description": "Générer un lien d'invitation pour le serveur."
+    },
+    "ManageChannels": {
+      "label": "Gérer les salons",
+      "description": "Créer, modifier et supprimer des salons et catégories."
+    },
+    "ManageRoles": {
+      "label": "Gérer les rôles",
+      "description": "Créer, modifier et assigner les rôles inférieurs au sien."
+    },
+    "ManageMembers": {
+      "label": "Gérer les membres",
+      "description": "Expulser des membres du serveur."
+    },
+    "ManageMap": {
+      "label": "Modifier la carte",
+      "description": "Utiliser le mode édition de la carte."
+    },
+    "ManagePlugins": {
+      "label": "Gérer les plugins",
+      "description": "Activer, désactiver et configurer les plugins."
+    },
+    "ManageServer": {
+      "label": "Gérer le serveur",
+      "description": "Modifier le nom, la bannière et les paramètres du serveur."
+    }
+  }
+}

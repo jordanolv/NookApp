@@ -13,6 +13,7 @@ const {
 } = useVoice();
 const { store } = useServers();
 const { user, signOut } = useAuth();
+const { t } = useI18n();
 
 const showProfile = ref(false);
 const profileTop = ref(0);
@@ -144,7 +145,9 @@ const currentTextChannel = computed(() => {
               </svg>
             </span>
             <div class="flex-1 min-w-0">
-              <p class="text-xs font-semibold leading-tight text-green-400">Voice Connected</p>
+              <p class="text-xs font-semibold leading-tight text-green-400">
+                {{ t('voice.connected') }}
+              </p>
               <p class="truncate text-xs leading-tight" style="color: rgba(255, 255, 255, 0.35)">
                 {{ store.current?.name }} / {{ currentChannel?.name }}
               </p>
@@ -152,7 +155,7 @@ const currentTextChannel = computed(() => {
             <button
               class="flex-shrink-0 rounded-lg p-1.5 transition-colors"
               style="color: rgba(255, 255, 255, 0.3)"
-              title="Leave voice"
+              :title="t('voice.leave')"
               @mouseenter="($event.currentTarget as HTMLElement).style.color = 'rgb(248,113,113)'"
               @mouseleave="
                 ($event.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.3)'
@@ -176,7 +179,7 @@ const currentTextChannel = computed(() => {
                   ? 'background:rgba(239,68,68,0.18);color:rgb(248,113,113)'
                   : 'background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.5)'
               "
-              :title="isMuted ? 'Unmute' : 'Mute'"
+              :title="isMuted ? t('voice.unmute') : t('voice.mute')"
               @click="toggleMute"
             >
               <svg v-if="!isMuted" width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
@@ -190,7 +193,7 @@ const currentTextChannel = computed(() => {
                 />
               </svg>
               <span class="text-[9px] leading-none font-medium">{{
-                isMuted ? 'Muet' : 'Micro'
+                isMuted ? t('voice.labels.muted') : t('voice.labels.microphone')
               }}</span>
             </button>
 
@@ -201,7 +204,7 @@ const currentTextChannel = computed(() => {
                   ? 'background:rgba(239,68,68,0.18);color:rgb(248,113,113)'
                   : 'background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.5)'
               "
-              :title="isDeafened ? 'Undeafen' : 'Deafen'"
+              :title="isDeafened ? t('voice.undeafen') : t('voice.deafen')"
               @click="toggleDeafen"
             >
               <svg
@@ -221,7 +224,7 @@ const currentTextChannel = computed(() => {
                 />
               </svg>
               <span class="text-[9px] leading-none font-medium">{{
-                isDeafened ? 'Sourd' : 'Son'
+                isDeafened ? t('voice.labels.deafened') : t('voice.labels.sound')
               }}</span>
             </button>
 
@@ -232,7 +235,7 @@ const currentTextChannel = computed(() => {
                   ? 'background:rgba(99,102,241,0.18);color:rgb(129,140,248)'
                   : 'background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.5)'
               "
-              :title="isCameraOn ? 'Désactiver caméra' : 'Activer caméra'"
+              :title="isCameraOn ? t('voice.disableCamera') : t('voice.enableCamera')"
               @click="toggleCamera"
             >
               <svg
@@ -251,7 +254,9 @@ const currentTextChannel = computed(() => {
                   d="M21 6.5l-4-4-9.65 9.65-1.85-1.85L3.5 12.3l2.5 2.5-2 2H2v2h2l2-2 2.5 2.5 2-2-1.85-1.85L21 6.5zM5 18V8.5l2 2V16l6-6 2 2-6 6h5.5l2 2H5z"
                 />
               </svg>
-              <span class="text-[9px] leading-none font-medium">Caméra</span>
+              <span class="text-[9px] leading-none font-medium">{{
+                t('voice.labels.camera')
+              }}</span>
             </button>
 
             <button
@@ -261,7 +266,7 @@ const currentTextChannel = computed(() => {
                   ? 'background:rgba(99,102,241,0.18);color:rgb(129,140,248)'
                   : 'background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.5)'
               "
-              :title="isScreenSharing ? 'Arrêter le partage' : 'Partager l\'écran'"
+              :title="isScreenSharing ? t('voice.stopSharing') : t('voice.shareScreen')"
               @click="toggleScreenShare"
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
@@ -270,7 +275,7 @@ const currentTextChannel = computed(() => {
                 />
               </svg>
               <span class="text-[9px] leading-none font-medium">{{
-                isScreenSharing ? 'Partage' : 'Écran'
+                isScreenSharing ? t('voice.labels.sharing') : t('voice.labels.screen')
               }}</span>
             </button>
           </div>
@@ -322,7 +327,7 @@ const currentTextChannel = computed(() => {
                   ? currentChannel?.name
                   : currentTextChannel
                     ? '#' + currentTextChannel.name
-                    : 'In Nook'
+                    : t('voice.status.inNook')
               }}
             </p>
           </div>
@@ -337,7 +342,7 @@ const currentTextChannel = computed(() => {
                 ? 'color:rgb(248,113,113);background:rgba(239,68,68,0.15)'
                 : 'color:rgba(255,255,255,0.35)'
             "
-            :title="isMuted ? 'Unmute' : 'Mute'"
+            :title="isMuted ? t('voice.unmute') : t('voice.mute')"
             @click="toggleMute"
           >
             <svg v-if="!isMuted" width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
@@ -359,7 +364,7 @@ const currentTextChannel = computed(() => {
                 ? 'color:rgb(248,113,113);background:rgba(239,68,68,0.15)'
                 : 'color:rgba(255,255,255,0.35)'
             "
-            :title="isDeafened ? 'Undeafen' : 'Deafen'"
+            :title="isDeafened ? t('voice.undeafen') : t('voice.deafen')"
             @click="toggleDeafen"
           >
             <svg v-if="!isDeafened" width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
@@ -377,7 +382,7 @@ const currentTextChannel = computed(() => {
           <button
             class="rounded-xl p-1.5 transition-all duration-150 hover:bg-white/[0.06]"
             style="color: rgba(255, 255, 255, 0.35)"
-            title="Paramètres du compte"
+            :title="t('voice.accountSettings')"
             @click="showUserSettings = true"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
@@ -455,9 +460,9 @@ const currentTextChannel = computed(() => {
               />
             </svg>
           </div>
-          <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.85)"
-            >Se déconnecter</span
-          >
+          <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.85)">
+            {{ t('voice.signOut') }}
+          </span>
         </button>
       </div>
     </Teleport>

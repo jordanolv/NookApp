@@ -8,6 +8,7 @@ const emit = defineEmits<{
 }>();
 
 const { createChannel } = useChannels();
+const { t } = useI18n();
 
 const selectedType = ref<ChannelType>('text');
 const selectedWidgetKind = ref<WidgetKind>('notes');
@@ -15,17 +16,58 @@ const name = ref('');
 const loading = ref(false);
 const error = ref('');
 
-const types: { value: ChannelType; icon: string; label: string; hint: string }[] = [
-  { value: 'text', icon: '#', label: 'Texte', hint: 'Messages, liens, fichiers' },
-  { value: 'forum', icon: '≡', label: 'Forum', hint: 'Threads organisés par sujet' },
-  { value: 'voice', icon: '◉', label: 'Vocal', hint: 'Zone vocale sur la map' },
-  { value: 'widget', icon: '⊟', label: 'Widget', hint: 'Notes, library, …' },
+const types: { value: ChannelType; icon: string; labelKey: string; hintKey: string }[] = [
+  {
+    value: 'text',
+    icon: '#',
+    labelKey: 'channels.types.text.label',
+    hintKey: 'channels.types.text.hint',
+  },
+  {
+    value: 'forum',
+    icon: '≡',
+    labelKey: 'channels.types.forum.label',
+    hintKey: 'channels.types.forum.hint',
+  },
+  {
+    value: 'voice',
+    icon: '◉',
+    labelKey: 'channels.types.voice.label',
+    hintKey: 'channels.types.voice.hint',
+  },
+  {
+    value: 'widget',
+    icon: '⊟',
+    labelKey: 'channels.types.widget.label',
+    hintKey: 'channels.types.widget.hint',
+  },
 ];
 
-const widgetKinds: { value: WidgetKind; icon: string; label: string; hint: string }[] = [
-  { value: 'notes', icon: '✎', label: 'Notes', hint: 'Notes rapides style Apple' },
-  { value: 'gaming', icon: '⌘', label: 'Gaming', hint: 'Library de jeux + discussions' },
+const widgetKinds: { value: WidgetKind; icon: string; labelKey: string; hintKey: string }[] = [
+  {
+    value: 'notes',
+    icon: '✎',
+    labelKey: 'channels.widgets.notes.label',
+    hintKey: 'channels.widgets.notes.hint',
+  },
+  {
+    value: 'gaming',
+    icon: '⌘',
+    labelKey: 'channels.widgets.gaming.label',
+    hintKey: 'channels.widgets.gaming.hint',
+  },
 ];
+
+const namePlaceholder = computed(() => {
+  if (selectedType.value === 'text') return t('channels.create.placeholders.text');
+  if (selectedType.value === 'forum') return t('channels.create.placeholders.forum');
+  if (selectedType.value === 'widget') {
+    return selectedWidgetKind.value === 'notes'
+      ? t('channels.create.placeholders.notes')
+      : t('channels.create.placeholders.gaming');
+  }
+  return t('channels.create.placeholders.voice');
+});
 
 async function submit() {
   if (!name.value.trim()) return;
@@ -39,7 +81,7 @@ async function submit() {
     });
     emit('created', channel.id, channel.type);
   } catch {
-    error.value = 'Erreur lors de la création.';
+    error.value = t('channels.create.error');
   } finally {
     loading.value = false;
   }
@@ -80,7 +122,7 @@ async function submit() {
             <div class="h-3 w-3 rounded-full" style="background: rgba(255, 255, 255, 0.08)" />
           </div>
           <span class="text-xs font-semibold" style="color: rgba(255, 255, 255, 0.5)">
-            Créer un canal
+            {{ t('channels.create.title') }}
           </span>
         </div>
 
@@ -88,33 +130,33 @@ async function submit() {
           <!-- Type selector -->
           <div class="flex flex-col gap-1.5">
             <p class="text-xs font-medium px-0.5" style="color: rgba(255, 255, 255, 0.25)">
-              TYPE DE CANAL
+              {{ t('channels.create.channelType') }}
             </p>
             <div class="flex flex-col gap-1">
               <button
-                v-for="t in types"
-                :key="t.value"
+                v-for="type in types"
+                :key="type.value"
                 class="type-btn flex items-center gap-3 rounded-xl px-3 py-2.5 text-left"
-                :class="{ 'type-btn--active': selectedType === t.value }"
-                @click="selectedType = t.value"
+                :class="{ 'type-btn--active': selectedType === type.value }"
+                @click="selectedType = type.value"
               >
                 <span
                   class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-sm font-bold"
-                  :class="selectedType === t.value ? 'type-icon--active' : 'type-icon'"
-                  >{{ t.icon }}</span
+                  :class="selectedType === type.value ? 'type-icon--active' : 'type-icon'"
+                  >{{ type.icon }}</span
                 >
                 <div class="flex flex-col min-w-0">
                   <span
                     class="text-xs font-medium"
-                    :class="selectedType === t.value ? 'text-indigo-300' : 'text-white/60'"
-                    >{{ t.label }}</span
+                    :class="selectedType === type.value ? 'text-indigo-300' : 'text-white/60'"
+                    >{{ t(type.labelKey) }}</span
                   >
                   <span class="text-xs truncate" style="color: rgba(255, 255, 255, 0.25)">{{
-                    t.hint
+                    t(type.hintKey)
                   }}</span>
                 </div>
                 <span
-                  v-if="selectedType === t.value"
+                  v-if="selectedType === type.value"
                   class="ml-auto flex-shrink-0 h-3.5 w-3.5 rounded-full flex items-center justify-center text-xs"
                   style="background: rgba(99, 102, 241, 0.8); color: white"
                   >✓</span
@@ -126,7 +168,7 @@ async function submit() {
           <!-- Widget kind selector (when type === 'widget') -->
           <div v-if="selectedType === 'widget'" class="flex flex-col gap-1.5">
             <p class="text-xs font-medium px-0.5" style="color: rgba(255, 255, 255, 0.25)">
-              TYPE DE WIDGET
+              {{ t('channels.create.widgetType') }}
             </p>
             <div class="grid grid-cols-2 gap-1.5">
               <button
@@ -141,19 +183,21 @@ async function submit() {
                   <span
                     class="text-xs font-medium"
                     :class="selectedWidgetKind === k.value ? 'text-indigo-300' : 'text-white/60'"
-                    >{{ k.label }}</span
+                    >{{ t(k.labelKey) }}</span
                   >
                 </span>
-                <span class="text-xs" style="color: rgba(255, 255, 255, 0.25)">{{ k.hint }}</span>
+                <span class="text-xs" style="color: rgba(255, 255, 255, 0.25)">{{
+                  t(k.hintKey)
+                }}</span>
               </button>
             </div>
           </div>
 
           <!-- Name input -->
           <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium px-0.5" style="color: rgba(255, 255, 255, 0.25)"
-              >NOM DU CANAL</label
-            >
+            <label class="text-xs font-medium px-0.5" style="color: rgba(255, 255, 255, 0.25)">{{
+              t('channels.create.name')
+            }}</label>
             <input
               v-model="name"
               type="text"
@@ -163,17 +207,7 @@ async function submit() {
                 border: 1px solid rgba(255, 255, 255, 0.08);
                 color: rgba(255, 255, 255, 0.8);
               "
-              :placeholder="
-                selectedType === 'text'
-                  ? 'général'
-                  : selectedType === 'forum'
-                    ? 'gaming'
-                    : selectedType === 'widget'
-                      ? selectedWidgetKind === 'notes'
-                        ? 'Mes notes'
-                        : 'Gaming'
-                      : 'Salon vocal'
-              "
+              :placeholder="namePlaceholder"
               maxlength="100"
               @keydown.enter="submit"
             />
@@ -182,7 +216,7 @@ async function submit() {
               class="text-xs px-0.5"
               style="color: rgba(255, 255, 255, 0.2)"
             >
-              Après la création, tu pourras définir la zone sur la map.
+              {{ t('channels.create.voiceZoneHint') }}
             </p>
           </div>
 
@@ -197,10 +231,10 @@ async function submit() {
           >
             {{
               loading
-                ? 'Création…'
+                ? t('channels.create.creating')
                 : selectedType === 'voice'
-                  ? 'Créer et placer →'
-                  : 'Créer le canal'
+                  ? t('channels.create.createAndPlace')
+                  : t('channels.create.submit')
             }}
           </button>
         </div>

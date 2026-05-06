@@ -8,6 +8,7 @@ const props = defineProps<{ serverId: string; channel: ChannelPublic }>();
 const emit = defineEmits<{ close: []; updated: [channel: ChannelPublic] }>();
 
 const { updateChannel } = useChannels();
+const { t } = useI18n();
 const { apiBase } = useRuntimeConfig().public;
 const apiOrigin = new URL(apiBase as string).origin;
 const store = useServersStore();
@@ -166,7 +167,7 @@ async function save() {
     });
     emit('updated', updated);
   } catch {
-    error.value = 'Une erreur est survenue.';
+    error.value = t('channels.edit.error');
   } finally {
     loading.value = false;
   }
@@ -207,7 +208,7 @@ async function save() {
             <div class="h-3 w-3 rounded-full" style="background: rgba(255, 255, 255, 0.08)" />
           </div>
           <span class="text-xs font-semibold" style="color: rgba(255, 255, 255, 0.5)">
-            Modifier le canal
+            {{ t('channels.edit.title') }}
           </span>
         </div>
 
@@ -243,7 +244,7 @@ async function save() {
             <!-- Tabs + clear -->
             <div class="flex flex-col gap-1.5 flex-1">
               <p class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.25)">
-                TYPE D'ICÔNE
+                {{ t('channels.edit.iconType') }}
               </p>
               <div class="flex gap-1.5 flex-wrap">
                 <button
@@ -251,23 +252,25 @@ async function save() {
                   :class="{ 'mode-tab--active': mode === 'lucide' }"
                   @click="mode = 'lucide'"
                 >
-                  Icône
+                  {{ t('channels.edit.icon') }}
                 </button>
                 <button
                   class="mode-tab"
                   :class="{ 'mode-tab--active': mode === 'emoji' }"
                   @click="mode = 'emoji'"
                 >
-                  Emoji
+                  {{ t('channels.edit.emoji') }}
                 </button>
                 <button
                   class="mode-tab"
                   :class="{ 'mode-tab--active': mode === 'image' }"
                   @click="mode = 'image'"
                 >
-                  Image
+                  {{ t('channels.edit.image') }}
                 </button>
-                <button class="mode-tab mode-tab--danger" @click="clearAll">Aucune</button>
+                <button class="mode-tab mode-tab--danger" @click="clearAll">
+                  {{ t('channels.edit.none') }}
+                </button>
               </div>
             </div>
           </div>
@@ -276,7 +279,7 @@ async function save() {
           <div v-if="mode === 'lucide'" class="flex flex-col gap-3">
             <div class="flex flex-col gap-1.5">
               <p class="text-xs font-medium px-0.5" style="color: rgba(255, 255, 255, 0.25)">
-                ICÔNE
+                {{ t('channels.edit.iconLabel') }}
               </p>
               <div class="icon-grid">
                 <button
@@ -298,7 +301,7 @@ async function save() {
             </div>
             <div class="flex flex-col gap-1.5">
               <p class="text-xs font-medium px-0.5" style="color: rgba(255, 255, 255, 0.25)">
-                COULEUR
+                {{ t('channels.edit.color') }}
               </p>
               <div class="color-grid">
                 <button
@@ -317,7 +320,7 @@ async function save() {
           <!-- ── Emoji picker ── -->
           <div v-else-if="mode === 'emoji'" class="flex flex-col gap-1.5">
             <p class="text-xs font-medium px-0.5" style="color: rgba(255, 255, 255, 0.25)">
-              CHOISIR UN EMOJI
+              {{ t('channels.edit.chooseEmoji') }}
             </p>
             <div class="emoji-grid">
               <button
@@ -358,14 +361,14 @@ async function save() {
                 </svg>
               </div>
               <div class="icon-pick-overlay rounded-xl">
-                <span class="text-xs font-medium">Changer</span>
+                <span class="text-xs font-medium">{{ t('channels.edit.change') }}</span>
               </div>
             </button>
             <div class="flex flex-col gap-1.5">
               <p class="text-xs" style="color: rgba(255, 255, 255, 0.3)">
-                JPG, PNG, GIF, WebP · max 8 Mo
+                {{ t('channels.edit.fileHint') }}
               </p>
-              <button class="action-btn" @click="pickFile">Parcourir…</button>
+              <button class="action-btn" @click="pickFile">{{ t('channels.edit.browse') }}</button>
             </div>
             <input
               ref="fileInput"
@@ -378,9 +381,9 @@ async function save() {
 
           <!-- Name input -->
           <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium px-0.5" style="color: rgba(255, 255, 255, 0.25)"
-              >NOM DU CANAL</label
-            >
+            <label class="text-xs font-medium px-0.5" style="color: rgba(255, 255, 255, 0.25)">{{
+              t('channels.edit.name')
+            }}</label>
             <input
               v-model="name"
               type="text"
@@ -397,9 +400,9 @@ async function save() {
 
           <!-- Category select -->
           <div v-if="categories.length" class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium px-0.5" style="color: rgba(255, 255, 255, 0.25)"
-              >CATÉGORIE</label
-            >
+            <label class="text-xs font-medium px-0.5" style="color: rgba(255, 255, 255, 0.25)">{{
+              t('channels.edit.category')
+            }}</label>
             <select
               v-model="categoryId"
               class="rounded-xl px-3 py-2 text-xs outline-none appearance-none"
@@ -409,7 +412,9 @@ async function save() {
                 color: rgba(255, 255, 255, 0.8);
               "
             >
-              <option :value="null" style="background: #0d0d18">Aucune catégorie</option>
+              <option :value="null" style="background: #0d0d18">
+                {{ t('channels.edit.noCategory') }}
+              </option>
               <option
                 v-for="cat in categories"
                 :key="cat.id"
@@ -429,7 +434,7 @@ async function save() {
               style="background: rgba(255, 255, 255, 0.05); color: rgba(255, 255, 255, 0.4)"
               @click="emit('close')"
             >
-              Annuler
+              {{ t('common.cancel') }}
             </button>
             <button
               class="flex-1 rounded-xl py-2 text-xs font-semibold transition-opacity"
@@ -437,7 +442,7 @@ async function save() {
               :class="{ 'opacity-40 pointer-events-none': loading || !name.trim() }"
               @click="save"
             >
-              {{ loading ? 'Enregistrement…' : 'Enregistrer' }}
+              {{ loading ? t('channels.edit.saving') : t('channels.edit.save') }}
             </button>
           </div>
         </div>

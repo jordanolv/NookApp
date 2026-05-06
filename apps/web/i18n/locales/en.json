@@ -1,0 +1,273 @@
+{
+  "common": {
+    "brand": "NookApp",
+    "cancel": "Cancel",
+    "email": "Email",
+    "language": "Language",
+    "password": "Password",
+    "save": "Save",
+    "saved": "Saved.",
+    "saving": "Saving…",
+    "signIn": "Sign in"
+  },
+  "locale": {
+    "fr": "French",
+    "en": "English"
+  },
+  "home": {
+    "title": "NookApp — your virtual office",
+    "headline": "NookApp",
+    "description": "A pixel-art virtual office for small teams. Build your map, hop on voice, run plugins.",
+    "getStarted": "Get started"
+  },
+  "auth": {
+    "login": {
+      "title": "Sign in — NookApp",
+      "heading": "Sign in",
+      "noAccount": "No account?",
+      "createOne": "Create one",
+      "submitLoading": "Signing in…",
+      "invalidCredentials": "Invalid credentials"
+    },
+    "register": {
+      "title": "Register — NookApp",
+      "heading": "Create your account",
+      "alreadyHaveAccount": "Already have one?",
+      "displayName": "Display name",
+      "passwordHint": "At least 12 characters",
+      "submit": "Create account",
+      "submitLoading": "Creating account…",
+      "failed": "Registration failed"
+    },
+    "verify": {
+      "title": "Verify email — NookApp",
+      "heading": "Check your inbox",
+      "sentPrefix": "We sent a verification link to",
+      "fallbackEmail": "your email address",
+      "sentSuffix": "Click it to activate your account.",
+      "alreadyVerified": "Already verified?"
+    }
+  },
+  "settings": {
+    "user": {
+      "title": "Account settings",
+      "titleWithName": "Account settings — {name}",
+      "tabs": {
+        "profile": "Profile",
+        "character": "Character",
+        "audio": "Audio & video",
+        "appearance": "Appearance"
+      },
+      "profile": {
+        "heading": "Profile",
+        "description": "What others see in your Nooks.",
+        "displayName": "Display name",
+        "displayNameHint": "2 to 32 characters.",
+        "language": "Language",
+        "languageHint": "Changes the interface language on this device.",
+        "saveError": "Could not save."
+      },
+      "character": {
+        "heading": "Character",
+        "description": "Body, eyes, outfit, hair, accessory.",
+        "reset": "Reset",
+        "none": "None",
+        "preview": "Preview",
+        "previewHint": "Live in the world.",
+        "layers": {
+          "body": "Body",
+          "eyes": "Eyes",
+          "outfit": "Outfit",
+          "hair": "Hair",
+          "accessory": "Accessory"
+        }
+      },
+      "audio": {
+        "heading": "Audio & video",
+        "description": "Soon — microphone, speaker and camera selection, plus level testing."
+      },
+      "appearance": {
+        "heading": "Appearance",
+        "description": "Soon — theme, interface density and chat size."
+      }
+    }
+  },
+  "voice": {
+    "connected": "Voice connected",
+    "leave": "Leave voice",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "deafen": "Deafen",
+    "undeafen": "Undeafen",
+    "enableCamera": "Enable camera",
+    "disableCamera": "Disable camera",
+    "shareScreen": "Share screen",
+    "stopSharing": "Stop sharing",
+    "labels": {
+      "muted": "Muted",
+      "microphone": "Mic",
+      "deafened": "Deafened",
+      "sound": "Sound",
+      "camera": "Camera",
+      "sharing": "Sharing",
+      "screen": "Screen"
+    },
+    "status": {
+      "inNook": "In Nook"
+    },
+    "accountSettings": "Account settings",
+    "signOut": "Sign out"
+  },
+  "channels": {
+    "create": {
+      "title": "Create channel",
+      "channelType": "CHANNEL TYPE",
+      "widgetType": "WIDGET TYPE",
+      "name": "CHANNEL NAME",
+      "voiceZoneHint": "After creation, you can define its zone on the map.",
+      "error": "Could not create the channel.",
+      "creating": "Creating…",
+      "createAndPlace": "Create and place →",
+      "submit": "Create channel",
+      "placeholders": {
+        "text": "general",
+        "forum": "gaming",
+        "notes": "My notes",
+        "gaming": "Gaming",
+        "voice": "Voice room"
+      }
+    },
+    "edit": {
+      "title": "Edit channel",
+      "iconType": "ICON TYPE",
+      "icon": "Icon",
+      "emoji": "Emoji",
+      "image": "Image",
+      "none": "None",
+      "iconLabel": "ICON",
+      "color": "COLOR",
+      "chooseEmoji": "CHOOSE AN EMOJI",
+      "change": "Change",
+      "browse": "Browse…",
+      "fileHint": "JPG, PNG, GIF, WebP · max 8 MB",
+      "name": "CHANNEL NAME",
+      "category": "CATEGORY",
+      "noCategory": "No category",
+      "error": "Something went wrong.",
+      "saving": "Saving…",
+      "save": "Save"
+    },
+    "types": {
+      "text": {
+        "label": "Text",
+        "hint": "Messages, links, files"
+      },
+      "forum": {
+        "label": "Forum",
+        "hint": "Threads organized by topic"
+      },
+      "voice": {
+        "label": "Voice",
+        "hint": "Voice zone on the map"
+      },
+      "widget": {
+        "label": "Widget",
+        "hint": "Notes, library, …"
+      }
+    },
+    "widgets": {
+      "notes": {
+        "label": "Notes",
+        "hint": "Quick Apple-style notes"
+      },
+      "gaming": {
+        "label": "Gaming",
+        "hint": "Game library + discussions"
+      }
+    }
+  },
+  "serverSettings": {
+    "title": "Server settings",
+    "titleWithName": "Server settings — {name}",
+    "tabs": {
+      "general": "General",
+      "roles": "Roles",
+      "members": "Members"
+    },
+    "generalSoon": "(Soon) — name, banner, deletion…",
+    "members": {
+      "loading": "Loading…",
+      "loadError": "Could not load members",
+      "title": "Members · {count}",
+      "refresh": "Refresh",
+      "owner": "Owner",
+      "assignRoles": "Assign roles ▾",
+      "hideRoles": "Hide ▴",
+      "roleUpdateError": "Could not update roles"
+    },
+    "roles": {
+      "loading": "Loading…",
+      "loadError": "Could not load roles",
+      "title": "Roles · {count}",
+      "empty": "No roles.",
+      "newRole": "+ New role",
+      "newRoleName": "New role",
+      "createError": "Could not create role",
+      "saveError": "Could not save",
+      "deleteError": "Could not delete role",
+      "deleteConfirm": "Delete role \"{name}\"?",
+      "roleName": "Role name",
+      "color": "Color",
+      "reset": "Reset",
+      "permissions": "Permissions",
+      "delete": "Delete role"
+    }
+  },
+  "permissions": {
+    "groups": {
+      "general": "General",
+      "moderation": "Moderation",
+      "management": "Management"
+    },
+    "ViewChannels": {
+      "label": "View channels",
+      "description": "View the channel list and their content."
+    },
+    "SendMessages": {
+      "label": "Send messages",
+      "description": "Send messages in text channels."
+    },
+    "ManageMessages": {
+      "label": "Manage messages",
+      "description": "Delete messages from other members."
+    },
+    "CreateInvite": {
+      "label": "Create invite",
+      "description": "Generate an invite link for the server."
+    },
+    "ManageChannels": {
+      "label": "Manage channels",
+      "description": "Create, edit and delete channels and categories."
+    },
+    "ManageRoles": {
+      "label": "Manage roles",
+      "description": "Create, edit and assign roles below yours."
+    },
+    "ManageMembers": {
+      "label": "Manage members",
+      "description": "Kick members from the server."
+    },
+    "ManageMap": {
+      "label": "Edit map",
+      "description": "Use the map editing mode."
+    },
+    "ManagePlugins": {
+      "label": "Manage plugins",
+      "description": "Enable, disable and configure plugins."
+    },
+    "ManageServer": {
+      "label": "Manage server",
+      "description": "Edit the server name, banner and settings."
+    }
+  }
+}

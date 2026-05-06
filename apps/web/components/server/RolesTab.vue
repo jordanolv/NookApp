@@ -12,6 +12,7 @@ import { useRoles } from '~/composables/useRoles';
 const props = defineProps<{ serverId: string }>();
 
 const rolesApi = useRoles();
+const { t } = useI18n();
 const roles = ref<RolePublic[]>([]);
 const selectedId = ref<string | null>(null);
 const loading = ref(false);
@@ -37,12 +38,6 @@ const groupedPermissions: Record<string, PermissionKey[]> = {
 };
 for (const key of PERMISSION_KEYS) groupedPermissions[PERMISSION_META[key].category].push(key);
 
-const groupLabels: Record<string, string> = {
-  general: 'Général',
-  moderation: 'Modération',
-  management: 'Gestion',
-};
-
 async function refresh() {
   loading.value = true;
   error.value = null;
@@ -51,7 +46,7 @@ async function refresh() {
     if (!selectedId.value && roles.value.length) selectedId.value = roles.value[0].id;
     syncDraft();
   } catch (e) {
-    error.value = (e as Error).message ?? 'Erreur de chargement';
+    error.value = (e as Error).message ?? t('serverSettings.roles.loadError');
   } finally {
     loading.value = false;
   }
@@ -76,14 +71,14 @@ async function onCreate() {
   error.value = null;
   try {
     const created = await rolesApi.createRole(props.serverId, {
-      name: 'Nouveau rôle',
+      name: t('serverSettings.roles.newRoleName'),
       color: null,
       permissions: 0,
     });
     roles.value = [created, ...roles.value];
     selectedId.value = created.id;
   } catch (e) {
-    error.value = (e as Error).message ?? 'Impossible de créer le rôle';
+    error.value = (e as Error).message ?? t('serverSettings.roles.createError');
   } finally {
     saving.value = false;
   }
@@ -102,7 +97,7 @@ async function onSave() {
     roles.value = roles.value.map((r) => (r.id === updated.id ? updated : r));
     syncDraft();
   } catch (e) {
-    error.value = (e as Error).message ?? "Impossible d'enregistrer";
+    error.value = (e as Error).message ?? t('serverSettings.roles.saveError');
   } finally {
     saving.value = false;
   }
@@ -110,7 +105,7 @@ async function onSave() {
 
 async function onDelete() {
   if (!selected.value || selected.value.isEveryone) return;
-  if (!confirm(`Supprimer le rôle "${selected.value.name}" ?`)) return;
+  if (!confirm(t('serverSettings.roles.deleteConfirm', { name: selected.value.name }))) return;
   saving.value = true;
   error.value = null;
   try {
@@ -118,7 +113,7 @@ async function onDelete() {
     roles.value = roles.value.filter((r) => r.id !== selected.value!.id);
     selectedId.value = roles.value[0]?.id ?? null;
   } catch (e) {
-    error.value = (e as Error).message ?? 'Suppression impossible';
+    error.value = (e as Error).message ?? t('serverSettings.roles.deleteError');
   } finally {
     saving.value = false;
   }
@@ -151,7 +146,7 @@ onMounted(refresh);
         class="px-3 py-2 text-[10px] uppercase tracking-wider"
         style="color: rgba(255, 255, 255, 0.5)"
       >
-        Rôles · {{ roles.length }}
+        {{ t('serverSettings.roles.title', { count: roles.length }) }}
       </div>
       <div class="flex-1 overflow-y-auto px-2 pb-2 space-y-0.5">
         <button
@@ -178,19 +173,23 @@ onMounted(refresh);
           :disabled="saving"
           @click="onCreate"
         >
-          + Nouveau rôle
+          {{ t('serverSettings.roles.newRole') }}
         </button>
       </div>
     </div>
 
     <!-- Editor -->
     <div class="flex-1 overflow-y-auto p-5">
-      <div v-if="loading" class="text-xs text-white/50">Chargement…</div>
-      <div v-else-if="!selected" class="text-xs text-white/50">Aucun rôle.</div>
+      <div v-if="loading" class="text-xs text-white/50">
+        {{ t('serverSettings.roles.loading') }}
+      </div>
+      <div v-else-if="!selected" class="text-xs text-white/50">
+        {{ t('serverSettings.roles.empty') }}
+      </div>
       <div v-else-if="draft" class="space-y-5 max-w-2xl">
         <div>
           <label class="block text-[10px] uppercase tracking-wider mb-1.5 text-white/50">
-            Nom du rôle
+            {{ t('serverSettings.roles.roleName') }}
           </label>
           <input
             v-model="draft.name"
@@ -203,7 +202,7 @@ onMounted(refresh);
 
         <div>
           <label class="block text-[10px] uppercase tracking-wider mb-1.5 text-white/50">
-            Couleur
+            {{ t('serverSettings.roles.color') }}
           </label>
           <div class="flex items-center gap-2">
             <input
@@ -217,16 +216,20 @@ onMounted(refresh);
               :disabled="!draft.color"
               @click="draft && (draft.color = null)"
             >
-              Réinitialiser
+              {{ t('serverSettings.roles.reset') }}
             </button>
           </div>
         </div>
 
         <div>
-          <div class="text-[10px] uppercase tracking-wider mb-2 text-white/50">Permissions</div>
+          <div class="text-[10px] uppercase tracking-wider mb-2 text-white/50">
+            {{ t('serverSettings.roles.permissions') }}
+          </div>
           <div class="space-y-4">
             <div v-for="(keys, group) in groupedPermissions" :key="group">
-              <div class="text-xs font-medium mb-1.5 text-white/80">{{ groupLabels[group] }}</div>
+              <div class="text-xs font-medium mb-1.5 text-white/80">
+                {{ t(`permissions.groups.${group}`) }}
+              </div>
               <div class="space-y-1">
                 <label
                   v-for="key in keys"
@@ -240,8 +243,10 @@ onMounted(refresh);
                     @change="togglePermission(PERMISSIONS[key])"
                   />
                   <div class="flex-1">
-                    <div class="text-sm text-white">{{ PERMISSION_META[key].label }}</div>
-                    <div class="text-xs text-white/50">{{ PERMISSION_META[key].description }}</div>
+                    <div class="text-sm text-white">{{ t(`permissions.${key}.label`) }}</div>
+                    <div class="text-xs text-white/50">
+                      {{ t(`permissions.${key}.description`) }}
+                    </div>
                   </div>
                 </label>
               </div>
@@ -258,7 +263,7 @@ onMounted(refresh);
             :disabled="saving"
             @click="onDelete"
           >
-            Supprimer le rôle
+            {{ t('serverSettings.roles.delete') }}
           </button>
           <span v-else />
           <div class="flex items-center gap-2">
@@ -267,14 +272,14 @@ onMounted(refresh);
               :disabled="!dirty || saving"
               @click="syncDraft"
             >
-              Annuler
+              {{ t('common.cancel') }}
             </button>
             <button
               class="px-4 py-1.5 rounded text-xs font-medium bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50"
               :disabled="!dirty || saving"
               @click="onSave"
             >
-              {{ saving ? 'Enregistrement…' : 'Enregistrer' }}
+              {{ saving ? t('channels.edit.saving') : t('channels.edit.save') }}
             </button>
           </div>
         </div>
