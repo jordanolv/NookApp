@@ -1,0 +1,1 @@
+ALTER TABLE "channel" ADD COLUMN "widget_kind" text;

@@ -1,7 +1,10 @@
 import { z } from 'zod';
 
-export const channelTypeSchema = z.enum(['text', 'voice', 'forum', 'game']);
+export const channelTypeSchema = z.enum(['text', 'voice', 'forum', 'game', 'widget']);
 export type ChannelType = z.infer<typeof channelTypeSchema>;
+
+export const widgetKindSchema = z.enum(['notes', 'gaming']);
+export type WidgetKind = z.infer<typeof widgetKindSchema>;
 
 export const mapZoneSchema = z.object({
   x: z.number(),
@@ -17,6 +20,7 @@ export const createChannelInputSchema = z.object({
   position: z.number().int().min(0).optional(),
   parentId: z.string().optional(),
   mapZone: mapZoneSchema.optional(),
+  widgetKind: widgetKindSchema.optional(),
 });
 export type CreateChannelInput = z.infer<typeof createChannelInputSchema>;
 
@@ -40,6 +44,7 @@ export const channelPublicSchema = z.object({
   parentId: z.string().nullable(),
   mapZone: mapZoneSchema.nullable(),
   iconUrl: z.string().nullable(),
+  widgetKind: widgetKindSchema.nullable(),
   createdAt: z.string().datetime(),
 });
 export type ChannelPublic = z.infer<typeof channelPublicSchema>;

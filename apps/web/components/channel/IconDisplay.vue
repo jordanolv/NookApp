@@ -5,7 +5,7 @@ import { CHANNEL_ICON_MAP, CHANNEL_TYPE_DEFAULTS } from '~/composables/useChanne
 const props = defineProps<{
   iconUrl: string | null;
   size?: number;
-  type?: 'text' | 'voice' | 'forum' | 'game';
+  type?: 'text' | 'voice' | 'forum' | 'game' | 'widget';
 }>();
 
 const { apiBase } = useRuntimeConfig().public;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChannelType } from '@nookapp/protocol';
+import type { ChannelType, WidgetKind } from '@nookapp/protocol';
 
 const props = defineProps<{ serverId: string }>();
 const emit = defineEmits<{
@@ -10,6 +10,7 @@ const emit = defineEmits<{
 const { createChannel } = useChannels();
 
 const selectedType = ref<ChannelType>('text');
+const selectedWidgetKind = ref<WidgetKind>('notes');
 const name = ref('');
 const loading = ref(false);
 const error = ref('');
@@ -18,6 +19,12 @@ const types: { value: ChannelType; icon: string; label: string; hint: string }[]
   { value: 'text', icon: '#', label: 'Texte', hint: 'Messages, liens, fichiers' },
   { value: 'forum', icon: '≡', label: 'Forum', hint: 'Threads organisés par sujet' },
   { value: 'voice', icon: '◉', label: 'Vocal', hint: 'Zone vocale sur la map' },
+  { value: 'widget', icon: '⊟', label: 'Widget', hint: 'Notes, library, …' },
+];
+
+const widgetKinds: { value: WidgetKind; icon: string; label: string; hint: string }[] = [
+  { value: 'notes', icon: '✎', label: 'Notes', hint: 'Notes rapides style Apple' },
+  { value: 'gaming', icon: '⌘', label: 'Gaming', hint: 'Library de jeux + discussions' },
 ];
 
 async function submit() {
@@ -28,6 +35,7 @@ async function submit() {
     const channel = await createChannel(props.serverId, {
       name: name.value.trim(),
       type: selectedType.value,
+      ...(selectedType.value === 'widget' && { widgetKind: selectedWidgetKind.value }),
     });
     emit('created', channel.id, channel.type);
   } catch {
@@ -115,6 +123,32 @@ async function submit() {
             </div>
           </div>
 
+          <!-- Widget kind selector (when type === 'widget') -->
+          <div v-if="selectedType === 'widget'" class="flex flex-col gap-1.5">
+            <p class="text-xs font-medium px-0.5" style="color: rgba(255, 255, 255, 0.25)">
+              TYPE DE WIDGET
+            </p>
+            <div class="grid grid-cols-2 gap-1.5">
+              <button
+                v-for="k in widgetKinds"
+                :key="k.value"
+                class="kind-btn flex flex-col items-start gap-0.5 rounded-xl px-3 py-2 text-left"
+                :class="{ 'kind-btn--active': selectedWidgetKind === k.value }"
+                @click="selectedWidgetKind = k.value"
+              >
+                <span class="flex items-center gap-1.5">
+                  <span class="text-sm font-bold">{{ k.icon }}</span>
+                  <span
+                    class="text-xs font-medium"
+                    :class="selectedWidgetKind === k.value ? 'text-indigo-300' : 'text-white/60'"
+                    >{{ k.label }}</span
+                  >
+                </span>
+                <span class="text-xs" style="color: rgba(255, 255, 255, 0.25)">{{ k.hint }}</span>
+              </button>
+            </div>
+          </div>
+
           <!-- Name input -->
           <div class="flex flex-col gap-1.5">
             <label class="text-xs font-medium px-0.5" style="color: rgba(255, 255, 255, 0.25)"
@@ -134,7 +168,11 @@ async function submit() {
                   ? 'général'
                   : selectedType === 'forum'
                     ? 'gaming'
-                    : 'Salon vocal'
+                    : selectedType === 'widget'
+                      ? selectedWidgetKind === 'notes'
+                        ? 'Mes notes'
+                        : 'Gaming'
+                      : 'Salon vocal'
               "
               maxlength="100"
               @keydown.enter="submit"
@@ -196,5 +234,19 @@ async function submit() {
 .type-icon--active {
   background: rgba(99, 102, 241, 0.25);
   color: rgb(165, 180, 252);
+}
+.kind-btn {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition:
+    background 120ms,
+    border-color 120ms;
+}
+.kind-btn:hover {
+  background: rgba(255, 255, 255, 0.055);
+}
+.kind-btn--active {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.3);
 }
 </style>
