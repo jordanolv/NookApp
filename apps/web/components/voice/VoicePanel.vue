@@ -37,6 +37,13 @@ const panel = ref<HTMLElement | null>(null);
 const panelX = ref(16);
 const panelBottom = ref(16);
 
+const layout = useUiLayout();
+const LAYOUT_KEY = 'voice:panel';
+
+function persistPanelLayout() {
+  layout.set(LAYOUT_KEY, { x: panelX.value, y: panelBottom.value });
+}
+
 const panelStyle = computed(() => ({
   position: 'fixed' as const,
   left: `${panelX.value}px`,
@@ -72,12 +79,24 @@ function onMousemove(e: MouseEvent) {
 }
 
 function onMouseup() {
-  isDragging = false;
+  if (isDragging) {
+    isDragging = false;
+    persistPanelLayout();
+  }
 }
 
 onMounted(() => {
   window.addEventListener('mousemove', onMousemove);
   window.addEventListener('mouseup', onMouseup);
+  void layout.ensureLoaded().then(() => {
+    const saved = layout.get(LAYOUT_KEY);
+    if (!saved || !panel.value) return;
+    const rect = panel.value.getBoundingClientRect();
+    if (typeof saved.x === 'number')
+      panelX.value = Math.max(4, Math.min(saved.x, window.innerWidth - rect.width - 4));
+    if (typeof saved.y === 'number')
+      panelBottom.value = Math.max(4, Math.min(saved.y, window.innerHeight - rect.height - 4));
+  });
 });
 
 onUnmounted(() => {

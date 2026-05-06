@@ -106,25 +106,24 @@ const activeChannelIds = computed(
 
 // ── Icon rail ──
 type RailSide = 'left' | 'right';
-const RAIL_PREFS_KEY = 'nookapp:rail:prefs';
+const RAIL_LAYOUT_KEY = 'rail:prefs';
 
 const railExpanded = ref(true);
 const railWidth = ref(210);
 const railSide = ref<RailSide>('right');
+const uiLayout = useUiLayout();
 
 if (import.meta.client) {
-  try {
-    const raw = localStorage.getItem(RAIL_PREFS_KEY);
-    if (raw) {
-      const p = JSON.parse(raw) as { side?: RailSide; width?: number };
-      if (p.side === 'left' || p.side === 'right') railSide.value = p.side;
-      if (typeof p.width === 'number') railWidth.value = Math.max(180, Math.min(420, p.width));
-    }
-  } catch {
-    // ignore corrupt prefs
-  }
+  void uiLayout.ensureLoaded().then(() => {
+    const saved = uiLayout.get(RAIL_LAYOUT_KEY);
+    if (!saved) return;
+    if (saved.side === 'left' || saved.side === 'right') railSide.value = saved.side as RailSide;
+    if (typeof saved.width === 'number')
+      railWidth.value = Math.max(180, Math.min(420, saved.width));
+  });
   watch([railSide, railWidth], ([side, width]) => {
-    localStorage.setItem(RAIL_PREFS_KEY, JSON.stringify({ side, width }));
+    if (!uiLayout) return;
+    uiLayout.set(RAIL_LAYOUT_KEY, { side, width });
   });
 }
 

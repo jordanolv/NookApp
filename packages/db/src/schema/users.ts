@@ -1,4 +1,4 @@
-import { boolean, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { boolean, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const user = pgTable(
   'user',
@@ -9,6 +9,7 @@ export const user = pgTable(
     avatarUrl: text('avatar_url'),
     emailVerified: boolean('email_verified').notNull().default(false),
     image: text('image'),
+    uiLayout: jsonb('ui_layout').notNull().default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

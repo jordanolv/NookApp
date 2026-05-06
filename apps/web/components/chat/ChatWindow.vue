@@ -35,6 +35,7 @@ const channel = computed(() => store.channels.find((c) => c.id === props.channel
     :min-height="280"
     :z-index="zIndex"
     :close-on-escape="false"
+    :persist-key="`chat:detached:${channelId}`"
     @close="emit('close')"
     @focus="emit('focus')"
     @drag-start="emit('drag-start')"

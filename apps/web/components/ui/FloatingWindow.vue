@@ -12,6 +12,7 @@ const props = withDefaults(
     maxHeight?: number;
     zIndex?: number;
     closeOnEscape?: boolean;
+    persistKey?: string | null;
   }>(),
   {
     title: '',
@@ -25,8 +26,11 @@ const props = withDefaults(
     maxHeight: 1000,
     zIndex: 70,
     closeOnEscape: true,
+    persistKey: null,
   },
 );
+
+const layout = useUiLayout();
 
 const emit = defineEmits<{
   close: [];
@@ -46,7 +50,7 @@ function clampPosition() {
   panelY.value = Math.max(4, Math.min(panelY.value, window.innerHeight - height.value - 4));
 }
 
-onMounted(() => {
+function applyInitial() {
   width.value = Math.min(props.initialWidth, window.innerWidth - 32);
   height.value = Math.min(props.initialHeight, window.innerHeight - 32);
   panelX.value =
@@ -57,6 +61,38 @@ onMounted(() => {
     props.initialY !== null
       ? props.initialY
       : Math.max(8, Math.round((window.innerHeight - height.value) / 2));
+}
+
+function applyPersisted() {
+  if (!props.persistKey) return false;
+  const saved = layout.get(props.persistKey);
+  if (!saved) return false;
+  if (typeof saved.width === 'number')
+    width.value = clampW(Math.min(saved.width, window.innerWidth - 32));
+  if (typeof saved.height === 'number')
+    height.value = clampH(Math.min(saved.height, window.innerHeight - 32));
+  if (typeof saved.x === 'number') panelX.value = saved.x;
+  if (typeof saved.y === 'number') panelY.value = saved.y;
+  return true;
+}
+
+function persistNow() {
+  if (!props.persistKey) return;
+  layout.set(props.persistKey, {
+    x: panelX.value,
+    y: panelY.value,
+    width: width.value,
+    height: height.value,
+  });
+}
+
+onMounted(() => {
+  applyInitial();
+  if (props.persistKey) {
+    void layout.ensureLoaded().then(() => {
+      if (applyPersisted()) clampPosition();
+    });
+  }
   clampPosition();
   window.addEventListener('mousemove', onMouseMove);
   window.addEventListener('mouseup', onMouseUp);
@@ -159,8 +195,12 @@ function onMouseUp(e: MouseEvent) {
   if (_drag.value) {
     emit('drag-end', e.clientX, e.clientY);
     _drag.value = null;
+    persistNow();
   }
-  resizingEdge = null;
+  if (resizingEdge) {
+    resizingEdge = null;
+    persistNow();
+  }
 }
 
 const panelStyle = computed(() => ({
