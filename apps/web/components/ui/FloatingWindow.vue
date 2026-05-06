@@ -13,6 +13,8 @@ const props = withDefaults(
     zIndex?: number;
     closeOnEscape?: boolean;
     persistKey?: string | null;
+    showClose?: boolean;
+    surface?: 'default' | 'rail';
   }>(),
   {
     title: '',
@@ -27,6 +29,8 @@ const props = withDefaults(
     zIndex: 70,
     closeOnEscape: true,
     persistKey: null,
+    showClose: true,
+    surface: 'default',
   },
 );
 
@@ -212,23 +216,34 @@ const panelStyle = computed(() => ({
   zIndex: props.zIndex,
   pointerEvents: (_drag.value ? 'none' : 'auto') as 'none' | 'auto',
 }));
+
+const surfaceStyle = computed(() => {
+  if (props.surface === 'rail') {
+    return {
+      background: 'rgba(12, 12, 18, 0.75)',
+      backdropFilter: 'blur(18px) saturate(150%)',
+      WebkitBackdropFilter: 'blur(18px) saturate(150%)',
+      border: '1px solid rgba(255, 255, 255, 0.07)',
+      boxShadow: '0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)',
+    };
+  }
+
+  return {
+    background: 'rgba(10, 10, 16, 0.85)',
+    backdropFilter: 'blur(28px) saturate(160%)',
+    WebkitBackdropFilter: 'blur(28px) saturate(160%)',
+    border: '1px solid rgba(255, 255, 255, 0.07)',
+    boxShadow: '0 24px 64px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+  };
+});
 </script>
 
 <template>
   <Teleport to="body">
     <div
       class="flex flex-col rounded-2xl overflow-hidden"
-      :style="panelStyle"
+      :style="[panelStyle, surfaceStyle]"
       @mousedown="emit('focus')"
-      style="
-        background: rgba(10, 10, 16, 0.85);
-        backdrop-filter: blur(28px) saturate(160%);
-        -webkit-backdrop-filter: blur(28px) saturate(160%);
-        border: 1px solid rgba(255, 255, 255, 0.07);
-        box-shadow:
-          0 24px 64px rgba(0, 0, 0, 0.6),
-          inset 0 1px 0 rgba(255, 255, 255, 0.05);
-      "
     >
       <div
         class="flex flex-shrink-0 items-center gap-3 px-4 py-2.5 cursor-grab active:cursor-grabbing select-none"
@@ -237,6 +252,7 @@ const panelStyle = computed(() => ({
       >
         <div class="flex gap-1.5" data-no-drag>
           <button
+            v-if="showClose"
             class="h-3 w-3 rounded-full transition-opacity hover:opacity-75"
             style="background: #ef4444"
             title="Fermer"
@@ -266,8 +282,20 @@ const panelStyle = computed(() => ({
         @mousedown="startResize('right', $event)"
       />
       <div
+        class="absolute top-0 left-8 right-8 h-1 cursor-ns-resize"
+        @mousedown="startResize('top', $event)"
+      />
+      <div
         class="absolute bottom-0 left-3 right-3 h-1 cursor-ns-resize"
         @mousedown="startResize('bottom', $event)"
+      />
+      <div
+        class="absolute top-0 right-0 h-4 w-4 cursor-nesw-resize"
+        @mousedown="startResize('corner-tr', $event)"
+      />
+      <div
+        class="absolute top-0 left-0 h-4 w-4 cursor-nwse-resize"
+        @mousedown="startResize('corner-tl', $event)"
       />
       <div
         class="absolute bottom-0 right-0 h-4 w-4 cursor-nwse-resize"

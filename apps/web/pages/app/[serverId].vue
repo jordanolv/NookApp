@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { VueDraggable } from 'vue-draggable-plus';
-import { PanelLeft, PanelRight, Settings, Trash2 } from 'lucide-vue-next';
+import { PanelLeft, PanelRight, Pin, PinOff, Settings, Trash2 } from 'lucide-vue-next';
 import type { ChannelPublic, CategoryPublic } from '@nookapp/protocol';
+import { useHomePins, type HomePinKind } from '~/composables/useHomePins';
+import WidgetGamingTopic from '~/widgets/WidgetGamingTopic.vue';
 
 definePageMeta({ layout: 'app' });
 
@@ -112,6 +114,7 @@ const railExpanded = ref(true);
 const railWidth = ref(210);
 const railSide = ref<RailSide>('right');
 const uiLayout = useUiLayout();
+const homePins = useHomePins(serverId);
 
 if (import.meta.client) {
   void uiLayout.ensureLoaded().then(() => {
@@ -219,7 +222,6 @@ const channelMenu = ref<{
 } | null>(null);
 
 function openChannelMenu(e: MouseEvent, channel: import('@nookapp/protocol').ChannelPublic) {
-  if (!canManageChannels.value) return;
   e.preventDefault();
   e.stopPropagation();
   channelMenu.value = { x: e.clientX, y: e.clientY, channel };
@@ -241,6 +243,16 @@ async function deleteChannelFromMenu() {
   closeChannelMenu();
   if (!confirm(`Supprimer le salon « ${ch.name} » ?`)) return;
   await deleteChannel(serverId.value, ch.id);
+}
+
+function toggleChannelPinFromMenu() {
+  if (!channelMenu.value) return;
+  homePins.toggleChannel(channelMenu.value.channel, 'channel');
+  closeChannelMenu();
+}
+
+function isChannelPinnedToHome(channelId: string): boolean {
+  return homePins.isPinned(channelId, 'channel');
 }
 
 // ── Categories & ordered top-level layout ──
@@ -447,6 +459,64 @@ function focusWidgetWindow(channelId: string) {
   widgetWindows.value = [...widgetWindows.value.filter((x) => x.channelId !== channelId), w];
 }
 
+// ── Homepage pinned game windows ──
+interface HomeTopicWin {
+  channelId: string;
+  channelName: string;
+  x: number;
+  y: number;
+}
+
+const homeTopicWindows = ref<HomeTopicWin[]>([]);
+let homeTopicCounter = 0;
+
+function openHomeTopicWindow(channelId: string, channelName: string) {
+  const existing = homeTopicWindows.value.find((w) => w.channelId === channelId);
+  if (existing) {
+    focusHomeTopicWindow(channelId);
+    return;
+  }
+  const stagger = (homeTopicCounter % 6) * 28;
+  const x = import.meta.client ? Math.round(window.innerWidth / 2 - 380) + stagger : 220;
+  const y = import.meta.client ? Math.round(window.innerHeight / 2 - 300) + stagger : 110;
+  homeTopicCounter++;
+  homeTopicWindows.value = [...homeTopicWindows.value, { channelId, channelName, x, y }];
+}
+
+function closeHomeTopicWindow(channelId: string) {
+  homeTopicWindows.value = homeTopicWindows.value.filter((w) => w.channelId !== channelId);
+}
+
+function focusHomeTopicWindow(channelId: string) {
+  const win = homeTopicWindows.value.find((w) => w.channelId === channelId);
+  if (!win) return;
+  homeTopicWindows.value = [
+    ...homeTopicWindows.value.filter((w) => w.channelId !== channelId),
+    win,
+  ];
+}
+
+function openHomePinnedItem(channel: ChannelPublic, kind: HomePinKind) {
+  if (kind === 'game') {
+    openHomeTopicWindow(channel.id, channel.name);
+    return;
+  }
+  if (channel.type === 'voice') {
+    void handleVoiceChannelClick(channel.id);
+    return;
+  }
+  if (channel.type === 'forum') {
+    forumPanelChannelId.value = forumPanelChannelId.value === channel.id ? null : channel.id;
+    forumPanelChannelName.value = channel.name;
+    return;
+  }
+  if (channel.type === 'widget') {
+    openWidgetWindow(channel);
+    return;
+  }
+  openChannelById(channel.id);
+}
+
 // ── Zone picker ──
 const zonePickerActive = ref(false);
 const pendingVoiceChannelId = ref<string | null>(null);
@@ -605,6 +675,13 @@ onUnmounted(async () => {
         @walls-rect="onWallsRect"
       />
     </ClientOnly>
+
+    <HomePinnedItems
+      :server-id="serverId"
+      :rail-side="railSide"
+      :rail-width="railExpanded ? railWidth : 52"
+      @open="openHomePinnedItem"
+    />
 
     <!-- ── Icon rail ── -->
     <div
@@ -1417,6 +1494,25 @@ onUnmounted(async () => {
       "
     />
 
+    <WidgetGamingTopic
+      v-for="(w, i) in homeTopicWindows"
+      :key="w.channelId"
+      :server-id="serverId"
+      :channel-id="w.channelId"
+      :channel-name="w.channelName"
+      :initial-x="w.x"
+      :initial-y="w.y"
+      :z-index="82 + i"
+      @close="closeHomeTopicWindow(w.channelId)"
+      @focus="focusHomeTopicWindow(w.channelId)"
+      @drag-end="
+        (x, y) => {
+          w.x = x;
+          w.y = y;
+        }
+      "
+    />
+
     <!-- ── Server settings modal ── -->
     <ServerSettingsModal
       v-if="showServerSettings"
@@ -1572,12 +1668,30 @@ onUnmounted(async () => {
           <button
             class="flex items-center gap-2.5 px-3 py-1.5 text-left text-xs transition-colors hover:bg-white/[0.06]"
             style="color: rgba(255, 255, 255, 0.85)"
+            @click="toggleChannelPinFromMenu"
+          >
+            <component
+              :is="isChannelPinnedToHome(channelMenu.channel.id) ? PinOff : Pin"
+              :size="13"
+              :stroke-width="1.75"
+            />
+            <span>{{
+              isChannelPinnedToHome(channelMenu.channel.id)
+                ? "Retirer de l'accueil"
+                : "Épingler à l'accueil"
+            }}</span>
+          </button>
+          <button
+            v-if="canManageChannels"
+            class="flex items-center gap-2.5 px-3 py-1.5 text-left text-xs transition-colors hover:bg-white/[0.06]"
+            style="color: rgba(255, 255, 255, 0.85)"
             @click="editChannelFromMenu"
           >
             <Settings :size="13" :stroke-width="1.75" />
             <span>Modifier</span>
           </button>
           <button
+            v-if="canManageChannels"
             class="flex items-center gap-2.5 px-3 py-1.5 text-left text-xs transition-colors hover:bg-red-500/10"
             style="color: rgb(248, 113, 113)"
             @click="deleteChannelFromMenu"

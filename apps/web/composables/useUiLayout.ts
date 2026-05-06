@@ -48,6 +48,10 @@ export function useUiLayout() {
     return v ? (v as T) : null;
   }
 
+  function entriesByPrefix(prefix: string): [string, UiLayoutEntry][] {
+    return Object.entries(state.value.layout).filter(([key]) => key.startsWith(prefix));
+  }
+
   function scheduleFlush() {
     if (!import.meta.client) return;
     if (state.value.flushTimer) clearTimeout(state.value.flushTimer);
@@ -93,5 +97,5 @@ export function useUiLayout() {
     scheduleFlush();
   }
 
-  return { ensureLoaded, get, set, remove, flush };
+  return { ensureLoaded, get, entriesByPrefix, set, remove, flush };
 }

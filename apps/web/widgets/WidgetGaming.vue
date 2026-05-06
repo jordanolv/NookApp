@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { Plus, Search, Users, MessageSquare } from 'lucide-vue-next';
+import type { ChannelPublic } from '@nookapp/protocol';
+import { Plus, Search, Users, MessageSquare, Pin, PinOff } from 'lucide-vue-next';
+import { useHomePins } from '~/composables/useHomePins';
 import WidgetGamingTopic from './WidgetGamingTopic.vue';
 
 const props = defineProps<{
@@ -9,6 +11,7 @@ const props = defineProps<{
 }>();
 
 const { store, createChannel } = useChannels();
+const homePins = useHomePins(computed(() => props.serverId));
 
 const games = computed(() => store.channels.filter((c) => c.parentId === props.channelId));
 
@@ -67,6 +70,10 @@ function initialFor(name: string) {
   const parts = trimmed.split(/\s+/);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return trimmed.slice(0, 2).toUpperCase();
+}
+
+function toggleGamePin(game: ChannelPublic) {
+  homePins.toggleChannel(game, 'game', props.channelName);
 }
 
 // Topic windows opened from this widget
@@ -166,12 +173,28 @@ function focusTopic(channelId: string) {
       </div>
 
       <div class="grid">
-        <button
+        <div
           v-for="game in filtered"
           :key="game.id"
           class="game-card"
+          role="button"
+          tabindex="0"
           @click="openGame(game.id, game.name)"
+          @keydown.enter.prevent="openGame(game.id, game.name)"
+          @keydown.space.prevent="openGame(game.id, game.name)"
         >
+          <button
+            class="pin-btn"
+            :class="{ 'pin-btn--active': homePins.isPinned(game.id, 'game') }"
+            :title="
+              homePins.isPinned(game.id, 'game')
+                ? `Retirer ${game.name} de l'accueil`
+                : `Épingler ${game.name} sur l'accueil`
+            "
+            @click.stop="toggleGamePin(game)"
+          >
+            <component :is="homePins.isPinned(game.id, 'game') ? PinOff : Pin" :size="13" />
+          </button>
           <div
             class="cover"
             :style="
@@ -196,7 +219,7 @@ function focusTopic(channelId: string) {
               <span class="stat"><Users :size="10" />{{ hash(game.id) % 12 }}</span>
             </div>
           </div>
-        </button>
+        </div>
       </div>
     </div>
 
@@ -383,6 +406,7 @@ function focusTopic(channelId: string) {
 }
 
 .game-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   border-radius: 12px;
@@ -403,6 +427,42 @@ function focusTopic(channelId: string) {
   box-shadow:
     0 12px 32px rgba(0, 0, 0, 0.4),
     0 0 0 1px rgba(99, 102, 241, 0.2);
+}
+
+.pin-btn {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.48);
+  color: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  transform: translateY(-2px);
+  transition:
+    opacity 140ms,
+    transform 140ms,
+    background 140ms,
+    color 140ms;
+}
+
+.game-card:hover .pin-btn,
+.game-card:focus-within .pin-btn,
+.pin-btn--active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.pin-btn:hover,
+.pin-btn--active {
+  background: rgba(99, 102, 241, 0.82);
+  color: white;
 }
 
 .cover {
