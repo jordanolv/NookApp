@@ -1,8 +1,16 @@
 import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { map, member, type Database } from '@nookapp/db';
-import { DEFAULT_MAP, mapDataSchema, type MapData, type MapPublic } from '@nookapp/protocol';
+import {
+  DEFAULT_MAP,
+  hasPermission,
+  mapDataSchema,
+  PERMISSIONS,
+  type MapData,
+  type MapPublic,
+} from '@nookapp/protocol';
 import { DB } from '../database/database.module';
+import { RolesService } from '../roles/roles.service';
 
 // Drop unknown item types so a renamed/removed item shape doesn't fail the whole parse.
 function sanitizeRawData(raw: unknown): unknown {
@@ -33,7 +41,10 @@ function toMapPublic(serverId: string, row: typeof map.$inferSelect | null): Map
 
 @Injectable()
 export class MapsService {
-  constructor(@Inject(DB) private readonly db: Database) {}
+  constructor(
+    @Inject(DB) private readonly db: Database,
+    private readonly rolesService: RolesService,
+  ) {}
 
   async getMap(serverId: string, userId: string): Promise<MapPublic> {
     await this.requireMember(serverId, userId);
@@ -42,7 +53,7 @@ export class MapsService {
   }
 
   async saveMap(serverId: string, userId: string, data: MapData): Promise<MapPublic> {
-    await this.requireRole(serverId, userId, ['owner', 'admin']);
+    await this.requirePermission(serverId, userId, PERMISSIONS.ManageMap);
     const [saved] = await this.db
       .insert(map)
       .values({ serverId, data, updatedAt: new Date() })
@@ -63,17 +74,10 @@ export class MapsService {
     if (!m) throw new ForbiddenException('Not a member of this server');
   }
 
-  private async requireRole(
-    serverId: string,
-    userId: string,
-    roles: Array<'owner' | 'admin' | 'member'>,
-  ) {
-    const [m] = await this.db
-      .select({ role: member.role })
-      .from(member)
-      .where(and(eq(member.serverId, serverId), eq(member.userId, userId)))
-      .limit(1);
-    if (!m || !roles.includes(m.role)) {
+  private async requirePermission(serverId: string, userId: string, flag: number) {
+    const authz = await this.rolesService.resolveAuthz(serverId, userId);
+    if (authz.isOwner) return;
+    if (!hasPermission(authz.permissions, flag)) {
       throw new ForbiddenException('Insufficient permissions');
     }
   }

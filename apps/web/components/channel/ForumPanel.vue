@@ -3,7 +3,8 @@ const props = defineProps<{
   serverId: string;
   channelId: string;
   channelName: string;
-  rightOffset?: number;
+  side?: 'left' | 'right';
+  offset?: number;
 }>();
 const emit = defineEmits<{
   close: [];
@@ -40,9 +41,10 @@ async function submitPost() {
   <div
     class="fixed top-4 bottom-4 z-50 flex flex-col rounded-2xl overflow-hidden"
     :style="{
-      right: (rightOffset ?? 76) + 'px',
+      left: (props.side ?? 'right') === 'left' ? (props.offset ?? 76) + 'px' : 'auto',
+      right: (props.side ?? 'right') === 'right' ? (props.offset ?? 76) + 'px' : 'auto',
       width: '228px',
-      transition: 'right 200ms cubic-bezier(0.4,0,0.2,1)',
+      transition: 'left 200ms cubic-bezier(0.4,0,0.2,1), right 200ms cubic-bezier(0.4,0,0.2,1)',
       background: 'rgba(10, 10, 16, 0.82)',
       backdropFilter: 'blur(28px) saturate(160%)',
       WebkitBackdropFilter: 'blur(28px) saturate(160%)',

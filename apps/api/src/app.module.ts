@@ -17,6 +17,7 @@ import { PluginsModule } from './plugins/plugins.module';
 import { CollaborationModule } from './collaboration/collaboration.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { CategoriesModule } from './categories/categories.module';
+import { RolesModule } from './roles/roles.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { CategoriesModule } from './categories/categories.module';
     CollaborationModule,
     UploadsModule,
     CategoriesModule,
+    RolesModule,
   ],
 })
 export class AppModule {}

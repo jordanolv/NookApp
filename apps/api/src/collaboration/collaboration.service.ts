@@ -79,7 +79,7 @@ export class CollaborationService implements OnApplicationShutdown {
     const { userId } = this.verifyToken(token);
 
     const [m] = await this.db
-      .select({ role: member.role })
+      .select({ id: member.id })
       .from(member)
       .where(and(eq(member.serverId, documentName), eq(member.userId, userId)))
       .limit(1);

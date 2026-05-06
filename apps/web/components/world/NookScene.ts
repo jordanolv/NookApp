@@ -1,5 +1,13 @@
 import Phaser from 'phaser';
 import type { MapData, PlayerMovedPayload } from '@nookapp/protocol';
+import {
+  CG_LAYER_ORDER,
+  CG_VARIANTS,
+  DEFAULT_APPEARANCE,
+  variantUrl,
+  type Appearance,
+  type CgLayer,
+} from '~/composables/useCharacter';
 import { drawGrassBackground } from './scene/background';
 import { BuildOverlay } from './scene/build-overlay';
 import {
@@ -27,16 +35,7 @@ const ROOM_H = TILE_SIZE * 8; // 256px room height
 const IDLE_FRAME: Record<string, number> = { right: 0, up: 1, left: 2, down: 3 };
 const WALK_START: Record<string, number> = { right: 112, up: 118, left: 124, down: 130 };
 
-const CG_LAYERS = ['body', 'eyes', 'outfit', 'hair', 'accessory'] as const;
-type CgLayer = (typeof CG_LAYERS)[number];
-
-const DEFAULT_SKIN: Record<CgLayer, string> = {
-  body: '/assets/cg/body/body_01.png',
-  eyes: '/assets/cg/eyes/eyes_01.png',
-  outfit: '/assets/cg/outfit/outfit_01.png',
-  hair: '/assets/cg/hair/hair_01.png',
-  accessory: '/assets/cg/accessory/acc_backpack.png',
-};
+const CG_LAYERS = CG_LAYER_ORDER;
 
 // Predefined positions for up to 6 voice rooms, distributed around the world
 const ROOM_POSITIONS = [
@@ -88,11 +87,12 @@ interface ActiveRoom extends RoomZone {
 }
 
 interface RemotePlayer {
-  layers: Phaser.GameObjects.Sprite[];
+  layers: (Phaser.GameObjects.Sprite | null)[];
   lastDir: string;
   name: string;
   targetX: number;
   targetY: number;
+  appearance: Appearance;
 }
 
 export class NookScene extends Phaser.Scene {
@@ -101,9 +101,11 @@ export class NookScene extends Phaser.Scene {
   private interactKey!: Phaser.Input.Keyboard.Key;
   private interactKeyWasDown = false;
   localBody!: Phaser.Physics.Arcade.Sprite;
-  private localLayers!: Phaser.GameObjects.Sprite[];
+  private localLayers!: (Phaser.GameObjects.Sprite | null)[];
   private lastDir = 'down';
   private lastEmitTime = 0;
+  private appearance: Appearance = { ...DEFAULT_APPEARANCE };
+  private builtBodyAnims = new Set<string>();
 
   private remotePlayers = new Map<string, RemotePlayer>();
   private worldObjects = new Map<string, Phaser.GameObjects.GameObject>();
@@ -127,10 +129,11 @@ export class NookScene extends Phaser.Scene {
   readonly localUserName: string;
   onReady?: () => void;
 
-  constructor(localUserId: string, localUserName: string) {
+  constructor(localUserId: string, localUserName: string, initialAppearance?: Appearance) {
     super({ key: 'NookScene' });
     this.localUserId = localUserId;
     this.localUserName = localUserName;
+    if (initialAppearance) this.appearance = { ...initialAppearance };
   }
 
   setLocalUserId(userId: string) {
@@ -141,10 +144,12 @@ export class NookScene extends Phaser.Scene {
 
   preload() {
     for (const layer of CG_LAYERS) {
-      this.load.spritesheet(`cg_${layer}`, DEFAULT_SKIN[layer], {
-        frameWidth: 16,
-        frameHeight: 32,
-      });
+      for (const variant of CG_VARIANTS[layer]) {
+        this.load.spritesheet(variant, variantUrl(layer, variant), {
+          frameWidth: 16,
+          frameHeight: 32,
+        });
+      }
     }
   }
 
@@ -186,6 +191,66 @@ export class NookScene extends Phaser.Scene {
     this.model = new MapModel(data);
     this.floorRenderer?.apply(this.model);
     this.wallRenderer?.apply(this.model);
+  }
+
+  applyAppearance(next: Appearance) {
+    this.appearance = { ...next };
+    if (!this.localBody) return;
+    this.ensureBodyAnims(next.body);
+    this.swapLayers(this.localLayers, next, this.localBody.x, this.localBody.y);
+    if (this.localBody.anims.isPlaying) {
+      this.localBody.play(this.walkAnimKey(this.lastDir), true);
+    } else {
+      this.localBody.setFrame(IDLE_FRAME[this.lastDir]);
+    }
+  }
+
+  setRemoteAppearance(userId: string, appearance: Appearance) {
+    const remote = this.remotePlayers.get(userId);
+    if (!remote) return;
+    remote.appearance = { ...appearance };
+    this.ensureBodyAnims(appearance.body);
+    const body = remote.layers[0]!;
+    this.swapLayers(remote.layers, appearance, body.x, body.y);
+    if (body.anims.isPlaying) {
+      body.play(this.walkAnimKey(remote.lastDir, appearance.body), true);
+    } else {
+      body.setFrame(IDLE_FRAME[remote.lastDir]);
+    }
+  }
+
+  private swapLayers(
+    layers: (Phaser.GameObjects.Sprite | null)[],
+    appearance: Appearance,
+    x: number,
+    y: number,
+  ) {
+    for (let i = 0; i < CG_LAYERS.length; i++) {
+      const layer = CG_LAYERS[i] as CgLayer;
+      const variant = appearance[layer];
+      const existing = layers[i];
+      if (variant) {
+        if (existing) {
+          existing.setTexture(variant);
+        } else {
+          const spr = this.add.sprite(x, y, variant);
+          spr
+            .setScale(2)
+            .setOrigin(0.5, 0.85)
+            .setDepth(y + 0.01 * i);
+          layers[i] = spr;
+          if (i === 0) {
+            this.physics.add.existing(spr);
+            const pb = spr.body as Phaser.Physics.Arcade.Body;
+            pb.setSize(10, 6).setOffset(3, 24);
+            pb.setCollideWorldBounds(true);
+          }
+        }
+      } else if (existing) {
+        existing.destroy();
+        layers[i] = null;
+      }
+    }
   }
 
   setBuildMode(active: boolean) {
@@ -270,7 +335,7 @@ export class NookScene extends Phaser.Scene {
     let remote = this.remotePlayers.get(payload.userId);
     if (!remote) {
       remote = this.spawnRemotePlayer(payload.x, payload.y, name ?? payload.userId);
-      const body = remote.layers[0];
+      const body = remote.layers[0]!;
       body.setInteractive();
       body.on('pointerdown', () => {
         this.events.emit('player:interact', {
@@ -287,11 +352,11 @@ export class NookScene extends Phaser.Scene {
     remote.targetX = payload.x;
     remote.targetY = payload.y;
 
-    const target = remote.layers[0];
+    const target = remote.layers[0]!;
 
     if (payload.moving) {
       if (payload.dir !== remote.lastDir || !target.anims.isPlaying) {
-        target.play(`walk-${payload.dir}`, true);
+        target.play(this.walkAnimKey(payload.dir, remote.appearance.body), true);
         remote.lastDir = payload.dir;
       }
     } else {
@@ -317,7 +382,7 @@ export class NookScene extends Phaser.Scene {
   removeRemotePlayer(userId: string) {
     const remote = this.remotePlayers.get(userId);
     if (!remote) return;
-    for (const spr of remote.layers) spr.destroy();
+    for (const spr of remote.layers) spr?.destroy();
     this.remotePlayers.delete(userId);
   }
 
@@ -331,7 +396,7 @@ export class NookScene extends Phaser.Scene {
     let nearest: { userId: string; name: string; worldX: number; worldY: number } | null = null;
     let minDist = 80;
     for (const [userId, remote] of this.remotePlayers) {
-      const spr = remote.layers[0];
+      const spr = remote.layers[0]!;
       const dx = spr.x - px;
       const dy = spr.y - py;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -447,22 +512,32 @@ export class NookScene extends Phaser.Scene {
     this.localLayers = this.spawnLayers(
       SPAWN_TILE_X * TILE_SIZE + TILE_SIZE / 2,
       SPAWN_TILE_Y * TILE_SIZE + TILE_SIZE / 2,
+      this.appearance,
     );
-    this.physics.add.existing(this.localLayers[0]);
-    this.localBody = this.localLayers[0] as Phaser.Physics.Arcade.Sprite;
+    const body = this.localLayers[0] as Phaser.GameObjects.Sprite;
+    this.physics.add.existing(body);
+    this.localBody = body as Phaser.Physics.Arcade.Sprite;
     const pb = this.localBody.body as Phaser.Physics.Arcade.Body;
     pb.setSize(10, 6).setOffset(3, 24);
     pb.setCollideWorldBounds(true);
   }
 
   private spawnRemotePlayer(x: number, y: number, name: string): RemotePlayer {
-    const layers = this.spawnLayers(x, y);
-    return { layers, lastDir: 'down', name, targetX: x, targetY: y };
+    const appearance: Appearance = { ...DEFAULT_APPEARANCE };
+    const layers = this.spawnLayers(x, y, appearance);
+    this.ensureBodyAnims(appearance.body);
+    return { layers, lastDir: 'down', name, targetX: x, targetY: y, appearance };
   }
 
-  private spawnLayers(x: number, y: number): Phaser.GameObjects.Sprite[] {
+  private spawnLayers(
+    x: number,
+    y: number,
+    appearance: Appearance,
+  ): (Phaser.GameObjects.Sprite | null)[] {
     return CG_LAYERS.map((layer, i) => {
-      const spr = this.add.sprite(x, y, `cg_${layer}`);
+      const variant = appearance[layer];
+      if (!variant) return null;
+      const spr = this.add.sprite(x, y, variant);
       spr
         .setScale(2)
         .setOrigin(0.5, 0.85)
@@ -473,29 +548,52 @@ export class NookScene extends Phaser.Scene {
 
   private setupInput() {
     const kb = this.input.keyboard!;
-    kb.enableGlobalCapture();
+    kb.disableGlobalCapture();
     this.cursors = kb.createCursorKeys();
     this.wasd = {
-      up: kb.addKey(Phaser.Input.Keyboard.KeyCodes.W),
-      down: kb.addKey(Phaser.Input.Keyboard.KeyCodes.S),
-      left: kb.addKey(Phaser.Input.Keyboard.KeyCodes.A),
-      right: kb.addKey(Phaser.Input.Keyboard.KeyCodes.D),
+      up: kb.addKey(Phaser.Input.Keyboard.KeyCodes.Z, false),
+      down: kb.addKey(Phaser.Input.Keyboard.KeyCodes.S, false),
+      left: kb.addKey(Phaser.Input.Keyboard.KeyCodes.Q, false),
+      right: kb.addKey(Phaser.Input.Keyboard.KeyCodes.D, false),
     };
-    this.interactKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.interactKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E, false);
+    kb.clearCaptures();
   }
 
   private buildAnims() {
+    this.ensureBodyAnims(this.appearance.body);
+  }
+
+  private ensureBodyAnims(bodyKey: string) {
+    if (this.builtBodyAnims.has(bodyKey)) return;
     for (const [dir, start] of Object.entries(WALK_START)) {
+      const key = `walk-${dir}-${bodyKey}`;
+      if (this.anims.exists(key)) continue;
       this.anims.create({
-        key: `walk-${dir}`,
-        frames: Array.from({ length: 6 }, (_, i) => ({ key: 'cg_body', frame: start + i })),
+        key,
+        frames: Array.from({ length: 6 }, (_, i) => ({ key: bodyKey, frame: start + i })),
         frameRate: 8,
         repeat: -1,
       });
     }
+    this.builtBodyAnims.add(bodyKey);
+  }
+
+  private walkAnimKey(dir: string, bodyKey?: string): string {
+    return `walk-${dir}-${bodyKey ?? this.appearance.body}`;
   }
 
   override update(_time: number, _delta: number) {
+    const tag = (document.activeElement?.tagName ?? '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea') {
+      (this.localBody.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+      if (this.localBody.anims.isPlaying) {
+        this.localBody.anims.stop();
+        this.localBody.setFrame(IDLE_FRAME[this.lastDir]);
+      }
+      return;
+    }
+
     const up = this.cursors.up.isDown || this.wasd.up.isDown;
     const down = this.cursors.down.isDown || this.wasd.down.isDown;
     const left = this.cursors.left.isDown || this.wasd.left.isDown;
@@ -517,7 +615,7 @@ export class NookScene extends Phaser.Scene {
       const dir =
         Math.abs(vx) > Math.abs(vy) ? (vx > 0 ? 'right' : 'left') : vy > 0 ? 'down' : 'up';
       if (dir !== this.lastDir || !this.localBody.anims.isPlaying) {
-        this.localBody.play(`walk-${dir}`, true);
+        this.localBody.play(this.walkAnimKey(dir), true);
         this.lastDir = dir;
       }
     } else {
@@ -553,15 +651,20 @@ export class NookScene extends Phaser.Scene {
 
     // Lerp remote players toward their last-known target position each frame
     for (const remote of this.remotePlayers.values()) {
-      const spr = remote.layers[0];
-      spr.x = Phaser.Math.Linear(spr.x, remote.targetX, 0.3);
-      spr.y = Phaser.Math.Linear(spr.y, remote.targetY, 0.3);
+      const spr = remote.layers[0]!;
+      const lerpX = Phaser.Math.Linear(spr.x, remote.targetX, 0.3);
+      const lerpY = Phaser.Math.Linear(spr.y, remote.targetY, 0.3);
+      const snappedX = Math.round(lerpX / 2) * 2;
+      const snappedY = Math.round(lerpY / 2) * 2;
+      spr.setPosition(snappedX, snappedY);
       const frame = spr.frame.name;
       for (let i = 1; i < remote.layers.length; i++) {
-        remote.layers[i].setFrame(frame).setPosition(spr.x, spr.y);
-        remote.layers[i].setDepth(spr.y + 0.01 * i);
+        const layer = remote.layers[i];
+        if (!layer) continue;
+        layer.setFrame(frame).setPosition(snappedX, snappedY);
+        layer.setDepth(snappedY + 0.01 * i);
       }
-      spr.setDepth(spr.y);
+      spr.setDepth(snappedY);
     }
   }
 
@@ -569,11 +672,21 @@ export class NookScene extends Phaser.Scene {
     const now = this.time.now;
     const frame = this.localBody.frame.name;
 
+    // Snap visual position to even integers — with camera zoom 1.5× and
+    // even-snapped scroll, an even-integer sprite x maps to an integer screen
+    // pixel. Otherwise the GPU rasterizer can sample 1px outside the frame UV
+    // and pull from the neighboring frame (visible as a thin streak).
+    const snappedX = Math.round(this.localBody.x / 2) * 2;
+    const snappedY = Math.round(this.localBody.y / 2) * 2;
+    this.localBody.setPosition(snappedX, snappedY);
+
     for (let i = 1; i < this.localLayers.length; i++) {
-      this.localLayers[i].setFrame(frame).setPosition(this.localBody.x, this.localBody.y);
-      this.localLayers[i].setDepth(this.localBody.y + 0.01 * i);
+      const layer = this.localLayers[i];
+      if (!layer) continue;
+      layer.setFrame(frame).setPosition(snappedX, snappedY);
+      layer.setDepth(snappedY + 0.01 * i);
     }
-    this.localBody.setDepth(this.localBody.y);
+    this.localBody.setDepth(snappedY);
 
     // 15 Hz position broadcast
     if (now - this.lastEmitTime >= EMIT_INTERVAL_MS) {
@@ -621,7 +734,7 @@ export class NookScene extends Phaser.Scene {
       },
     ];
     for (const [userId, remote] of this.remotePlayers) {
-      const spr = remote.layers[0];
+      const spr = remote.layers[0]!;
       tags.push({ userId, name: remote.name, worldX: spr.x, worldY: spr.y });
     }
     this.events.emit('name-tags', tags);

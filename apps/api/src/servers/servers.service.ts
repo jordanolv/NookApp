@@ -8,14 +8,17 @@ import {
 } from '@nestjs/common';
 import { and, eq, sql } from 'drizzle-orm';
 import { channel, member, server, serverInvite, type Database } from '@nookapp/db';
-import type {
-  CreateInviteInput,
-  CreateServerInput,
-  InvitePublic,
-  ServerPublic,
-  UpdateServerInput,
+import {
+  hasPermission,
+  PERMISSIONS,
+  type CreateInviteInput,
+  type CreateServerInput,
+  type InvitePublic,
+  type ServerPublic,
+  type UpdateServerInput,
 } from '@nookapp/protocol';
 import { DB } from '../database/database.module';
+import { RolesService } from '../roles/roles.service';
 
 function slugify(name: string): string {
   return name
@@ -41,7 +44,10 @@ function toServerPublic(row: typeof server.$inferSelect): ServerPublic {
 
 @Injectable()
 export class ServersService {
-  constructor(@Inject(DB) private readonly db: Database) {}
+  constructor(
+    @Inject(DB) private readonly db: Database,
+    private readonly rolesService: RolesService,
+  ) {}
 
   async createServer(userId: string, input: CreateServerInput): Promise<ServerPublic> {
     const baseSlug = input.slug ?? slugify(input.name);
@@ -57,7 +63,6 @@ export class ServersService {
         id: randomUUID(),
         serverId: created.id,
         userId,
-        role: 'owner',
       }),
       this.db.insert(channel).values({
         id: randomUUID(),
@@ -66,6 +71,7 @@ export class ServersService {
         name: 'general',
         position: 0,
       }),
+      this.rolesService.ensureEveryoneRole(created.id),
     ]);
 
     return toServerPublic(created);
@@ -100,7 +106,7 @@ export class ServersService {
     userId: string,
     input: UpdateServerInput,
   ): Promise<ServerPublic> {
-    await this.requireRole(serverId, userId, ['owner', 'admin']);
+    await this.requirePermission(serverId, userId, PERMISSIONS.ManageServer);
 
     if (input.slug) {
       const [conflict] = await this.db
@@ -127,7 +133,14 @@ export class ServersService {
   }
 
   async deleteServer(serverId: string, userId: string): Promise<void> {
-    await this.requireRole(serverId, userId, ['owner']);
+    const [srv] = await this.db
+      .select({ ownerId: server.ownerId })
+      .from(server)
+      .where(eq(server.id, serverId))
+      .limit(1);
+    if (!srv) throw new NotFoundException('Server not found');
+    if (srv.ownerId !== userId) throw new ForbiddenException('Only the owner can delete a server');
+
     const result = await this.db.delete(server).where(eq(server.id, serverId)).returning();
     if (!result.length) throw new NotFoundException('Server not found');
   }
@@ -137,7 +150,7 @@ export class ServersService {
     userId: string,
     input: CreateInviteInput,
   ): Promise<InvitePublic> {
-    await this.requireMember(serverId, userId);
+    await this.requirePermission(serverId, userId, PERMISSIONS.CreateInvite);
 
     const code = randomBytes(5).toString('base64url').slice(0, 8).toUpperCase();
     const expiresAt = input.expiresInHours
@@ -194,7 +207,6 @@ export class ServersService {
         id: randomUUID(),
         serverId: invite.serverId,
         userId,
-        role: 'member',
       }),
       this.db
         .update(serverInvite)
@@ -219,17 +231,10 @@ export class ServersService {
     if (!m) throw new ForbiddenException('Not a member of this server');
   }
 
-  private async requireRole(
-    serverId: string,
-    userId: string,
-    roles: Array<'owner' | 'admin' | 'member'>,
-  ) {
-    const [m] = await this.db
-      .select({ role: member.role })
-      .from(member)
-      .where(and(eq(member.serverId, serverId), eq(member.userId, userId)))
-      .limit(1);
-    if (!m || !roles.includes(m.role)) {
+  private async requirePermission(serverId: string, userId: string, flag: number) {
+    const authz = await this.rolesService.resolveAuthz(serverId, userId);
+    if (authz.isOwner) return;
+    if (!hasPermission(authz.permissions, flag)) {
       throw new ForbiddenException('Insufficient permissions');
     }
   }

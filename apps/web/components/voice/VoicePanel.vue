@@ -12,7 +12,26 @@ const {
   toggleScreenShare,
 } = useVoice();
 const { store } = useServers();
-const { user } = useAuth();
+const { user, signOut } = useAuth();
+
+const showProfile = ref(false);
+const profileTop = ref(0);
+const profileLeft = ref(0);
+const showUserSettings = ref(false);
+
+function openProfile(e: MouseEvent) {
+  const target = e.currentTarget as HTMLElement;
+  const rect = target.getBoundingClientRect();
+  profileTop.value = rect.top - 8;
+  profileLeft.value = rect.left;
+  showProfile.value = true;
+}
+
+async function handleSignOut() {
+  showProfile.value = false;
+  await signOut();
+  await navigateTo('/auth/login');
+}
 
 const panel = ref<HTMLElement | null>(null);
 const panelX = ref(16);
@@ -247,42 +266,48 @@ const currentTextChannel = computed(() => {
         class="flex items-center gap-2.5 px-2.5 py-2.5 cursor-grab active:cursor-grabbing"
         @mousedown="onHandleMousedown"
       >
-        <!-- Avatar + status dot -->
-        <div class="relative flex-shrink-0">
-          <div
-            class="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold text-white"
-            style="background: linear-gradient(135deg, #6366f1, #4f46e5)"
-          >
-            {{ user?.name?.[0]?.toUpperCase() }}
+        <!-- Avatar + name (click → profile popup) -->
+        <button
+          class="flex flex-1 min-w-0 items-center gap-2.5 text-left rounded-lg -mx-1 px-1 py-0.5 transition-colors hover:bg-white/[0.04]"
+          @click="openProfile"
+        >
+          <!-- Avatar + status dot -->
+          <div class="relative flex-shrink-0">
+            <div
+              class="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold text-white"
+              style="background: linear-gradient(135deg, #6366f1, #4f46e5)"
+            >
+              {{ user?.name?.[0]?.toUpperCase() }}
+            </div>
+            <span
+              class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full"
+              style="border: 2px solid rgba(15, 15, 20, 0.9)"
+              :style="{ background: currentChannelId ? '#22c55e' : 'rgba(255,255,255,0.2)' }"
+            />
           </div>
-          <span
-            class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full"
-            style="border: 2px solid rgba(15, 15, 20, 0.9)"
-            :style="{ background: currentChannelId ? '#22c55e' : 'rgba(255,255,255,0.2)' }"
-          />
-        </div>
 
-        <!-- Name + status text -->
-        <div class="flex-1 min-w-0">
-          <p
-            class="truncate text-xs font-semibold leading-tight"
-            style="color: rgba(255, 255, 255, 0.9)"
-          >
-            {{ user?.name }}
-          </p>
-          <p
-            class="truncate text-xs leading-tight"
-            :style="currentChannelId ? 'color:#4ade80' : 'color:rgba(255,255,255,0.35)'"
-          >
-            {{
-              currentChannelId
-                ? currentChannel?.name
-                : currentTextChannel
-                  ? '#' + currentTextChannel.name
-                  : 'In Nook'
-            }}
-          </p>
-        </div>
+          <!-- Name + status text -->
+          <div class="flex-1 min-w-0">
+            <p
+              class="truncate text-xs font-semibold leading-tight"
+              style="color: rgba(255, 255, 255, 0.9)"
+            >
+              {{ user?.name }}
+            </p>
+            <p
+              class="truncate text-xs leading-tight"
+              :style="currentChannelId ? 'color:#4ade80' : 'color:rgba(255,255,255,0.35)'"
+            >
+              {{
+                currentChannelId
+                  ? currentChannel?.name
+                  : currentTextChannel
+                    ? '#' + currentTextChannel.name
+                    : 'In Nook'
+              }}
+            </p>
+          </div>
+        </button>
 
         <!-- Quick controls -->
         <div class="flex items-center gap-0.5 flex-shrink-0" @mousedown.stop>
@@ -331,9 +356,10 @@ const currentTextChannel = computed(() => {
           </button>
 
           <button
-            class="rounded-xl p-1.5 transition-all duration-150"
+            class="rounded-xl p-1.5 transition-all duration-150 hover:bg-white/[0.06]"
             style="color: rgba(255, 255, 255, 0.35)"
-            title="Settings"
+            title="Paramètres du compte"
+            @click="showUserSettings = true"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
               <path
@@ -344,6 +370,80 @@ const currentTextChannel = computed(() => {
         </div>
       </div>
     </div>
+
+    <!-- Profile popup -->
+    <Teleport to="body">
+      <div
+        v-if="showProfile"
+        class="fixed inset-0 z-[60]"
+        @click="showProfile = false"
+        @mousedown.stop
+      />
+      <div
+        v-if="showProfile"
+        class="fixed z-[61] flex flex-col rounded-2xl overflow-hidden"
+        :style="{
+          left: profileLeft + 'px',
+          top: profileTop + 'px',
+          transform: 'translateY(-100%)',
+          minWidth: '240px',
+          background: 'rgba(10, 10, 16, 0.95)',
+          backdropFilter: 'blur(28px) saturate(160%)',
+          WebkitBackdropFilter: 'blur(28px) saturate(160%)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          boxShadow: '0 16px 48px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)',
+        }"
+        @mousedown.stop
+      >
+        <!-- Header: avatar + name + email -->
+        <div class="flex items-center gap-3 px-3 py-3">
+          <div
+            class="h-11 w-11 flex-shrink-0 rounded-full flex items-center justify-center text-base font-bold text-white"
+            style="background: linear-gradient(135deg, #6366f1, #4f46e5)"
+          >
+            {{ user?.name?.[0]?.toUpperCase() }}
+          </div>
+          <div class="min-w-0 flex-1">
+            <p
+              class="truncate text-sm font-semibold leading-tight"
+              style="color: rgba(255, 255, 255, 0.92)"
+            >
+              {{ user?.name }}
+            </p>
+            <p
+              class="truncate text-[11px] leading-tight mt-0.5"
+              style="color: rgba(255, 255, 255, 0.4)"
+            >
+              {{ user?.email }}
+            </p>
+          </div>
+        </div>
+
+        <div class="mx-2 my-1" style="height: 1px; background: rgba(255, 255, 255, 0.06)" />
+
+        <!-- Sign out -->
+        <button
+          class="flex items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-white/[0.05]"
+          @click="handleSignOut"
+        >
+          <div
+            class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
+            style="background: rgba(239, 68, 68, 0.12); color: rgb(248, 113, 113)"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"
+              />
+            </svg>
+          </div>
+          <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.85)"
+            >Se déconnecter</span
+          >
+        </button>
+      </div>
+    </Teleport>
+
+    <UserSettingsModal v-if="showUserSettings" @close="showUserSettings = false" />
   </div>
 </template>
 

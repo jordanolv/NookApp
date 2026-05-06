@@ -6,6 +6,7 @@ export const SOCKET_EVENTS = {
   PlayerLeft: 'player:left',
   PlayerMoved: 'player:moved',
   PlayerSnapshot: 'player:snapshot',
+  PlayerAppearance: 'player:appearance',
   MessageSent: 'message:sent',
   MessageDeleted: 'message:deleted',
   VoiceJoin: 'voice:join',
@@ -15,6 +16,15 @@ export const SOCKET_EVENTS = {
   VoiceSnapshot: 'voice:snapshot',
 } as const;
 export type SocketEventName = (typeof SOCKET_EVENTS)[keyof typeof SOCKET_EVENTS];
+
+export const playerAppearanceSchema = z.object({
+  body: z.string(),
+  eyes: z.string(),
+  outfit: z.string(),
+  hair: z.string(),
+  accessory: z.string().nullable(),
+});
+export type PlayerAppearance = z.infer<typeof playerAppearanceSchema>;
 
 export const playerMovedPayloadSchema = z.object({
   userId: z.string(),
@@ -31,6 +41,7 @@ export const playerHelloPayloadSchema = z.object({
   x: z.number(),
   y: z.number(),
   dir: z.enum(['up', 'down', 'left', 'right']),
+  appearance: playerAppearanceSchema.optional(),
 });
 export type PlayerHelloPayload = z.infer<typeof playerHelloPayloadSchema>;
 
@@ -40,8 +51,15 @@ export const playerStateSchema = z.object({
   x: z.number(),
   y: z.number(),
   dir: z.enum(['up', 'down', 'left', 'right']),
+  appearance: playerAppearanceSchema.optional(),
 });
 export type PlayerState = z.infer<typeof playerStateSchema>;
+
+export const playerAppearancePayloadSchema = z.object({
+  userId: z.string(),
+  appearance: playerAppearanceSchema,
+});
+export type PlayerAppearancePayload = z.infer<typeof playerAppearancePayloadSchema>;
 
 export const playerSnapshotPayloadSchema = z.object({
   you: playerStateSchema,

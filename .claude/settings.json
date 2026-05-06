@@ -1,5 +1,18 @@
 {
   "permissions": {
-    "allow": ["Bash(git add *)", "Bash(git commit *)"]
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git checkout *)",
+      "WebSearch",
+      "Bash(rtk git *)",
+      "mcp__plugin_claude-mem_mcp-search__smart_outline",
+      "mcp__plugin_claude-mem_mcp-search__get_observations",
+      "Bash(rtk read *)",
+      "mcp__plugin_claude-mem_mcp-search__smart_unfold",
+      "Bash(rtk ls *)",
+      "Bash(grepai search *)",
+      "Bash(smart_outline /Users/jordan.olv/Jordan/Dev/nookapp/apps/web/components/channel/ForumPanel.vue)"
+    ]
   }
 }

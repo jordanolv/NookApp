@@ -44,7 +44,7 @@ export const channel = pgTable(
       .notNull()
       .references(() => server.id, { onDelete: 'cascade' }),
     categoryId: text('category_id').references(() => channelCategory.id, { onDelete: 'set null' }),
-    type: text('type', { enum: ['text', 'voice', 'forum', 'game'] })
+    type: text('type', { enum: ['text', 'voice', 'forum', 'game', 'widget'] })
       .notNull()
       .default('text'),
     name: text('name').notNull(),
@@ -52,6 +52,7 @@ export const channel = pgTable(
     parentId: text('parent_id'),
     mapZone: jsonb('map_zone'),
     iconUrl: text('icon_url'),
+    widgetKind: text('widget_kind'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
@@ -70,9 +71,6 @@ export const member = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    role: text('role', { enum: ['owner', 'admin', 'member'] })
-      .notNull()
-      .default('member'),
     joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({

@@ -7,9 +7,11 @@ import {
   type ObjectLabelUpdate,
 } from './NookScene';
 import type { PlayerState } from '@nookapp/protocol';
+import { useCharacter } from '~/composables/useCharacter';
 
 const serversStore = useServers().store;
 const voice = useVoice();
+const character = useCharacter();
 
 import type { MapData } from '@nookapp/protocol';
 import type { BuildTool } from './NookScene';
@@ -351,6 +353,15 @@ watch(
   },
 );
 
+watch(
+  () => character.appearance.value,
+  (next) => {
+    _scene?.applyAppearance(next);
+    socket.emitPlayerAppearance(next);
+  },
+  { deep: true },
+);
+
 onMounted(() => {
   if (!canvasRef.value) return;
 
@@ -365,7 +376,7 @@ onMounted(() => {
   ro.observe(canvasRef.value);
   cachedRect = canvasRef.value.getBoundingClientRect();
 
-  const scene = new NookScene(props.userId, props.playerName);
+  const scene = new NookScene(props.userId, props.playerName, character.appearance.value);
 
   game.value = new Phaser.Game({
     type: Phaser.AUTO,
@@ -392,6 +403,7 @@ onMounted(() => {
         { userId: p.userId, x: p.x, y: p.y, dir: p.dir, moving: false },
         p.name,
       );
+      if (p.appearance) scene.setRemoteAppearance(p.userId, p.appearance);
     }
   });
 
@@ -400,6 +412,11 @@ onMounted(() => {
       { userId: state.userId, x: state.x, y: state.y, dir: state.dir, moving: false },
       state.name,
     );
+    if (state.appearance) scene.setRemoteAppearance(state.userId, state.appearance);
+  });
+
+  const offAppearance = socket.onPlayerAppearance(({ userId, appearance }) => {
+    scene.setRemoteAppearance(userId, appearance);
   });
 
   const offMoved = socket.onPlayerMoved((payload) => {
@@ -507,6 +524,7 @@ onMounted(() => {
       x: scene.localBody.x,
       y: scene.localBody.y,
       dir: 'down',
+      appearance: character.appearance.value,
     });
   };
 
@@ -515,6 +533,7 @@ onMounted(() => {
     offJoined();
     offMoved();
     offLeft();
+    offAppearance();
     rawSocket.off('world:object:snapshot', onWorldSnapshot);
     rawSocket.off('world:object:spawn', onWorldSpawn);
     rawSocket.off('world:object:remove', onWorldRemove);

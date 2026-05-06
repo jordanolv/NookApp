@@ -1,6 +1,8 @@
 import { io, type Socket } from 'socket.io-client';
 import type {
   MessagePublic,
+  PlayerAppearance,
+  PlayerAppearancePayload,
   PlayerHelloPayload,
   PlayerMovedPayload,
   PlayerSnapshotPayload,
@@ -66,6 +68,15 @@ export function useSocket() {
     return () => socket?.off('player:moved', cb);
   }
 
+  function emitPlayerAppearance(appearance: PlayerAppearance) {
+    socket?.emit('player:appearance', { appearance });
+  }
+
+  function onPlayerAppearance(cb: (payload: PlayerAppearancePayload) => void) {
+    socket?.on('player:appearance', cb);
+    return () => socket?.off('player:appearance', cb);
+  }
+
   function emitVoiceJoin(payload: { channelId: string }) {
     socket?.emit('voice:join', payload);
   }
@@ -105,6 +116,8 @@ export function useSocket() {
     onPlayerLeft,
     emitPlayerMoved,
     onPlayerMoved,
+    emitPlayerAppearance,
+    onPlayerAppearance,
     emitVoiceJoin,
     emitVoiceLeave,
     onVoiceSnapshot,

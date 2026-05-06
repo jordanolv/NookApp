@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { VueDraggable } from 'vue-draggable-plus';
+import { PanelLeft, PanelRight, Settings, Trash2 } from 'lucide-vue-next';
 import type { ChannelPublic, CategoryPublic } from '@nookapp/protocol';
 
 definePageMeta({ layout: 'app' });
@@ -8,13 +9,13 @@ const route = useRoute();
 const serverId = computed(() => route.params.serverId as string);
 
 const { store, fetchServers, updateServer } = useServers();
-const { fetchChannels, updateChannel } = useChannels();
+const { fetchChannels, updateChannel, deleteChannel } = useChannels();
 const { fetchCategories, createCategory, updateCategory, deleteCategory } = useCategories();
-const { user, signOut } = useAuth();
+const { user } = useAuth();
 const { createInvite } = useInvites();
 const socket = useSocket();
 const voice = useVoice();
-const { isAdmin, loadMember } = useMember();
+const { isAdmin, canManageChannels, canManageMap, canManageServer, loadMember } = useMember();
 const {
   currentMap,
   buildMode,
@@ -60,6 +61,11 @@ function openChannelById(channelId: string) {
   openChannel(channelId, { ctrlKey: false, metaKey: false } as MouseEvent);
 }
 
+function closeAllTabs() {
+  chatTabChannelIds.value = [];
+  chatTabActiveId.value = null;
+}
+
 function closeTab(channelId: string) {
   const idx = chatTabChannelIds.value.indexOf(channelId);
   chatTabChannelIds.value = chatTabChannelIds.value.filter((id) => id !== channelId);
@@ -99,36 +105,44 @@ const activeChannelIds = computed(
 );
 
 // ── Icon rail ──
+type RailSide = 'left' | 'right';
+const RAIL_PREFS_KEY = 'nookapp:rail:prefs';
+
 const railExpanded = ref(true);
 const railWidth = ref(210);
-const railHeight = ref<number | null>(null);
-const railPos = ref<{ x: number; y: number } | null>(null);
-const _railDrag = ref<{ startX: number; startY: number; origX: number; origY: number } | null>(
-  null,
-);
-const _railResize = ref<{
-  startX: number;
-  startY: number;
-  origW: number;
-  origH: number;
-  origX: number;
-  origY: number;
-  dir: 'left' | 'br' | 'bl' | 'tl' | 'tr';
-} | null>(null);
+const railSide = ref<RailSide>('right');
+
+if (import.meta.client) {
+  try {
+    const raw = localStorage.getItem(RAIL_PREFS_KEY);
+    if (raw) {
+      const p = JSON.parse(raw) as { side?: RailSide; width?: number };
+      if (p.side === 'left' || p.side === 'right') railSide.value = p.side;
+      if (typeof p.width === 'number') railWidth.value = Math.max(180, Math.min(420, p.width));
+    }
+  } catch {
+    // ignore corrupt prefs
+  }
+  watch([railSide, railWidth], ([side, width]) => {
+    localStorage.setItem(RAIL_PREFS_KEY, JSON.stringify({ side, width }));
+  });
+}
+
+const _railResize = ref<{ startX: number; origW: number } | null>(null);
 
 const railStyle = computed(() => {
   const w = railExpanded.value ? railWidth.value : 52;
-  const pos = railPos.value;
-  const h = railHeight.value;
-  const active = _railDrag.value !== null || _railResize.value !== null;
+  const resizing = _railResize.value !== null;
   return {
     width: w + 'px',
-    top: (pos ? pos.y : 16) + 'px',
-    bottom: pos ? 'auto' : '16px',
-    right: pos ? 'auto' : '16px',
-    left: pos ? pos.x + 'px' : 'auto',
-    height: pos ? (h !== null ? h + 'px' : `calc(100vh - ${pos.y + 16}px)`) : 'auto',
-    transition: active ? 'none' : 'width 200ms cubic-bezier(0.4,0,0.2,1)',
+    top: '16px',
+    bottom: '16px',
+    left: railSide.value === 'left' ? '16px' : 'auto',
+    right: railSide.value === 'right' ? '16px' : 'auto',
+    height: 'auto',
+    transition: resizing
+      ? 'none'
+      : 'width 200ms cubic-bezier(0.4,0,0.2,1), left 220ms cubic-bezier(0.4,0,0.2,1), right 220ms cubic-bezier(0.4,0,0.2,1)',
     background: 'rgba(12, 12, 18, 0.75)',
     backdropFilter: 'blur(24px) saturate(160%)',
     WebkitBackdropFilter: 'blur(24px) saturate(160%)',
@@ -137,112 +151,54 @@ const railStyle = computed(() => {
   };
 });
 
-function initRailPos() {
-  if (railPos.value !== null || !import.meta.client) return;
-  railPos.value = { x: window.innerWidth - railWidth.value - 16, y: 16 };
-  railHeight.value = window.innerHeight - 32;
-}
-
-function startRailDrag(e: MouseEvent) {
-  initRailPos();
-  _railDrag.value = {
-    startX: e.clientX,
-    startY: e.clientY,
-    origX: railPos.value!.x,
-    origY: railPos.value!.y,
-  };
-  e.preventDefault();
-}
-
-function startRailResize(e: MouseEvent, dir: 'left' | 'br' | 'bl' | 'tl' | 'tr') {
-  initRailPos();
-  _railResize.value = {
-    startX: e.clientX,
-    startY: e.clientY,
-    origW: railWidth.value,
-    origH: railHeight.value ?? window.innerHeight - (railPos.value?.y ?? 16) - 16,
-    origX: railPos.value!.x,
-    origY: railPos.value!.y,
-    dir,
-  };
+function startRailResize(e: MouseEvent) {
+  _railResize.value = { startX: e.clientX, origW: railWidth.value };
   e.preventDefault();
   e.stopPropagation();
 }
 
 function onRailPointerMove(e: MouseEvent) {
-  const M = 4; // screen margin
-  if (_railDrag.value) {
-    const dx = e.clientX - _railDrag.value.startX;
-    const dy = e.clientY - _railDrag.value.startY;
-    const w = railExpanded.value ? railWidth.value : 52;
-    const h = railHeight.value ?? window.innerHeight - 32;
-    railPos.value = {
-      x: Math.max(M, Math.min(window.innerWidth - w - M, _railDrag.value.origX + dx)),
-      y: Math.max(M, Math.min(window.innerHeight - h - M, _railDrag.value.origY + dy)),
-    };
-  }
   if (_railResize.value) {
-    const { startX, startY, origW, origH, origX, origY, dir } = _railResize.value;
-    const dx = e.clientX - startX;
-    const dy = e.clientY - startY;
-    if (dir === 'left') {
-      const newW = Math.max(180, Math.min(origW + origX - M, origW - dx));
-      railWidth.value = newW;
-      if (railPos.value)
-        railPos.value = { ...railPos.value, x: Math.max(M, origX + (origW - newW)) };
-    } else if (dir === 'tl') {
-      const newW = Math.max(180, Math.min(origW + origX - M, origW - dx));
-      const newH = Math.max(200, Math.min(origH + origY - M, origH - dy));
-      railWidth.value = newW;
-      railHeight.value = newH;
-      if (railPos.value)
-        railPos.value = {
-          x: Math.max(M, origX + (origW - newW)),
-          y: Math.max(M, origY + (origH - newH)),
-        };
-    } else if (dir === 'tr') {
-      const newH = Math.max(200, Math.min(origH + origY - M, origH - dy));
-      railWidth.value = Math.max(180, Math.min(window.innerWidth - origX - M, origW + dx));
-      railHeight.value = newH;
-      if (railPos.value)
-        railPos.value = { ...railPos.value, y: Math.max(M, origY + (origH - newH)) };
-    } else if (dir === 'br') {
-      railWidth.value = Math.max(180, Math.min(window.innerWidth - origX - M, origW + dx));
-      railHeight.value = Math.max(200, Math.min(window.innerHeight - origY - M, origH + dy));
-    } else if (dir === 'bl') {
-      const newW = Math.max(180, Math.min(origW + origX - M, origW - dx));
-      railWidth.value = newW;
-      if (railPos.value)
-        railPos.value = { ...railPos.value, x: Math.max(M, origX + (origW - newW)) };
-      railHeight.value = Math.max(200, Math.min(window.innerHeight - origY - M, origH + dy));
-    }
+    const dx = e.clientX - _railResize.value.startX;
+    // When docked right, dragging the inner (left) edge leftward grows width.
+    const signed = railSide.value === 'right' ? -dx : dx;
+    const max = import.meta.client ? window.innerWidth - 200 : 420;
+    railWidth.value = Math.max(180, Math.min(max, _railResize.value.origW + signed));
   }
 }
 
 function stopRailPointer() {
-  _railDrag.value = null;
   _railResize.value = null;
 }
 
-const forumPanelRight = computed(() => {
-  if (railPos.value) return 0;
-  return (railExpanded.value ? railWidth.value : 52) + 24;
-});
+function toggleRail() {
+  railExpanded.value = !railExpanded.value;
+}
+
+function toggleRailSide() {
+  railSide.value = railSide.value === 'right' ? 'left' : 'right';
+}
+
+const forumPanelOffset = computed(() => (railExpanded.value ? railWidth.value : 52) + 24);
 
 // ── Server picker ──
 const showServerPicker = ref(false);
 const serverPickerAnchor = ref<DOMRect | null>(null);
+const serversExpanded = ref(false);
+const showServerSettings = ref(false);
 
 function openServerPicker(e: MouseEvent) {
   const btn = (e.currentTarget as HTMLElement).closest(
     '[data-server-header]',
   ) as HTMLElement | null;
   serverPickerAnchor.value = btn?.getBoundingClientRect() ?? null;
+  serversExpanded.value = false;
   showServerPicker.value = !showServerPicker.value;
 }
 
 function switchServer(id: string) {
   showServerPicker.value = false;
+  serversExpanded.value = false;
   navigateTo(`/app/${id}`);
 }
 
@@ -256,6 +212,37 @@ const showCreateModal = ref(false);
 
 // ── Channel editing ──
 const editingChannel = ref<import('@nookapp/protocol').ChannelPublic | null>(null);
+
+const channelMenu = ref<{
+  x: number;
+  y: number;
+  channel: import('@nookapp/protocol').ChannelPublic;
+} | null>(null);
+
+function openChannelMenu(e: MouseEvent, channel: import('@nookapp/protocol').ChannelPublic) {
+  if (!canManageChannels.value) return;
+  e.preventDefault();
+  e.stopPropagation();
+  channelMenu.value = { x: e.clientX, y: e.clientY, channel };
+}
+
+function closeChannelMenu() {
+  channelMenu.value = null;
+}
+
+function editChannelFromMenu() {
+  if (!channelMenu.value) return;
+  editingChannel.value = channelMenu.value.channel;
+  closeChannelMenu();
+}
+
+async function deleteChannelFromMenu() {
+  if (!channelMenu.value) return;
+  const ch = channelMenu.value.channel;
+  closeChannelMenu();
+  if (!confirm(`Supprimer le salon « ${ch.name} » ?`)) return;
+  await deleteChannel(serverId.value, ch.id);
+}
 
 // ── Categories & ordered top-level layout ──
 type ChannelItem = { kind: 'channel'; id: string; channel: ChannelPublic };
@@ -382,13 +369,17 @@ function isChannelActive(ch: import('@nookapp/protocol').ChannelPublic): boolean
   return activeChannelIds.value.has(ch.id);
 }
 function channelActiveStyle(ch: import('@nookapp/protocol').ChannelPublic): string {
-  if (ch.type === 'voice' && voice.currentChannelId.value === ch.id)
-    return 'background: rgba(34,197,94,0.15); color: #4ade80';
+  if (activeChannelIds.value.has(ch.id) && ch.type !== 'voice' && ch.type !== 'forum')
+    return 'font-weight: 600';
+  return '';
+}
+
+function channelLabelStyle(ch: import('@nookapp/protocol').ChannelPublic): string {
+  if (ch.type === 'voice' && voice.currentChannelId.value === ch.id) return 'color: #4ade80';
   if (ch.type === 'forum' && forumPanelChannelId.value === ch.id)
-    return 'background: rgba(251,191,36,0.2); color: rgba(252,211,77,1)';
-  if (activeChannelIds.value.has(ch.id))
-    return 'background: rgba(99,102,241,0.25); color: rgba(165,180,252,1)';
-  return 'color: rgba(255,255,255,0.3)';
+    return 'color: rgba(252,211,77,1)';
+  if (activeChannelIds.value.has(ch.id)) return 'color: rgba(199,210,254,1)';
+  return 'color: rgba(255,255,255,0.45)';
 }
 function channelIndicatorClass(ch: import('@nookapp/protocol').ChannelPublic): string {
   if (ch.type === 'voice') return 'bg-green-400';
@@ -402,6 +393,10 @@ function handleChannelClick(ch: import('@nookapp/protocol').ChannelPublic, e: Mo
   }
   if (ch.type === 'forum') {
     openForumPanel(ch.id, ch.name, e);
+    return;
+  }
+  if (ch.type === 'widget') {
+    openWidgetWindow(ch);
     return;
   }
   openChannel(ch.id, e);
@@ -419,6 +414,38 @@ function openForumPanel(channelId: string, channelName: string, e: MouseEvent) {
   forumPanelChannelId.value = channelId;
   forumPanelChannelName.value = channelName;
   e.stopPropagation();
+}
+
+// ── Widget windows ──
+const widgetWindows = ref<
+  { channelId: string; channelName: string; widgetKind: string | null; x: number; y: number }[]
+>([]);
+let widgetWindowCounter = 0;
+
+function openWidgetWindow(ch: import('@nookapp/protocol').ChannelPublic) {
+  const existing = widgetWindows.value.find((w) => w.channelId === ch.id);
+  if (existing) {
+    focusWidgetWindow(ch.id);
+    return;
+  }
+  const stagger = (widgetWindowCounter % 6) * 28;
+  const x = import.meta.client ? Math.round(window.innerWidth / 2 - 360) + stagger : 200;
+  const y = import.meta.client ? Math.round(window.innerHeight / 2 - 280) + stagger : 100;
+  widgetWindowCounter++;
+  widgetWindows.value = [
+    ...widgetWindows.value,
+    { channelId: ch.id, channelName: ch.name, widgetKind: ch.widgetKind, x, y },
+  ];
+}
+
+function closeWidgetWindow(channelId: string) {
+  widgetWindows.value = widgetWindows.value.filter((w) => w.channelId !== channelId);
+}
+
+function focusWidgetWindow(channelId: string) {
+  const w = widgetWindows.value.find((x) => x.channelId === channelId);
+  if (!w) return;
+  widgetWindows.value = [...widgetWindows.value.filter((x) => x.channelId !== channelId), w];
 }
 
 // ── Zone picker ──
@@ -521,12 +548,12 @@ watch(
 type RectPayload = { x1: number; y1: number; x2: number; y2: number; mode: 'add' | 'remove' };
 
 function onTilesRect(rect: RectPayload) {
-  if (!isAdmin.value || !buildMode.value) return;
+  if (!canManageMap.value || !buildMode.value) return;
   paintRect(rect.x1, rect.y1, rect.x2, rect.y2, rect.mode);
 }
 
 function onWallsRect(rect: RectPayload) {
-  if (!isAdmin.value || !buildMode.value) return;
+  if (!canManageMap.value || !buildMode.value) return;
   paintWallsRect(rect.x1, rect.y1, rect.x2, rect.y2, rect.mode);
 }
 
@@ -558,11 +585,6 @@ onUnmounted(async () => {
   window.removeEventListener('mousemove', onRailPointerMove);
   window.removeEventListener('mouseup', stopRailPointer);
 });
-
-async function handleSignOut() {
-  await signOut();
-  await navigateTo('/auth/login');
-}
 </script>
 
 <template>
@@ -590,66 +612,13 @@ async function handleSignOut() {
       class="fixed z-40 flex flex-col rounded-2xl py-2 gap-1 overflow-hidden group/rail"
       :style="railStyle"
     >
-      <!-- Top-left: resize (nw) -->
+      <!-- Inner edge: resize width (right edge if docked left, left edge if docked right) -->
       <div
-        class="absolute top-0 left-0 w-6 h-6 z-50 cursor-nw-resize opacity-0 hover:opacity-100 transition-opacity duration-150"
-        style="
-          border-top: 1.5px dashed rgba(255, 255, 255, 0.35);
-          border-left: 1.5px dashed rgba(255, 255, 255, 0.35);
-          border-radius: 16px 0 0 0;
-        "
-        @mousedown="(e) => startRailResize(e, 'tl')"
-      />
-      <!-- Top-right: resize (ne) -->
-      <div
-        class="absolute top-0 right-0 w-6 h-6 z-50 cursor-ne-resize opacity-0 hover:opacity-100 transition-opacity duration-150"
-        style="
-          border-top: 1.5px dashed rgba(255, 255, 255, 0.35);
-          border-right: 1.5px dashed rgba(255, 255, 255, 0.35);
-          border-radius: 0 16px 0 0;
-        "
-        @mousedown="(e) => startRailResize(e, 'tr')"
-      />
-      <!-- Bottom-left: resize (sw) -->
-      <div
-        class="absolute bottom-0 left-0 w-6 h-6 z-50 cursor-sw-resize opacity-0 hover:opacity-100 transition-opacity duration-150"
-        style="
-          border-bottom: 1.5px dashed rgba(255, 255, 255, 0.35);
-          border-left: 1.5px dashed rgba(255, 255, 255, 0.35);
-          border-radius: 0 0 0 16px;
-        "
-        @mousedown="(e) => startRailResize(e, 'bl')"
-      />
-      <!-- Bottom-right: resize (se) -->
-      <div
-        class="absolute bottom-0 right-0 w-6 h-6 z-50 cursor-se-resize opacity-0 hover:opacity-100 transition-opacity duration-150"
-        style="
-          border-bottom: 1.5px dashed rgba(255, 255, 255, 0.35);
-          border-right: 1.5px dashed rgba(255, 255, 255, 0.35);
-          border-radius: 0 0 16px 0;
-        "
-        @mousedown="(e) => startRailResize(e, 'br')"
-      />
-      <!-- Left edge: resize width -->
-      <div
-        class="absolute top-0 left-0 bottom-0 w-1 z-50 cursor-ew-resize opacity-0 hover:opacity-100 transition-opacity rounded-l-2xl"
+        class="absolute top-0 bottom-0 w-1 z-50 cursor-ew-resize opacity-0 hover:opacity-100 transition-opacity"
+        :class="railSide === 'left' ? 'right-0 rounded-r-2xl' : 'left-0 rounded-l-2xl'"
         style="background: rgba(99, 102, 241, 0.5)"
-        @mousedown="(e) => startRailResize(e, 'left')"
+        @mousedown="startRailResize"
       />
-      <!-- Top drag bar (between corners) -->
-      <div
-        class="absolute top-0 left-6 right-6 h-3 z-50 cursor-grab active:cursor-grabbing flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity"
-        @mousedown="startRailDrag"
-      >
-        <div class="flex gap-0.5">
-          <div
-            v-for="i in 4"
-            :key="i"
-            class="w-3 h-0.5 rounded-full"
-            style="background: rgba(255, 255, 255, 0.3)"
-          />
-        </div>
-      </div>
       <!-- Server header -->
       <template v-if="railExpanded">
         <!-- Banner block -->
@@ -672,7 +641,7 @@ async function handleSignOut() {
           />
           <!-- Admin upload button -->
           <label
-            v-if="isAdmin"
+            v-if="canManageServer"
             class="absolute top-2 right-2 opacity-0 group-hover/banner:opacity-100 transition-opacity cursor-pointer z-10"
           >
             <span
@@ -775,6 +744,9 @@ async function handleSignOut() {
           :group="{ name: 'channels', pull: true, put: true }"
           :animation="180"
           :force-fallback="true"
+          :delay="180"
+          :delay-on-touch-only="false"
+          :touch-start-threshold="3"
           :handle="'.drag-handle'"
           ghost-class="dnd-ghost"
           chosen-class="dnd-chosen"
@@ -785,24 +757,13 @@ async function handleSignOut() {
           <div v-for="item in topItems" :key="item.id" :data-kind="item.kind" :data-id="item.id">
             <!-- Top-level uncategorized channel -->
             <template v-if="item.kind === 'channel'">
-              <div class="relative group">
-                <div
-                  v-if="isAdmin"
-                  class="drag-handle absolute right-[25px] top-1/2 -translate-y-1/2 z-10 flex items-center opacity-0 group-hover:opacity-100 cursor-grab"
-                  style="color: rgba(255, 255, 255, 0.2)"
-                  @click.stop
-                >
-                  <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
-                    <circle cx="2" cy="2" r="1.5" />
-                    <circle cx="6" cy="2" r="1.5" />
-                    <circle cx="2" cy="6" r="1.5" />
-                    <circle cx="6" cy="6" r="1.5" />
-                    <circle cx="2" cy="10" r="1.5" />
-                    <circle cx="6" cy="10" r="1.5" />
-                  </svg>
-                </div>
+              <div
+                class="relative group"
+                :class="{ 'drag-handle cursor-grab active:cursor-grabbing': canManageChannels }"
+                @contextmenu="openChannelMenu($event, item.channel)"
+              >
                 <button
-                  class="relative flex h-7 w-full items-center gap-2 rounded-lg px-2 justify-start transition-all duration-150 hover:bg-white/[0.06]"
+                  class="relative flex h-7 w-full items-center gap-2.5 rounded-lg px-2 justify-start transition-all duration-150 hover:bg-white/[0.06]"
                   :style="channelActiveStyle(item.channel)"
                   @click="handleChannelClick(item.channel, $event)"
                 >
@@ -826,11 +787,44 @@ async function handleSignOut() {
                       style="border: 1.5px solid rgba(12, 12, 18, 0.9)"
                     />
                   </div>
-                  <span class="truncate text-xs font-medium flex-1 text-left">{{
-                    item.channel.name
-                  }}</span>
+                  <span
+                    class="truncate text-xs font-medium flex-1 text-left min-w-0"
+                    :style="channelLabelStyle(item.channel)"
+                    >{{ item.channel.name }}</span
+                  >
+                  <span
+                    v-if="
+                      item.channel.type === 'voice' &&
+                      voice.voicePresence.value.get(item.channel.id)?.length
+                    "
+                    class="flex items-center flex-shrink-0 -space-x-1 ml-1"
+                    :title="
+                      voice.voicePresence.value
+                        .get(item.channel.id)
+                        ?.map((p) => p.name)
+                        .join(', ')
+                    "
+                  >
+                    <span
+                      v-for="p in voice.voicePresence.value.get(item.channel.id)?.slice(0, 3)"
+                      :key="p.userId"
+                      class="h-4 w-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white"
+                      style="background: linear-gradient(135deg, #6366f1, #4f46e5)"
+                    >
+                      {{ p.name?.[0]?.toUpperCase() }}
+                    </span>
+                    <span
+                      v-if="(voice.voicePresence.value.get(item.channel.id)?.length ?? 0) > 3"
+                      class="h-4 px-1 rounded-full flex items-center justify-center text-[8px] font-semibold"
+                      style="
+                        background: rgba(255, 255, 255, 0.12);
+                        color: rgba(255, 255, 255, 0.75);
+                      "
+                    >
+                      +{{ (voice.voicePresence.value.get(item.channel.id)?.length ?? 0) - 3 }}
+                    </span>
+                  </span>
                 </button>
-                <ChannelEditButton v-if="isAdmin" @click="editingChannel = item.channel" />
               </div>
             </template>
 
@@ -874,7 +868,7 @@ async function handleSignOut() {
                     />
                   </button>
                   <div
-                    v-if="isAdmin"
+                    v-if="canManageChannels"
                     class="flex items-center gap-0.5 opacity-0 group-hover/cat:opacity-100 transition-opacity flex-shrink-0"
                   >
                     <div
@@ -922,11 +916,14 @@ async function handleSignOut() {
                 <VueDraggable
                   v-show="!collapsedCategories.has(item.category.id)"
                   v-model="item.children"
-                  class="flex flex-col min-h-[6px] pl-2"
+                  class="flex flex-col gap-0.5 min-h-[6px] pl-2"
                   :group="{ name: 'channels', pull: true, put: innerPut }"
                   :animation="180"
                   :empty-insert-threshold="0"
                   :force-fallback="true"
+                  :delay="180"
+                  :delay-on-touch-only="false"
+                  :touch-start-threshold="3"
                   :handle="'.drag-handle'"
                   ghost-class="dnd-ghost"
                   chosen-class="dnd-chosen"
@@ -940,24 +937,11 @@ async function handleSignOut() {
                     :data-kind="'channel'"
                     :data-id="childItem.id"
                     class="relative group"
+                    :class="{ 'drag-handle cursor-grab active:cursor-grabbing': canManageChannels }"
+                    @contextmenu="openChannelMenu($event, childItem.channel)"
                   >
-                    <div
-                      v-if="isAdmin"
-                      class="drag-handle absolute right-[25px] top-1/2 -translate-y-1/2 z-10 flex items-center opacity-0 group-hover:opacity-100 cursor-grab"
-                      style="color: rgba(255, 255, 255, 0.2)"
-                      @click.stop
-                    >
-                      <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
-                        <circle cx="2" cy="2" r="1.5" />
-                        <circle cx="6" cy="2" r="1.5" />
-                        <circle cx="2" cy="6" r="1.5" />
-                        <circle cx="6" cy="6" r="1.5" />
-                        <circle cx="2" cy="10" r="1.5" />
-                        <circle cx="6" cy="10" r="1.5" />
-                      </svg>
-                    </div>
                     <button
-                      class="relative flex h-7 w-full items-center gap-2 rounded-lg px-2 justify-start transition-all duration-150 hover:bg-white/[0.06]"
+                      class="relative flex h-7 w-full items-center gap-2.5 rounded-lg px-2 justify-start transition-all duration-150 hover:bg-white/[0.06]"
                       :style="channelActiveStyle(childItem.channel)"
                       @click="handleChannelClick(childItem.channel, $event)"
                     >
@@ -970,7 +954,7 @@ async function handleSignOut() {
                         <ChannelIconDisplay
                           :icon-url="childItem.channel.iconUrl"
                           :type="childItem.channel.type"
-                          :size="15"
+                          :size="18"
                         />
                         <span
                           v-if="
@@ -981,11 +965,50 @@ async function handleSignOut() {
                           style="border: 1.5px solid rgba(12, 12, 18, 0.9)"
                         />
                       </div>
-                      <span class="truncate text-xs font-medium flex-1 text-left">{{
-                        childItem.channel.name
-                      }}</span>
+                      <span
+                        class="truncate text-xs font-medium flex-1 text-left min-w-0"
+                        :style="channelLabelStyle(childItem.channel)"
+                        >{{ childItem.channel.name }}</span
+                      >
+                      <span
+                        v-if="
+                          childItem.channel.type === 'voice' &&
+                          voice.voicePresence.value.get(childItem.channel.id)?.length
+                        "
+                        class="flex items-center flex-shrink-0 -space-x-1 ml-1"
+                        :title="
+                          voice.voicePresence.value
+                            .get(childItem.channel.id)
+                            ?.map((p) => p.name)
+                            .join(', ')
+                        "
+                      >
+                        <span
+                          v-for="p in voice.voicePresence.value
+                            .get(childItem.channel.id)
+                            ?.slice(0, 3)"
+                          :key="p.userId"
+                          class="h-4 w-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white"
+                          style="background: linear-gradient(135deg, #6366f1, #4f46e5)"
+                        >
+                          {{ p.name?.[0]?.toUpperCase() }}
+                        </span>
+                        <span
+                          v-if="
+                            (voice.voicePresence.value.get(childItem.channel.id)?.length ?? 0) > 3
+                          "
+                          class="h-4 px-1 rounded-full flex items-center justify-center text-[8px] font-semibold"
+                          style="
+                            background: rgba(255, 255, 255, 0.12);
+                            color: rgba(255, 255, 255, 0.75);
+                          "
+                        >
+                          +{{
+                            (voice.voicePresence.value.get(childItem.channel.id)?.length ?? 0) - 3
+                          }}
+                        </span>
+                      </span>
                     </button>
-                    <ChannelEditButton v-if="isAdmin" @click="editingChannel = childItem.channel" />
                   </div>
                 </VueDraggable>
               </div>
@@ -1012,7 +1035,7 @@ async function handleSignOut() {
                   <ChannelIconDisplay
                     :icon-url="item.channel.iconUrl"
                     :type="item.channel.type"
-                    :size="15"
+                    :size="18"
                   />
                   <span
                     v-if="
@@ -1093,57 +1116,70 @@ async function handleSignOut() {
       </div>
 
       <!-- Bottom actions -->
-      <div class="flex flex-col gap-0.5 px-1.5">
+      <div class="px-1.5">
         <div class="mx-1 mb-1" style="height: 1px; background: rgba(255, 255, 255, 0.04)" />
 
-        <!-- Build mode (admin-only) -->
-        <button
-          v-if="isAdmin"
-          class="relative flex h-8 items-center gap-2 rounded-xl transition-all duration-150"
-          :class="railExpanded ? 'px-2 justify-start' : 'justify-center'"
-          :style="
-            buildMode
-              ? 'background: rgba(99,102,241,0.25); color: rgba(165,180,252,1)'
-              : 'color: rgba(255,255,255,0.3)'
+        <div
+          :class="
+            railExpanded
+              ? 'flex flex-row flex-wrap items-center justify-center gap-1 py-1'
+              : 'flex flex-col gap-0.5'
           "
-          :title="buildMode ? 'Quitter le mode build' : 'Mode build'"
-          @click="toggleBuildMode"
         >
-          <svg class="flex-shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M22 9l-3.39-.34-1.46-3.15-2.91 1.81L11 6l-1.24 3.32-2.91-1.81L5.39 10.66 2 11l1.81 2.91L2 16.83l3.39.34 1.46 3.15 2.91-1.81L11 22l1.24-3.32 2.91 1.81 1.46-3.15L22 17l-1.81-2.91z"
-            />
-          </svg>
-          <span v-if="railExpanded" class="truncate text-xs font-medium">
-            {{ buildMode ? 'Mode build (on)' : 'Mode build' }}
-          </span>
-          <span
-            v-if="isMapSaving"
-            class="ml-auto h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-400"
-            title="Sauvegarde…"
-          />
-        </button>
-
-        <!-- Create channel + create category (admin expanded: two buttons side by side) -->
-        <div v-if="isAdmin && railExpanded" class="flex gap-1">
+          <!-- Build mode (admin-only) -->
           <button
-            class="flex flex-1 h-8 items-center gap-2 px-2 rounded-xl transition-colors hover:bg-white/5"
+            v-if="canManageMap"
+            class="relative flex h-8 items-center justify-center gap-2 rounded-xl transition-all duration-150"
+            :class="railExpanded ? 'w-8' : 'w-full px-2'"
+            :style="
+              buildMode
+                ? 'background: rgba(99,102,241,0.25); color: rgba(165,180,252,1)'
+                : 'color: rgba(255,255,255,0.3)'
+            "
+            :title="buildMode ? 'Quitter le mode build' : 'Mode build'"
+            @click="toggleBuildMode"
+          >
+            <svg
+              class="flex-shrink-0"
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path
+                d="M22 9l-3.39-.34-1.46-3.15-2.91 1.81L11 6l-1.24 3.32-2.91-1.81L5.39 10.66 2 11l1.81 2.91L2 16.83l3.39.34 1.46 3.15 2.91-1.81L11 22l1.24-3.32 2.91 1.81 1.46-3.15L22 17l-1.81-2.91z"
+              />
+            </svg>
+            <span
+              v-if="isMapSaving"
+              class="absolute right-1 top-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-400"
+              title="Sauvegarde…"
+            />
+          </button>
+
+          <!-- Create channel -->
+          <button
+            v-if="canManageChannels"
+            class="relative flex h-8 items-center justify-center gap-2 rounded-xl transition-colors hover:bg-white/5"
+            :class="railExpanded ? 'w-8' : 'w-full px-2'"
             style="color: rgba(255, 255, 255, 0.25)"
             title="Nouveau canal"
             @click="showCreateModal = true"
           >
             <svg
               class="flex-shrink-0"
-              width="14"
-              height="14"
+              width="15"
+              height="15"
               viewBox="0 0 24 24"
               fill="currentColor"
             >
               <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
             </svg>
-            <span class="truncate text-xs font-medium">Canal</span>
           </button>
+
+          <!-- Create category (admin + expanded only) -->
           <button
+            v-if="canManageChannels && railExpanded"
             class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl transition-colors hover:bg-white/5"
             style="color: rgba(255, 255, 255, 0.25)"
             title="Nouvelle catégorie"
@@ -1155,92 +1191,46 @@ async function handleSignOut() {
               />
             </svg>
           </button>
-        </div>
-        <!-- Collapsed or non-admin: single + button -->
-        <button
-          v-else
-          class="relative flex h-8 w-full items-center gap-2 rounded-xl transition-colors hover:bg-white/5"
-          :class="railExpanded ? 'px-2 justify-start' : 'justify-center'"
-          style="color: rgba(255, 255, 255, 0.25)"
-          title="Nouveau canal"
-          @click="showCreateModal = true"
-        >
-          <svg class="flex-shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-          </svg>
-          <span v-if="railExpanded" class="truncate text-xs font-medium">Nouveau canal</span>
-        </button>
 
-        <NuxtLink
-          :to="`/app/${serverId}/plugins`"
-          class="flex h-8 items-center gap-2 rounded-xl transition-all duration-150"
-          :class="railExpanded ? 'px-2 justify-start' : 'justify-center'"
-          :style="
-            route.path.endsWith('/plugins')
-              ? 'background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.8)'
-              : 'color: rgba(255,255,255,0.3)'
-          "
-          title="Plugins"
-        >
-          <svg class="flex-shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7s2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"
-            />
-          </svg>
-          <span v-if="railExpanded" class="truncate text-xs font-medium">Plugins</span>
-        </NuxtLink>
-
-        <!-- Invite -->
-        <button
-          class="flex h-8 items-center gap-2 rounded-xl transition-all duration-150"
-          :class="railExpanded ? 'px-2 justify-start' : 'justify-center'"
-          style="color: rgba(255, 255, 255, 0.3)"
-          title="Inviter des gens"
-          @click="handleInvite"
-        >
-          <svg class="flex-shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
-            />
-          </svg>
-          <span v-if="railExpanded" class="truncate text-xs font-medium">Inviter</span>
-        </button>
-
-        <!-- Sign out -->
-        <button
-          class="flex h-8 items-center gap-2 rounded-xl transition-all duration-150"
-          :class="railExpanded ? 'px-2 justify-start' : 'justify-center'"
-          style="color: rgba(255, 255, 255, 0.2)"
-          title="Se déconnecter"
-          @click="handleSignOut"
-        >
-          <svg class="flex-shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"
-            />
-          </svg>
-          <span v-if="railExpanded" class="truncate text-xs font-medium">Déconnexion</span>
-        </button>
-
-        <!-- Expand / collapse toggle -->
-        <button
-          class="flex h-8 items-center gap-2 rounded-xl transition-all duration-150 mt-1"
-          :class="railExpanded ? 'px-2 justify-start' : 'justify-center'"
-          style="color: rgba(255, 255, 255, 0.2)"
-          :title="railExpanded ? 'Réduire' : 'Déplier'"
-          @click="railExpanded = !railExpanded"
-        >
-          <svg
-            class="flex-shrink-0 transition-transform duration-200"
-            :style="railExpanded ? 'transform: rotate(180deg)' : ''"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="currentColor"
+          <!-- Dock side toggle -->
+          <button
+            class="flex h-8 items-center justify-center gap-2 rounded-xl transition-all duration-150 hover:bg-white/[0.06]"
+            :class="railExpanded ? 'w-8' : 'w-full px-2 mt-1'"
+            style="color: rgba(255, 255, 255, 0.35)"
+            :title="railSide === 'right' ? 'Ancrer à gauche' : 'Ancrer à droite'"
+            @click="toggleRailSide"
           >
-            <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
-          </svg>
-        </button>
+            <component
+              :is="railSide === 'right' ? PanelLeft : PanelRight"
+              :size="14"
+              class="flex-shrink-0"
+            />
+          </button>
+
+          <!-- Expand / collapse toggle -->
+          <button
+            class="flex h-8 items-center justify-center gap-2 rounded-xl transition-all duration-150"
+            :class="railExpanded ? 'w-8' : 'w-full px-2 mt-1'"
+            style="color: rgba(255, 255, 255, 0.2)"
+            :title="railExpanded ? 'Réduire' : 'Déplier'"
+            @click="toggleRail"
+          >
+            <svg
+              class="flex-shrink-0 transition-transform duration-200"
+              :style="
+                (railExpanded && railSide === 'right') || (!railExpanded && railSide === 'left')
+                  ? 'transform: rotate(180deg)'
+                  : ''
+              "
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -1261,39 +1251,119 @@ async function handleSignOut() {
           boxShadow: '0 16px 48px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)',
         }"
       >
-        <p
-          class="px-3 py-1.5 text-xs font-medium uppercase tracking-wider"
-          style="color: rgba(255, 255, 255, 0.2)"
-        >
-          Mes Nooks
-        </p>
+        <!-- Nook select (collapsed by default — click to expand list) -->
+        <div class="px-1.5 pt-1.5">
+          <button
+            class="server-picker-row flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors"
+            :style="serversExpanded ? 'background: rgba(255,255,255,0.05)' : ''"
+            @click="serversExpanded = !serversExpanded"
+          >
+            <div
+              class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white"
+              style="background: linear-gradient(135deg, #6366f1, #4338ca)"
+            >
+              {{ server?.name?.[0]?.toUpperCase() }}
+            </div>
+            <span
+              class="flex-1 truncate text-xs font-medium"
+              style="color: rgba(255, 255, 255, 0.85)"
+              >{{ server?.name }}</span
+            >
+            <svg
+              class="flex-shrink-0 transition-transform duration-150"
+              :style="serversExpanded ? 'transform: rotate(180deg)' : ''"
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              style="color: rgba(255, 255, 255, 0.4)"
+            >
+              <path d="M7 10l5 5 5-5z" />
+            </svg>
+          </button>
+
+          <div v-if="serversExpanded" class="mt-1 flex flex-col gap-0.5">
+            <button
+              v-for="s in store.list.filter((s) => s.id !== serverId)"
+              :key="s.id"
+              class="server-picker-row flex items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors"
+              @click="switchServer(s.id)"
+            >
+              <div
+                class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white"
+                style="background: linear-gradient(135deg, #6366f1, #4338ca)"
+              >
+                {{ s.name[0]?.toUpperCase() }}
+              </div>
+              <span class="truncate text-xs font-medium" style="color: rgba(255, 255, 255, 0.7)">{{
+                s.name
+              }}</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="mx-3 my-1.5" style="height: 1px; background: rgba(255, 255, 255, 0.06)" />
+
+        <!-- Current server actions -->
         <button
-          v-for="s in store.list"
-          :key="s.id"
           class="flex items-center gap-3 px-3 py-2 text-left transition-colors server-picker-row"
-          :class="{ 'server-picker-row--active': s.id === serverId }"
-          @click="switchServer(s.id)"
+          @click="
+            showServerPicker = false;
+            handleInvite();
+          "
         >
           <div
-            class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white"
-            style="background: linear-gradient(135deg, #6366f1, #4338ca)"
+            class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
+            style="background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.55)"
           >
-            {{ s.name[0]?.toUpperCase() }}
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
+              />
+            </svg>
           </div>
-          <span class="truncate text-xs font-medium" style="color: rgba(255, 255, 255, 0.7)">{{
-            s.name
-          }}</span>
-          <svg
-            v-if="s.id === serverId"
-            class="ml-auto flex-shrink-0"
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            style="color: rgba(99, 102, 241, 0.8)"
+          <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.75)"
+            >Inviter des gens</span
           >
-            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-          </svg>
+        </button>
+        <NuxtLink
+          :to="`/app/${serverId}/plugins`"
+          class="flex items-center gap-3 px-3 py-2 transition-colors server-picker-row"
+          @click="showServerPicker = false"
+        >
+          <div
+            class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
+            style="background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.55)"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7s2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"
+              />
+            </svg>
+          </div>
+          <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.75)">Plugins</span>
+        </NuxtLink>
+        <button
+          v-if="isAdmin"
+          class="flex items-center gap-3 px-3 py-2 text-left transition-colors server-picker-row"
+          @click="
+            showServerPicker = false;
+            showServerSettings = true;
+          "
+        >
+          <div
+            class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
+            style="background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.55)"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
+              />
+            </svg>
+          </div>
+          <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.75)"
+            >Paramètres du serveur</span
+          >
         </button>
 
         <div class="mx-3 my-1" style="height: 1px; background: rgba(255, 255, 255, 0.06)" />
@@ -1321,9 +1391,39 @@ async function handleSignOut() {
       :server-id="serverId"
       :channel-id="forumPanelChannelId"
       :channel-name="forumPanelChannelName"
-      :right-offset="forumPanelRight"
+      :side="railSide"
+      :offset="forumPanelOffset"
       @close="forumPanelChannelId = null"
       @open-post="openChannelById"
+    />
+
+    <!-- ── Widget windows ── -->
+    <WidgetWindow
+      v-for="(w, i) in widgetWindows"
+      :key="w.channelId"
+      :server-id="serverId"
+      :channel-id="w.channelId"
+      :channel-name="w.channelName"
+      :widget-kind="w.widgetKind"
+      :initial-x="w.x"
+      :initial-y="w.y"
+      :z-index="70 + i"
+      @close="closeWidgetWindow(w.channelId)"
+      @focus="focusWidgetWindow(w.channelId)"
+      @drag-end="
+        (x, y) => {
+          w.x = x;
+          w.y = y;
+        }
+      "
+    />
+
+    <!-- ── Server settings modal ── -->
+    <ServerSettingsModal
+      v-if="showServerSettings"
+      :server-id="serverId"
+      :server-name="server?.name"
+      @close="showServerSettings = false"
     />
 
     <!-- ── Create channel modal ── -->
@@ -1349,7 +1449,8 @@ async function handleSignOut() {
       :channel-ids="chatTabChannelIds"
       :active-id="chatTabActiveId"
       :dragging-channel-id="draggingFloatingId"
-      @close="closeTab"
+      @close="closeAllTabs"
+      @close-tab="closeTab"
       @set-active="chatTabActiveId = $event"
       @tear-off="onTearOff"
       @dock="dockToTabBar"
@@ -1377,7 +1478,7 @@ async function handleSignOut() {
     <!-- Build panel (admin + build mode only) -->
     <ClientOnly>
       <WorldBuildPanel
-        v-if="isAdmin && buildMode"
+        v-if="canManageMap && buildMode"
         :tool="buildTool"
         :is-saving="isMapSaving"
         @update:tool="buildTool = $event"
@@ -1442,6 +1543,51 @@ async function handleSignOut() {
           </div>
         </div>
       </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <template v-if="channelMenu">
+        <div
+          class="fixed inset-0 z-[80]"
+          @click="closeChannelMenu"
+          @contextmenu.prevent="closeChannelMenu"
+        />
+        <div
+          class="fixed z-[81] flex flex-col py-1 rounded-lg overflow-hidden min-w-[180px]"
+          :style="{
+            left: channelMenu.x + 'px',
+            top: channelMenu.y + 'px',
+            background: 'rgba(15, 15, 20, 0.95)',
+            backdropFilter: 'blur(16px) saturate(160%)',
+            WebkitBackdropFilter: 'blur(16px) saturate(160%)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.6)',
+          }"
+        >
+          <div
+            class="px-3 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider truncate"
+            style="color: rgba(255, 255, 255, 0.35)"
+          >
+            {{ channelMenu.channel.name }}
+          </div>
+          <button
+            class="flex items-center gap-2.5 px-3 py-1.5 text-left text-xs transition-colors hover:bg-white/[0.06]"
+            style="color: rgba(255, 255, 255, 0.85)"
+            @click="editChannelFromMenu"
+          >
+            <Settings :size="13" :stroke-width="1.75" />
+            <span>Modifier</span>
+          </button>
+          <button
+            class="flex items-center gap-2.5 px-3 py-1.5 text-left text-xs transition-colors hover:bg-red-500/10"
+            style="color: rgb(248, 113, 113)"
+            @click="deleteChannelFromMenu"
+          >
+            <Trash2 :size="13" :stroke-width="1.75" />
+            <span>Supprimer</span>
+          </button>
+        </div>
+      </template>
     </Teleport>
   </div>
 </template>

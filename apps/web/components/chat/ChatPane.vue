@@ -64,6 +64,16 @@ function renderContent(content: string): string {
   if (gif) return `<img src="${gif}" class="rounded-lg max-h-48 mt-1" style="max-width:100%" />`;
   return renderMarkdown(content);
 }
+
+const GROUP_GAP_MS = 2 * 60 * 1000;
+
+function showHeader(i: number): boolean {
+  if (i === 0) return true;
+  const prev = messages.value[i - 1];
+  const cur = messages.value[i];
+  if (!prev || prev.authorId !== cur.authorId) return true;
+  return new Date(cur.createdAt).getTime() - new Date(prev.createdAt).getTime() > GROUP_GAP_MS;
+}
 </script>
 
 <template>
@@ -93,12 +103,12 @@ function renderContent(content: string): string {
         <div
           v-for="(msg, i) in messages"
           :key="msg.id"
-          class="flex gap-2.5 group rounded-xl px-2 py-1 transition-colors"
-          :class="{ 'mt-2': i > 0 && messages[i - 1]?.authorId !== msg.authorId }"
+          class="flex gap-2.5 group rounded-xl px-2 py-0 transition-colors"
+          :class="{ 'mt-1.5': i > 0 && showHeader(i) }"
           style="color: rgba(255, 255, 255, 0.8)"
         >
           <div
-            v-if="i === 0 || messages[i - 1]?.authorId !== msg.authorId"
+            v-if="showHeader(i)"
             class="h-7 w-7 flex-shrink-0 rounded-full flex items-center justify-center text-xs font-bold mt-0.5"
             style="background: linear-gradient(135deg, #6366f1, #4338ca); color: white"
           >
@@ -106,10 +116,7 @@ function renderContent(content: string): string {
           </div>
           <div v-else class="w-7 flex-shrink-0" />
           <div class="flex flex-col min-w-0">
-            <div
-              v-if="i === 0 || messages[i - 1]?.authorId !== msg.authorId"
-              class="flex items-baseline gap-2 mb-0.5"
-            >
+            <div v-if="showHeader(i)" class="flex items-baseline gap-2 mb-0.5">
               <span class="text-xs font-semibold" style="color: rgba(255, 255, 255, 0.85)">
                 {{ msg.authorId.slice(0, 8) }}
               </span>

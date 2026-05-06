@@ -89,4 +89,10 @@ export const CHANNEL_TYPE_DEFAULTS: Record<string, Component> = {
   forum: Clipboard,
   voice: Volume2,
   game: Gamepad2,
+  widget: Layers,
+};
+
+export const WIDGET_KIND_DEFAULTS: Record<string, Component> = {
+  notes: FileText,
+  gaming: Gamepad2,
 };
