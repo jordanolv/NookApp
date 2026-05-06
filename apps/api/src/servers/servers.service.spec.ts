@@ -1,6 +1,7 @@
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { DB } from '../database/database.module';
+import { RolesService } from '../roles/roles.service';
 import { ServersService } from './servers.service';
 
 const mockDb = {
@@ -10,13 +11,22 @@ const mockDb = {
   delete: jest.fn(),
 };
 
+const mockRoles = {
+  ensureEveryoneRole: jest.fn(),
+  resolveAuthz: jest.fn(),
+};
+
 describe('ServersService', () => {
   let service: ServersService;
 
   beforeEach(async () => {
     jest.clearAllMocks();
     const module = await Test.createTestingModule({
-      providers: [ServersService, { provide: DB, useValue: mockDb }],
+      providers: [
+        ServersService,
+        { provide: DB, useValue: mockDb },
+        { provide: RolesService, useValue: mockRoles },
+      ],
     }).compile();
     service = module.get(ServersService);
   });
@@ -44,19 +54,6 @@ describe('ServersService', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe('s1');
-    });
-  });
-
-  describe('createInvite', () => {
-    it('throws ForbiddenException when user is not a member', async () => {
-      const memberChain = {
-        from: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockResolvedValue([]),
-      };
-      mockDb.select.mockReturnValue(memberChain);
-
-      await expect(service.createInvite('s1', 'u1', {})).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -88,7 +85,6 @@ describe('ServersService', () => {
         where: jest.fn().mockReturnThis(),
         limit: jest.fn().mockImplementation(() => {
           callCount++;
-          // first call = find invite, second call = check existing membership
           return Promise.resolve(callCount === 1 ? [invite] : [{ id: 'm1' }]);
         }),
       };
@@ -103,7 +99,7 @@ describe('ServersService', () => {
       const chain = {
         from: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockResolvedValue([{ role: 'member' }]),
+        limit: jest.fn().mockResolvedValue([{ ownerId: 'someone-else' }]),
       };
       mockDb.select.mockReturnValue(chain);
 

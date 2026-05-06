@@ -2,8 +2,15 @@ import { randomUUID } from 'node:crypto';
 import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, eq } from 'drizzle-orm';
 import { channelCategory, member, type Database } from '@nookapp/db';
-import type { CategoryPublic, CreateCategoryInput, UpdateCategoryInput } from '@nookapp/protocol';
+import {
+  hasPermission,
+  PERMISSIONS,
+  type CategoryPublic,
+  type CreateCategoryInput,
+  type UpdateCategoryInput,
+} from '@nookapp/protocol';
 import { DB } from '../database/database.module';
+import { RolesService } from '../roles/roles.service';
 
 function toCategoryPublic(row: typeof channelCategory.$inferSelect): CategoryPublic {
   return {
@@ -17,7 +24,10 @@ function toCategoryPublic(row: typeof channelCategory.$inferSelect): CategoryPub
 
 @Injectable()
 export class CategoriesService {
-  constructor(@Inject(DB) private readonly db: Database) {}
+  constructor(
+    @Inject(DB) private readonly db: Database,
+    private readonly rolesService: RolesService,
+  ) {}
 
   async listCategories(serverId: string, userId: string): Promise<CategoryPublic[]> {
     await this.requireMember(serverId, userId);
@@ -34,7 +44,7 @@ export class CategoriesService {
     userId: string,
     input: CreateCategoryInput,
   ): Promise<CategoryPublic> {
-    await this.requireRole(serverId, userId, ['owner', 'admin']);
+    await this.requirePermission(serverId, userId, PERMISSIONS.ManageChannels);
 
     const position = input.position ?? (await this.nextPosition(serverId));
 
@@ -52,7 +62,7 @@ export class CategoriesService {
     userId: string,
     input: UpdateCategoryInput,
   ): Promise<CategoryPublic> {
-    await this.requireRole(serverId, userId, ['owner', 'admin']);
+    await this.requirePermission(serverId, userId, PERMISSIONS.ManageChannels);
 
     const [updated] = await this.db
       .update(channelCategory)
@@ -68,7 +78,7 @@ export class CategoriesService {
   }
 
   async deleteCategory(serverId: string, categoryId: string, userId: string): Promise<void> {
-    await this.requireRole(serverId, userId, ['owner', 'admin']);
+    await this.requirePermission(serverId, userId, PERMISSIONS.ManageChannels);
     const result = await this.db
       .delete(channelCategory)
       .where(and(eq(channelCategory.id, categoryId), eq(channelCategory.serverId, serverId)))
@@ -94,17 +104,10 @@ export class CategoriesService {
     if (!m) throw new ForbiddenException('Not a member of this server');
   }
 
-  private async requireRole(
-    serverId: string,
-    userId: string,
-    roles: Array<'owner' | 'admin' | 'member'>,
-  ) {
-    const [m] = await this.db
-      .select({ role: member.role })
-      .from(member)
-      .where(and(eq(member.serverId, serverId), eq(member.userId, userId)))
-      .limit(1);
-    if (!m || !roles.includes(m.role)) {
+  private async requirePermission(serverId: string, userId: string, flag: number) {
+    const authz = await this.rolesService.resolveAuthz(serverId, userId);
+    if (authz.isOwner) return;
+    if (!hasPermission(authz.permissions, flag)) {
       throw new ForbiddenException('Insufficient permissions');
     }
   }

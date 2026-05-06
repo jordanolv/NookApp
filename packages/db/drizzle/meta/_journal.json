@@ -71,6 +71,20 @@
       "when": 1777939691640,
       "tag": "0009_third_iron_fist",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1746460800000,
+      "tag": "0010_widget_channel_kind",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1746523200000,
+      "tag": "0011_roles_permissions",
+      "breakpoints": true
     }
   ]
 }
