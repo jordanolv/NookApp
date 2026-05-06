@@ -111,6 +111,7 @@ onUnmounted(() => {
     :min-height="300"
     :z-index="30"
     :close-on-escape="false"
+    persist-key="chat:tabs"
     @close="emit('close')"
   >
     <div class="relative h-full flex flex-col" @mouseup="onContainerMouseup">

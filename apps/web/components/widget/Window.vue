@@ -34,6 +34,7 @@ const minSize = computed(() => widget.value?.minSize ?? { width: 420, height: 32
     :initial-y="initialY ?? null"
     :z-index="zIndex ?? 70"
     :close-on-escape="false"
+    :persist-key="`widget:${channelId}`"
     @close="emit('close')"
     @focus="emit('focus')"
     @drag-start="emit('drag-start')"
