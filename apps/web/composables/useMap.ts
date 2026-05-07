@@ -50,14 +50,15 @@ export function useMap() {
     buildTool.value = 'tile';
 
     if (!provider) {
-      const { token } = await api.get<{ token: string }>('/collaboration/token');
-
       await new Promise<void>((resolve, reject) => {
         provider = new HocuspocusProvider({
           url: config.public.collabUrl as string,
           name: serverId,
           document: ydoc,
-          token,
+          token: async () => {
+            const { token } = await api.get<{ token: string }>('/collaboration/token');
+            return token;
+          },
           onSynced: () => {
             isSynced.value = true;
             resolve();
