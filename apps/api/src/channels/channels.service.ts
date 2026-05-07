@@ -35,6 +35,17 @@ export class ChannelsService {
     private readonly rolesService: RolesService,
   ) {}
 
+  async getChannel(serverId: string, channelId: string, userId: string): Promise<ChannelPublic> {
+    await this.requireMember(serverId, userId);
+    const [row] = await this.db
+      .select()
+      .from(channel)
+      .where(and(eq(channel.id, channelId), eq(channel.serverId, serverId)))
+      .limit(1);
+    if (!row) throw new NotFoundException('Channel not found');
+    return toChannelPublic(row);
+  }
+
   async listChannels(serverId: string, userId: string): Promise<ChannelPublic[]> {
     await this.requireMember(serverId, userId);
     const rows = await this.db

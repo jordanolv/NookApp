@@ -41,5 +41,20 @@ export function useChannels() {
     store.setChannels(store.channels.filter((c) => c.id !== channelId));
   }
 
-  return { store, fetchChannels, createChannel, updateChannel, deleteChannel };
+  async function setChannelIcon(
+    serverId: string,
+    channelId: string,
+    file: File,
+  ): Promise<ChannelPublic> {
+    const form = new FormData();
+    form.append('file', file);
+    const updated = await api.postForm<ChannelPublic>(
+      `/servers/${serverId}/channels/${channelId}/icon`,
+      form,
+    );
+    store.setChannels(store.channels.map((c) => (c.id === channelId ? updated : c)));
+    return updated;
+  }
+
+  return { store, fetchChannels, createChannel, updateChannel, deleteChannel, setChannelIcon };
 }

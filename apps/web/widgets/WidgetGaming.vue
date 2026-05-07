@@ -10,8 +10,10 @@ const props = defineProps<{
   channelName: string;
 }>();
 
-const { store, createChannel } = useChannels();
+const { store, createChannel, setChannelIcon } = useChannels();
 const homePins = useHomePins(computed(() => props.serverId));
+const { apiBase } = useRuntimeConfig().public;
+const apiOrigin = new URL(apiBase as string).origin;
 
 const games = computed(() => store.channels.filter((c) => c.parentId === props.channelId));
 
@@ -25,6 +27,34 @@ const filtered = computed(() => {
 const newName = ref('');
 const creating = ref(false);
 const showNew = ref(false);
+const pendingFile = ref<File | null>(null);
+const previewSrc = ref<string | null>(null);
+const fileInput = ref<HTMLInputElement | null>(null);
+
+function coverImageUrl(iconUrl: string | null) {
+  return iconUrl && iconUrl.startsWith('/') ? `${apiOrigin}${iconUrl}` : null;
+}
+
+function pickFile() {
+  fileInput.value?.click();
+}
+
+function onFileChange(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  if (previewSrc.value) URL.revokeObjectURL(previewSrc.value);
+  pendingFile.value = file;
+  previewSrc.value = URL.createObjectURL(file);
+}
+
+function resetComposer() {
+  if (previewSrc.value) URL.revokeObjectURL(previewSrc.value);
+  pendingFile.value = null;
+  previewSrc.value = null;
+  newName.value = '';
+  showNew.value = false;
+  if (fileInput.value) fileInput.value.value = '';
+}
 
 async function submitGame() {
   const name = newName.value.trim();
@@ -36,8 +66,10 @@ async function submitGame() {
       type: 'text',
       parentId: props.channelId,
     });
-    newName.value = '';
-    showNew.value = false;
+    if (pendingFile.value) {
+      await setChannelIcon(props.serverId, game.id, pendingFile.value);
+    }
+    resetComposer();
     openGame(game.id, name);
   } finally {
     creating.value = false;
@@ -126,9 +158,11 @@ function focusTopic(channelId: string) {
     <div class="library">
       <!-- New game composer -->
       <div v-if="showNew" class="composer">
-        <div class="composer-cover">
-          <Plus :size="22" />
-        </div>
+        <button type="button" class="composer-cover" title="Ajouter une image" @click="pickFile">
+          <img v-if="previewSrc" :src="previewSrc" class="composer-cover-img" />
+          <Plus v-else :size="22" />
+        </button>
+        <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onFileChange" />
         <div class="composer-body">
           <input
             v-model="newName"
@@ -138,10 +172,7 @@ function focusTopic(channelId: string) {
             maxlength="80"
             autofocus
             @keydown.enter="submitGame"
-            @keydown.esc="
-              showNew = false;
-              newName = '';
-            "
+            @keydown.esc="resetComposer"
           />
           <div class="composer-actions">
             <button
@@ -151,15 +182,7 @@ function focusTopic(channelId: string) {
             >
               {{ creating ? '…' : 'Ajouter' }}
             </button>
-            <button
-              class="composer-btn ghost"
-              @click="
-                showNew = false;
-                newName = '';
-              "
-            >
-              Annuler
-            </button>
+            <button class="composer-btn ghost" @click="resetComposer">Annuler</button>
           </div>
         </div>
       </div>
@@ -198,12 +221,12 @@ function focusTopic(channelId: string) {
           <div
             class="cover"
             :style="
-              game.iconUrl
-                ? { backgroundImage: `url(${game.iconUrl})` }
+              coverImageUrl(game.iconUrl)
+                ? { backgroundImage: `url(${coverImageUrl(game.iconUrl)})` }
                 : { background: gradientFor(game.id) }
             "
           >
-            <div v-if="!game.iconUrl" class="initial">
+            <div v-if="!coverImageUrl(game.iconUrl)" class="initial">
               {{ initialFor(game.name) }}
             </div>
             <div class="cover-overlay" />
@@ -330,11 +353,28 @@ function focusTopic(channelId: string) {
   height: 96px;
   flex-shrink: 0;
   border-radius: 8px;
+  border: 1px dashed rgba(99, 102, 241, 0.4);
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2));
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  overflow: hidden;
+  transition:
+    border-color 140ms,
+    background 140ms,
+    color 140ms;
+}
+.composer-cover:hover {
+  border-color: rgba(99, 102, 241, 0.7);
+  color: rgba(255, 255, 255, 0.85);
+}
+.composer-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .composer-body {
   flex: 1;

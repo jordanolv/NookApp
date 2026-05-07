@@ -7,7 +7,7 @@ import { useServersStore } from '~/stores/servers';
 const props = defineProps<{ serverId: string; channel: ChannelPublic }>();
 const emit = defineEmits<{ close: []; updated: [channel: ChannelPublic] }>();
 
-const { updateChannel } = useChannels();
+const { updateChannel, setChannelIcon } = useChannels();
 const { t } = useI18n();
 const { apiBase } = useRuntimeConfig().public;
 const apiOrigin = new URL(apiBase as string).origin;
@@ -135,36 +135,28 @@ function clearAll() {
   if (fileInput.value) fileInput.value.value = '';
 }
 
-async function uploadFile(file: File): Promise<string> {
-  const form = new FormData();
-  form.append('file', file);
-  const res = await $fetch<{ url: string }>(`${apiOrigin}/api/v1/uploads`, {
-    method: 'POST',
-    body: form,
-    credentials: 'include',
-  });
-  return res.url;
-}
-
 async function save() {
   if (!name.value.trim()) return;
   loading.value = true;
   error.value = '';
   try {
-    let finalIconUrl: string | null = null;
-    if (mode.value === 'lucide') {
-      finalIconUrl = `icon:${selectedIcon.value}:${selectedColor.value}`;
-    } else if (mode.value === 'emoji' && selectedEmoji.value) {
-      finalIconUrl = selectedEmoji.value;
-    } else if (mode.value === 'image') {
-      if (pendingFile.value) finalIconUrl = await uploadFile(pendingFile.value);
-      else finalIconUrl = existingImageUrl.value;
+    if (mode.value === 'image' && pendingFile.value) {
+      await setChannelIcon(props.serverId, props.channel.id, pendingFile.value);
     }
-    const updated = await updateChannel(props.serverId, props.channel.id, {
+
+    const patch: Record<string, unknown> = {
       name: name.value.trim(),
-      iconUrl: finalIconUrl,
       categoryId: categoryId.value,
-    });
+    };
+    if (mode.value === 'lucide') {
+      patch.iconUrl = `icon:${selectedIcon.value}:${selectedColor.value}`;
+    } else if (mode.value === 'emoji') {
+      patch.iconUrl = selectedEmoji.value;
+    } else if (mode.value === 'image' && !pendingFile.value) {
+      patch.iconUrl = existingImageUrl.value;
+    }
+
+    const updated = await updateChannel(props.serverId, props.channel.id, patch);
     emit('updated', updated);
   } catch {
     error.value = t('channels.edit.error');

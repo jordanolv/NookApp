@@ -1,18 +1,39 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
 import { createChannelInputSchema, updateChannelInputSchema } from '@nookapp/protocol';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthSession } from '../auth/auth.types';
+import { imageUploadOptions, StorageService } from '../common/storage';
 import { ZodPipe } from '../common/zod.pipe';
 import { ServerScopeGuard } from '../members/server-scope.guard';
 import { ChannelsService } from './channels.service';
+
+interface UploadedIcon {
+  filename: string;
+}
 
 @ApiTags('channels')
 @Controller('servers/:serverId/channels')
 @UseGuards(AuthGuard, ServerScopeGuard)
 export class ChannelsController {
-  constructor(private readonly channelsService: ChannelsService) {}
+  constructor(
+    private readonly channelsService: ChannelsService,
+    private readonly storage: StorageService,
+  ) {}
 
   @Get()
   list(@CurrentUser() user: AuthSession['user'], @Param('serverId') serverId: string) {
@@ -47,5 +68,25 @@ export class ChannelsController {
     @Param('channelId') channelId: string,
   ) {
     return this.channelsService.deleteChannel(serverId, channelId, user.id);
+  }
+
+  @Post(':channelId/icon')
+  @UseInterceptors(FileInterceptor('file', imageUploadOptions({ scope: 'channel-icons' })))
+  async setIcon(
+    @CurrentUser() user: AuthSession['user'],
+    @Param('serverId') serverId: string,
+    @Param('channelId') channelId: string,
+    @UploadedFile() file: UploadedIcon | undefined,
+  ) {
+    if (!file) throw new BadRequestException('No file provided');
+    const previous = await this.channelsService.getChannel(serverId, channelId, user.id);
+    const iconUrl = this.storage.urlFor('channel-icons', file.filename);
+    const updated = await this.channelsService.updateChannel(serverId, channelId, user.id, {
+      iconUrl,
+    });
+    if (previous.iconUrl && previous.iconUrl !== iconUrl) {
+      void this.storage.deleteByUrl(previous.iconUrl);
+    }
+    return updated;
   }
 }

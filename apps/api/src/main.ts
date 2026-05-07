@@ -1,6 +1,5 @@
 import 'reflect-metadata';
 import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -10,13 +9,15 @@ import type { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
 import { AUTH, type AuthInstance } from './auth/auth.types';
 import { CollaborationService } from './collaboration/collaboration.service';
+import { scopeDir, STORAGE_SCOPES, UPLOADS_ROOT, UPLOADS_URL_PREFIX } from './common/storage';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
 
-  const uploadsDir = join(process.cwd(), 'uploads');
-  mkdirSync(uploadsDir, { recursive: true });
-  app.useStaticAssets(uploadsDir, { prefix: '/uploads' });
+  for (const scope of STORAGE_SCOPES) {
+    mkdirSync(scopeDir(scope), { recursive: true });
+  }
+  app.useStaticAssets(UPLOADS_ROOT, { prefix: UPLOADS_URL_PREFIX });
 
   const auth = app.get<AuthInstance>(AUTH);
   const httpAdapter = app.getHttpAdapter().getInstance();

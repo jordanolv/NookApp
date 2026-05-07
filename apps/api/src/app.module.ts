@@ -15,9 +15,9 @@ import { UsersModule } from './users/users.module';
 import { VoiceModule } from './voice/voice.module';
 import { PluginsModule } from './plugins/plugins.module';
 import { CollaborationModule } from './collaboration/collaboration.module';
-import { UploadsModule } from './uploads/uploads.module';
 import { CategoriesModule } from './categories/categories.module';
 import { RolesModule } from './roles/roles.module';
+import { StorageModule } from './common/storage';
 
 @Module({
   imports: [
@@ -25,6 +25,7 @@ import { RolesModule } from './roles/roles.module';
       isGlobal: true,
       envFilePath: [join(process.cwd(), '.env'), join(process.cwd(), '..', '..', '.env')],
     }),
+    StorageModule,
     DatabaseModule,
     MailerModule,
     AuthModule,
@@ -39,7 +40,6 @@ import { RolesModule } from './roles/roles.module';
     VoiceModule,
     PluginsModule,
     CollaborationModule,
-    UploadsModule,
     CategoriesModule,
     RolesModule,
   ],
