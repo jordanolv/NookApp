@@ -84,6 +84,8 @@ export default [
         onBeforeMount: 'readonly',
         onBeforeUnmount: 'readonly',
         nextTick: 'readonly',
+        provide: 'readonly',
+        inject: 'readonly',
         // Project composables
         useAuth: 'readonly',
         useAuthStore: 'readonly',
@@ -101,6 +103,10 @@ export default [
         useChannelIcons: 'readonly',
         useServersStore: 'readonly',
         useUiLayout: 'readonly',
+        useHiddenPanels: 'readonly',
+        useFloatingPanels: 'readonly',
+        useSidebar: 'readonly',
+        usePresence: 'readonly',
         useI18n: 'readonly',
         $fetch: 'readonly',
         // Pinia

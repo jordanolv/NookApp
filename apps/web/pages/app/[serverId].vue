@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { VueDraggable } from 'vue-draggable-plus';
-import { PanelLeft, PanelRight, Pin, PinOff, Settings, Trash2 } from 'lucide-vue-next';
-import type { ChannelPublic, CategoryPublic } from '@nookapp/protocol';
+import { markRaw } from 'vue';
+import { Hash, Pin, PinOff, RotateCcw, Settings, Trash2, Users } from 'lucide-vue-next';
+import type { ChannelPublic } from '@nookapp/protocol';
 import { useHomePins, type HomePinKind } from '~/composables/useHomePins';
 import WidgetGamingTopic from '~/widgets/WidgetGamingTopic.vue';
 
@@ -10,14 +10,14 @@ definePageMeta({ layout: 'app' });
 const route = useRoute();
 const serverId = computed(() => route.params.serverId as string);
 
-const { store, fetchServers, updateServer } = useServers();
+const { store, fetchServers } = useServers();
 const { fetchChannels, updateChannel, deleteChannel } = useChannels();
-const { fetchCategories, createCategory, updateCategory, deleteCategory } = useCategories();
+const { fetchCategories } = useCategories();
 const { user } = useAuth();
 const { createInvite } = useInvites();
 const socket = useSocket();
 const voice = useVoice();
-const { isAdmin, canManageChannels, canManageMap, canManageServer, loadMember } = useMember();
+const { isAdmin, canManageChannels, canManageMap, loadMember } = useMember();
 const {
   currentMap,
   buildMode,
@@ -28,39 +28,34 @@ const {
   paintWallsRect,
 } = useMap();
 
-// ── Chat: tab bar + floating windows ──
-interface FloatingWin {
+// ── Chat: main tab bar + torn-off floating windows ──
+interface FloatingChat {
   channelId: string;
   x: number;
   y: number;
 }
+
 const chatTabChannelIds = ref<string[]>([]);
 const chatTabActiveId = ref<string | null>(null);
-const floatingWindows = ref<FloatingWin[]>([]);
-let windowCounter = 0;
+const floatingChats = ref<FloatingChat[]>([]);
+const draggingFloatingId = ref<string | null>(null);
+let chatStaggerCounter = 0;
 
-function openChannel(channelId: string, e: MouseEvent) {
-  if (e.ctrlKey || e.metaKey) {
-    const existing = floatingWindows.value.find((w) => w.channelId === channelId);
-    if (existing) {
-      focusFloating(channelId);
-      return;
-    }
-    const stagger = (windowCounter % 6) * 28;
-    const x = import.meta.client ? Math.round(window.innerWidth / 2 - 200) + stagger : 300;
-    const y = import.meta.client ? Math.round(window.innerHeight / 2 - 270) + stagger : 100;
-    windowCounter++;
-    floatingWindows.value = [...floatingWindows.value, { channelId, x, y }];
-  } else {
-    if (!chatTabChannelIds.value.includes(channelId)) {
-      chatTabChannelIds.value = [...chatTabChannelIds.value, channelId];
-    }
-    chatTabActiveId.value = channelId;
+function openChannel(channelId: string) {
+  // If it's already a floating window, focus it.
+  if (floatingChats.value.some((w) => w.channelId === channelId)) {
+    focusFloating(channelId);
+    return;
   }
+  // Otherwise add it as a tab in the main chat window.
+  if (!chatTabChannelIds.value.includes(channelId)) {
+    chatTabChannelIds.value = [...chatTabChannelIds.value, channelId];
+  }
+  chatTabActiveId.value = channelId;
 }
 
 function openChannelById(channelId: string) {
-  openChannel(channelId, { ctrlKey: false, metaKey: false } as MouseEvent);
+  openChannel(channelId);
 }
 
 function closeAllTabs() {
@@ -77,22 +72,22 @@ function closeTab(channelId: string) {
 }
 
 function closeFloating(channelId: string) {
-  floatingWindows.value = floatingWindows.value.filter((w) => w.channelId !== channelId);
+  floatingChats.value = floatingChats.value.filter((w) => w.channelId !== channelId);
 }
 
 function focusFloating(channelId: string) {
-  const win = floatingWindows.value.find((w) => w.channelId === channelId);
+  const win = floatingChats.value.find((w) => w.channelId === channelId);
   if (!win) return;
-  floatingWindows.value = [...floatingWindows.value.filter((w) => w.channelId !== channelId), win];
+  floatingChats.value = [...floatingChats.value.filter((w) => w.channelId !== channelId), win];
 }
 
+// Called by ChatTabBar when a tab is dragged out of the main window.
 function onTearOff(channelId: string, x: number, y: number) {
   closeTab(channelId);
-  floatingWindows.value = [...floatingWindows.value, { channelId, x, y }];
+  floatingChats.value = [...floatingChats.value, { channelId, x, y }];
 }
 
-const draggingFloatingId = ref<string | null>(null);
-
+// Called when a floating chat is dragged back onto the main tab bar.
 function dockToTabBar(channelId: string) {
   draggingFloatingId.value = null;
   closeFloating(channelId);
@@ -102,101 +97,35 @@ function dockToTabBar(channelId: string) {
   chatTabActiveId.value = channelId;
 }
 
+void chatStaggerCounter;
+
 const activeChannelIds = computed(
-  () => new Set([...chatTabChannelIds.value, ...floatingWindows.value.map((w) => w.channelId)]),
+  () => new Set([...chatTabChannelIds.value, ...floatingChats.value.map((w) => w.channelId)]),
 );
 
-// ── Icon rail ──
-type RailSide = 'left' | 'right';
-const RAIL_LAYOUT_KEY = 'rail:prefs';
-
-const railExpanded = ref(true);
-const railWidth = ref(210);
-const railSide = ref<RailSide>('right');
 const uiLayout = useUiLayout();
 const homePins = useHomePins(serverId);
 
-if (import.meta.client) {
-  void uiLayout.ensureLoaded().then(() => {
-    const saved = uiLayout.get(RAIL_LAYOUT_KEY);
-    if (!saved) return;
-    if (saved.side === 'left' || saved.side === 'right') railSide.value = saved.side as RailSide;
-    if (typeof saved.width === 'number')
-      railWidth.value = Math.max(180, Math.min(420, saved.width));
-  });
-  watch([railSide, railWidth], ([side, width]) => {
-    if (!uiLayout) return;
-    uiLayout.set(RAIL_LAYOUT_KEY, { side, width });
-  });
+const showLayoutMenu = ref(false);
+const layoutMenuAnchor = ref({ bottom: 0, left: 0 });
+
+function closeLayoutMenu() {
+  showLayoutMenu.value = false;
 }
 
-const _railResize = ref<{ startX: number; origW: number } | null>(null);
-
-const railStyle = computed(() => {
-  const w = railExpanded.value ? railWidth.value : 52;
-  const resizing = _railResize.value !== null;
-  return {
-    width: w + 'px',
-    top: '16px',
-    bottom: '16px',
-    left: railSide.value === 'left' ? '16px' : 'auto',
-    right: railSide.value === 'right' ? '16px' : 'auto',
-    height: 'auto',
-    transition: resizing
-      ? 'none'
-      : 'width 200ms cubic-bezier(0.4,0,0.2,1), left 220ms cubic-bezier(0.4,0,0.2,1), right 220ms cubic-bezier(0.4,0,0.2,1)',
-    background: 'rgba(12, 12, 18, 0.75)',
-    backdropFilter: 'blur(24px) saturate(160%)',
-    WebkitBackdropFilter: 'blur(24px) saturate(160%)',
-    border: '1px solid rgba(255, 255, 255, 0.07)',
-    boxShadow: '0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)',
-  };
-});
-
-function startRailResize(e: MouseEvent) {
-  _railResize.value = { startX: e.clientX, origW: railWidth.value };
-  e.preventDefault();
-  e.stopPropagation();
+async function resetLayout() {
+  closeLayoutMenu();
+  if (!window.confirm('Réinitialiser la disposition par défaut ?')) return;
+  uiLayout.resetLayout();
+  await uiLayout.flush();
+  window.location.reload();
 }
-
-function onRailPointerMove(e: MouseEvent) {
-  if (_railResize.value) {
-    const dx = e.clientX - _railResize.value.startX;
-    // When docked right, dragging the inner (left) edge leftward grows width.
-    const signed = railSide.value === 'right' ? -dx : dx;
-    const max = import.meta.client ? window.innerWidth - 200 : 420;
-    railWidth.value = Math.max(180, Math.min(max, _railResize.value.origW + signed));
-  }
-}
-
-function stopRailPointer() {
-  _railResize.value = null;
-}
-
-function toggleRail() {
-  railExpanded.value = !railExpanded.value;
-}
-
-function toggleRailSide() {
-  railSide.value = railSide.value === 'right' ? 'left' : 'right';
-}
-
-const forumPanelOffset = computed(() => (railExpanded.value ? railWidth.value : 52) + 24);
 
 // ── Server picker ──
 const showServerPicker = ref(false);
 const serverPickerAnchor = ref<DOMRect | null>(null);
 const serversExpanded = ref(false);
 const showServerSettings = ref(false);
-
-function openServerPicker(e: MouseEvent) {
-  const btn = (e.currentTarget as HTMLElement).closest(
-    '[data-server-header]',
-  ) as HTMLElement | null;
-  serverPickerAnchor.value = btn?.getBoundingClientRect() ?? null;
-  serversExpanded.value = false;
-  showServerPicker.value = !showServerPicker.value;
-}
 
 function switchServer(id: string) {
   showServerPicker.value = false;
@@ -220,12 +149,6 @@ const channelMenu = ref<{
   y: number;
   channel: import('@nookapp/protocol').ChannelPublic;
 } | null>(null);
-
-function openChannelMenu(e: MouseEvent, channel: import('@nookapp/protocol').ChannelPublic) {
-  e.preventDefault();
-  e.stopPropagation();
-  channelMenu.value = { x: e.clientX, y: e.clientY, channel };
-}
 
 function closeChannelMenu() {
   channelMenu.value = null;
@@ -255,148 +178,6 @@ function isChannelPinnedToHome(channelId: string): boolean {
   return homePins.isPinned(channelId, 'channel');
 }
 
-// ── Categories & ordered top-level layout ──
-type ChannelItem = { kind: 'channel'; id: string; channel: ChannelPublic };
-type CategoryItem = {
-  kind: 'category';
-  id: string;
-  category: CategoryPublic;
-  children: ChannelItem[];
-};
-type TopItem = ChannelItem | CategoryItem;
-
-const topItems = ref<TopItem[]>([]);
-const isCommitting = ref(false);
-
-function rebuildTopItems() {
-  const items: TopItem[] = [];
-  for (const cat of store.categories) {
-    items.push({
-      kind: 'category',
-      id: `cat:${cat.id}`,
-      category: cat,
-      children: store.channels
-        .filter((c) => c.categoryId === cat.id && !c.parentId)
-        .sort((a, b) => a.position - b.position)
-        .map((ch) => ({ kind: 'channel' as const, id: `ch:${ch.id}`, channel: ch })),
-    });
-  }
-  for (const ch of store.channels.filter((c) => !c.categoryId && !c.parentId)) {
-    items.push({ kind: 'channel', id: `ch:${ch.id}`, channel: ch });
-  }
-  items.sort((a, b) => {
-    const ap = a.kind === 'channel' ? a.channel.position : a.category.position;
-    const bp = b.kind === 'channel' ? b.channel.position : b.category.position;
-    return ap - bp;
-  });
-  topItems.value = items;
-}
-
-watch(
-  [() => store.channels, () => store.categories],
-  () => {
-    if (isCommitting.value) return;
-    rebuildTopItems();
-  },
-  { immediate: true, deep: true },
-);
-
-async function commitOrder() {
-  if (isCommitting.value) return;
-  isCommitting.value = true;
-  try {
-    const updates: Promise<unknown>[] = [];
-    for (let i = 0; i < topItems.value.length; i++) {
-      const item = topItems.value[i];
-      if (item.kind === 'channel') {
-        const ch = item.channel;
-        if (ch.position !== i || ch.categoryId !== null) {
-          updates.push(updateChannel(serverId.value, ch.id, { position: i, categoryId: null }));
-        }
-      } else {
-        const cat = item.category;
-        if (cat.position !== i) {
-          updates.push(updateCategory(serverId.value, cat.id, { position: i }));
-        }
-        for (let j = 0; j < item.children.length; j++) {
-          const ch = item.children[j].channel;
-          if (ch.position !== j || ch.categoryId !== cat.id) {
-            updates.push(updateChannel(serverId.value, ch.id, { position: j, categoryId: cat.id }));
-          }
-        }
-      }
-    }
-    await Promise.all(updates);
-  } finally {
-    isCommitting.value = false;
-    rebuildTopItems();
-  }
-}
-
-function innerPut(_to: unknown, _from: unknown, dragEl: HTMLElement) {
-  return dragEl.dataset.kind === 'channel';
-}
-
-const collapsedCategories = ref<Set<string>>(new Set());
-function toggleCategory(id: string) {
-  const s = new Set(collapsedCategories.value);
-  if (s.has(id)) s.delete(id);
-  else s.add(id);
-  collapsedCategories.value = s;
-}
-
-const editingCategoryId = ref<string | null>(null);
-const editingCategoryName = ref('');
-function startEditCategory(cat: import('@nookapp/protocol').CategoryPublic) {
-  editingCategoryId.value = cat.id;
-  editingCategoryName.value = cat.name;
-}
-async function submitEditCategory() {
-  if (!editingCategoryId.value || !editingCategoryName.value.trim()) {
-    editingCategoryId.value = null;
-    return;
-  }
-  await updateCategory(serverId.value, editingCategoryId.value, {
-    name: editingCategoryName.value.trim(),
-  });
-  editingCategoryId.value = null;
-}
-async function handleDeleteCategory(categoryId: string) {
-  await deleteCategory(serverId.value, categoryId);
-}
-
-const showCreateCategory = ref(false);
-const newCategoryName = ref('');
-async function submitCreateCategory() {
-  if (!newCategoryName.value.trim()) return;
-  await createCategory(serverId.value, { name: newCategoryName.value.trim() });
-  newCategoryName.value = '';
-  showCreateCategory.value = false;
-}
-
-function isChannelActive(ch: import('@nookapp/protocol').ChannelPublic): boolean {
-  if (ch.type === 'voice') return voice.currentChannelId.value === ch.id;
-  if (ch.type === 'forum') return forumPanelChannelId.value === ch.id;
-  return activeChannelIds.value.has(ch.id);
-}
-function channelActiveStyle(ch: import('@nookapp/protocol').ChannelPublic): string {
-  if (activeChannelIds.value.has(ch.id) && ch.type !== 'voice' && ch.type !== 'forum')
-    return 'font-weight: 600';
-  return '';
-}
-
-function channelLabelStyle(ch: import('@nookapp/protocol').ChannelPublic): string {
-  if (ch.type === 'voice' && voice.currentChannelId.value === ch.id) return 'color: #4ade80';
-  if (ch.type === 'forum' && forumPanelChannelId.value === ch.id)
-    return 'color: rgba(252,211,77,1)';
-  if (activeChannelIds.value.has(ch.id)) return 'color: rgba(199,210,254,1)';
-  return 'color: rgba(255,255,255,0.45)';
-}
-function channelIndicatorClass(ch: import('@nookapp/protocol').ChannelPublic): string {
-  if (ch.type === 'voice') return 'bg-green-400';
-  if (ch.type === 'forum') return 'bg-yellow-400';
-  return 'bg-indigo-400';
-}
 function handleChannelClick(ch: import('@nookapp/protocol').ChannelPublic, e: MouseEvent) {
   if (ch.type === 'voice') {
     handleVoiceChannelClick(ch.id);
@@ -410,7 +191,7 @@ function handleChannelClick(ch: import('@nookapp/protocol').ChannelPublic, e: Mo
     openWidgetWindow(ch);
     return;
   }
-  openChannel(ch.id, e);
+  openChannel(ch.id);
 }
 
 // ── Forum panel ──
@@ -496,6 +277,51 @@ function focusHomeTopicWindow(channelId: string) {
   ];
 }
 
+const SIDEBAR_SECTIONS = markRaw([
+  { key: 'channels', label: 'Salons', icon: Hash },
+  { key: 'members', label: 'Membres', icon: Users },
+  { key: 'pinned', label: 'Épinglés', icon: Pin },
+]);
+const sidebar = useSidebar(
+  SIDEBAR_SECTIONS.map((s) => s.key),
+  ['channels'],
+);
+
+const voiceChannels = computed(() =>
+  store.channels.filter((c) => c.type === 'voice' && c.serverId === serverId.value),
+);
+
+// Shared presence state (player positions + voice channel members) for the minimap.
+const presence = usePresence();
+
+// Imperative handle to the world for teleporting.
+const worldRef = ref<{ teleport: unknown } | null>(null);
+
+function onMinimapTeleport(x: number, y: number) {
+  const teleport = worldRef.value?.teleport;
+  if (typeof teleport === 'function') teleport(x, y);
+}
+
+// Teleport the avatar to spawn only when the explicit dock leave button was
+// used (returnToSpawnOnLeave flag set by leaveExplicit). Walking out of a room
+// or page-unload cleanups go through plain leave() and leave the avatar put.
+const SPAWN_PX = { x: 35 * 32 + 16, y: 35 * 32 + 16 };
+watch(
+  () => voice.currentChannelId.value,
+  (next, prev) => {
+    if (prev && !next && voice.returnToSpawnOnLeave.value) {
+      const teleport = worldRef.value?.teleport;
+      if (typeof teleport === 'function') teleport(SPAWN_PX.x, SPAWN_PX.y);
+      voice.returnToSpawnOnLeave.value = false;
+    }
+  },
+);
+
+function openServerMenuFromSidebar(e: MouseEvent) {
+  serverPickerAnchor.value = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  showServerPicker.value = true;
+}
+
 function openHomePinnedItem(channel: ChannelPublic, kind: HomePinKind) {
   if (kind === 'game') {
     openHomeTopicWindow(channel.id, channel.name);
@@ -541,28 +367,12 @@ function onZoneCancel() {
   pendingVoiceChannelId.value = null;
 }
 
-const api = useApi();
 const { apiBase } = useRuntimeConfig().public;
 const apiOrigin = new URL(apiBase as string).origin;
 
 function resolveUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   return url.startsWith('/') ? `${apiOrigin}${url}` : url;
-}
-
-const bannerUploading = ref(false);
-async function uploadBanner(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0];
-  if (!file) return;
-  bannerUploading.value = true;
-  try {
-    const form = new FormData();
-    form.append('file', file);
-    const { url } = await api.postForm<{ url: string }>('/uploads', form);
-    await updateServer(serverId.value, { bannerUrl: url });
-  } finally {
-    bannerUploading.value = false;
-  }
 }
 
 const showInviteModal = ref(false);
@@ -643,25 +453,22 @@ let teardownVoiceListeners: (() => void) | null = null;
 onMounted(() => {
   socket.connect();
   teardownVoiceListeners = voice.setupListeners();
-  window.addEventListener('mousemove', onRailPointerMove);
-  window.addEventListener('mouseup', stopRailPointer);
 });
 
 onUnmounted(async () => {
   if (voice.currentChannelId.value) await voice.leave();
   teardownVoiceListeners?.();
   socket.disconnect();
-  window.removeEventListener('mousemove', onRailPointerMove);
-  window.removeEventListener('mouseup', stopRailPointer);
 });
 </script>
 
 <template>
-  <div class="relative h-full w-full overflow-hidden">
-    <!-- World fills everything -->
+  <div class="page-root">
+    <!-- World fills the entire viewport behind everything -->
     <ClientOnly>
       <WorldNookWorld
         v-if="user?.id"
+        ref="worldRef"
         :server-id="serverId"
         :user-id="user.id"
         :player-name="user.name"
@@ -676,639 +483,112 @@ onUnmounted(async () => {
       />
     </ClientOnly>
 
-    <HomePinnedItems
-      :server-id="serverId"
-      :rail-side="railSide"
-      :rail-width="railExpanded ? railWidth : 52"
-      @open="openHomePinnedItem"
+    <!-- Sidebar (icons + stacked content + user dock) -->
+    <LayoutSideBar
+      :side="sidebar.side.value"
+      :sections="SIDEBAR_SECTIONS"
+      :order="sidebar.order.value"
+      :active-keys="sidebar.activeSet.value"
+      :section-heights="sidebar.sectionHeights.value"
+      :server-name="server?.name ?? ''"
+      :banner-url="resolveUrl(server?.bannerUrl) ?? null"
+      @toggle-section="sidebar.toggleSection"
+      @swap-side="sidebar.swapSide"
+      @set-order="sidebar.setOrder"
+      @set-section-height="sidebar.setSectionHeight"
+      @open-server-menu="openServerMenuFromSidebar"
+    >
+      <template #user-dock>
+        <LayoutUserDock />
+      </template>
+      <template #channels>
+        <LayoutChannelsList
+          :channels="store.channels.filter((c) => c.serverId === serverId && c.type !== 'voice')"
+          :categories="store.categories.filter((c) => c.serverId === serverId)"
+          :active-channel-ids="activeChannelIds"
+          :current-voice-id="voice.currentChannelId.value"
+          @select="handleChannelClick"
+        />
+      </template>
+      <template #members>
+        <HomeMembersList :server-id="serverId" />
+      </template>
+      <template #pinned>
+        <HomePinsList :server-id="serverId" @open="openHomePinnedItem" />
+      </template>
+    </LayoutSideBar>
+
+    <!-- Voice members list (visible while connected to a voice channel) -->
+    <VoiceMembersWindow />
+
+    <!-- Minimap (self-contained, draggable, round tactical HUD) -->
+    <WorldMinimap
+      :map-data="currentMap ?? null"
+      :voice-channels="voiceChannels"
+      :players="presence.players.value"
+      :voice-members="presence.voiceMembers.value"
+      :current-user-id="user?.id ?? null"
+      :current-user-name="user?.name ?? null"
+      :current-voice-channel-id="voice.currentChannelId.value"
+      @teleport-to="onMinimapTeleport"
     />
 
-    <!-- ── Icon rail ── -->
-    <div
-      class="fixed z-40 flex flex-col rounded-2xl py-2 gap-1 overflow-hidden group/rail"
-      :style="railStyle"
-    >
-      <!-- Inner edge: resize width (right edge if docked left, left edge if docked right) -->
-      <div
-        class="absolute top-0 bottom-0 w-1 z-50 cursor-ew-resize opacity-0 hover:opacity-100 transition-opacity"
-        :class="railSide === 'left' ? 'right-0 rounded-r-2xl' : 'left-0 rounded-l-2xl'"
-        style="background: rgba(99, 102, 241, 0.5)"
-        @mousedown="startRailResize"
-      />
-      <!-- Server header -->
-      <template v-if="railExpanded">
-        <!-- Banner block -->
-        <div
-          class="relative flex-shrink-0 -mt-2 overflow-hidden group/banner"
-          style="aspect-ratio: 2/1; border-radius: 16px 16px 0 0"
-        >
-          <img
-            v-if="server?.bannerUrl"
-            :src="resolveUrl(server.bannerUrl) ?? undefined"
-            class="w-full h-full object-cover"
-          />
-          <div
-            class="absolute inset-0"
-            :style="
-              server?.bannerUrl
-                ? 'background: linear-gradient(to top, rgba(12,12,18,0.88) 0%, rgba(12,12,18,0.35) 50%, transparent 100%)'
-                : 'background: rgba(12,12,18,0.3)'
-            "
-          />
-          <!-- Admin upload button -->
-          <label
-            v-if="canManageServer"
-            class="absolute top-2 right-2 opacity-0 group-hover/banner:opacity-100 transition-opacity cursor-pointer z-10"
-          >
-            <span
-              class="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
-              style="background: rgba(0, 0, 0, 0.65); color: rgba(255, 255, 255, 0.75)"
-            >
-              <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor">
-                <path
-                  d="M12 15.2A3.2 3.2 0 0 1 8.8 12 3.2 3.2 0 0 1 12 8.8 3.2 3.2 0 0 1 15.2 12 3.2 3.2 0 0 1 12 15.2M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"
-                />
-              </svg>
-              {{ bannerUploading ? '…' : server?.bannerUrl ? 'Changer' : 'Bannière' }}
-            </span>
-            <input type="file" accept="image/*" class="hidden" @change="uploadBanner" />
-          </label>
-          <!-- Server name + picker trigger -->
-          <button
-            data-server-header
-            class="absolute bottom-0 left-0 right-0 px-2.5 py-2 flex items-center gap-2 outline-none"
-            @click="openServerPicker"
-          >
-            <div class="relative flex-shrink-0">
-              <div
-                class="flex h-6 w-6 items-center justify-center rounded-lg text-[10px] font-bold text-white select-none"
-                style="background: linear-gradient(135deg, #6366f1, #4338ca)"
-              >
-                {{ server?.name?.[0]?.toUpperCase() }}
-              </div>
-              <span
-                class="absolute -bottom-1 -left-1 flex h-3.5 w-3.5 items-center justify-center rounded-full"
-                style="
-                  background: rgba(20, 20, 30, 0.95);
-                  border: 1px solid rgba(255, 255, 255, 0.12);
-                "
-              >
-                <svg
-                  class="transition-transform duration-200"
-                  :class="{ 'rotate-180': showServerPicker }"
-                  width="8"
-                  height="8"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  style="color: rgba(255, 255, 255, 0.6)"
-                >
-                  <path d="M7 10l5 5 5-5z" />
-                </svg>
-              </span>
-            </div>
-            <span
-              class="flex-1 truncate text-xs font-semibold text-left min-w-0"
-              style="color: rgba(255, 255, 255, 0.85)"
-              >{{ server?.name }}</span
-            >
-          </button>
-        </div>
-      </template>
+    <!-- Main chat window (chrome-style tabs) -->
+    <ChatTabBar
+      v-if="chatTabChannelIds.length > 0"
+      :channel-ids="chatTabChannelIds"
+      :active-id="chatTabActiveId"
+      :dragging-channel-id="draggingFloatingId"
+      @close="closeAllTabs"
+      @close-tab="closeTab"
+      @set-active="chatTabActiveId = $event"
+      @tear-off="onTearOff"
+      @dock="dockToTabBar"
+    />
 
-      <!-- Collapsed header -->
-      <template v-else>
-        <button
-          data-server-header
-          class="flex justify-center relative flex-shrink-0 outline-none"
-          @click="openServerPicker"
-        >
-          <div
-            class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white select-none relative"
-            style="background: linear-gradient(135deg, #6366f1, #4338ca)"
-          >
-            {{ server?.name?.[0]?.toUpperCase() }}
-            <span
-              class="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full"
-              style="background: rgba(30, 30, 40, 0.95); border: 1px solid rgba(255, 255, 255, 0.1)"
-            >
-              <svg
-                class="transition-transform duration-200"
-                :class="{ 'rotate-180': showServerPicker }"
-                width="8"
-                height="8"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                style="color: rgba(255, 255, 255, 0.5)"
-              >
-                <path d="M7 10l5 5 5-5z" />
-              </svg>
-            </span>
-          </div>
-        </button>
-      </template>
+    <!-- Torn-off floating chat windows -->
+    <ChatWindow
+      v-for="(win, i) in floatingChats"
+      :key="win.channelId"
+      :channel-id="win.channelId"
+      :initial-x="win.x"
+      :initial-y="win.y"
+      :z-index="45 + i"
+      @close="closeFloating(win.channelId)"
+      @focus="focusFloating(win.channelId)"
+      @drag-start="draggingFloatingId = win.channelId"
+      @drag-end="draggingFloatingId = null"
+    />
 
-      <!-- Channel list (scrollable) -->
+    <!-- Layout menu popover -->
+    <Teleport to="body">
+      <div v-if="showLayoutMenu" class="fixed inset-0 z-[80]" @click="closeLayoutMenu" />
       <div
-        class="flex-1 min-h-0 overflow-y-auto flex flex-col gap-0.5 px-1.5 py-0.5 relative z-10"
-        style="scrollbar-width: none"
+        v-if="showLayoutMenu"
+        class="fixed flex flex-col gap-0.5 rounded-xl p-1.5 z-[81]"
+        :style="{
+          left: `${layoutMenuAnchor.left}px`,
+          bottom: `${layoutMenuAnchor.bottom}px`,
+          width: '220px',
+          background: 'rgba(10, 10, 16, 0.96)',
+          backdropFilter: 'blur(24px) saturate(160%)',
+          WebkitBackdropFilter: 'blur(24px) saturate(160%)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          boxShadow: '0 16px 48px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)',
+        }"
+        @click.stop
       >
-        <!-- ── Expanded: full draggable structure with categories ── -->
-        <VueDraggable
-          v-if="railExpanded"
-          v-model="topItems"
-          class="flex flex-col"
-          :group="{ name: 'channels', pull: true, put: true }"
-          :animation="180"
-          :force-fallback="true"
-          :delay="180"
-          :delay-on-touch-only="false"
-          :touch-start-threshold="3"
-          :handle="'.drag-handle'"
-          ghost-class="dnd-ghost"
-          chosen-class="dnd-chosen"
-          drag-class="dnd-drag"
-          fallback-class="dnd-fallback"
-          @end="commitOrder"
+        <button
+          class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-white/[0.06]"
+          @click="resetLayout"
         >
-          <div v-for="item in topItems" :key="item.id" :data-kind="item.kind" :data-id="item.id">
-            <!-- Top-level uncategorized channel -->
-            <template v-if="item.kind === 'channel'">
-              <div
-                class="relative group"
-                :class="{ 'drag-handle cursor-grab active:cursor-grabbing': canManageChannels }"
-                @contextmenu="openChannelMenu($event, item.channel)"
-              >
-                <button
-                  class="relative flex h-7 w-full items-center gap-2.5 rounded-lg px-2 justify-start transition-all duration-150 hover:bg-white/[0.06]"
-                  :style="channelActiveStyle(item.channel)"
-                  @click="handleChannelClick(item.channel, $event)"
-                >
-                  <span
-                    v-if="isChannelActive(item.channel)"
-                    class="absolute -left-1.5 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full"
-                    :class="channelIndicatorClass(item.channel)"
-                  />
-                  <div class="relative flex-shrink-0">
-                    <ChannelIconDisplay
-                      :icon-url="item.channel.iconUrl"
-                      :type="item.channel.type"
-                      :size="15"
-                    />
-                    <span
-                      v-if="
-                        item.channel.type === 'voice' &&
-                        voice.voicePresence.value.get(item.channel.id)?.length
-                      "
-                      class="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-green-500"
-                      style="border: 1.5px solid rgba(12, 12, 18, 0.9)"
-                    />
-                  </div>
-                  <span
-                    class="truncate text-xs font-medium flex-1 text-left min-w-0"
-                    :style="channelLabelStyle(item.channel)"
-                    >{{ item.channel.name }}</span
-                  >
-                  <span
-                    v-if="
-                      item.channel.type === 'voice' &&
-                      voice.voicePresence.value.get(item.channel.id)?.length
-                    "
-                    class="flex items-center flex-shrink-0 -space-x-1 ml-1"
-                    :title="
-                      voice.voicePresence.value
-                        .get(item.channel.id)
-                        ?.map((p) => p.name)
-                        .join(', ')
-                    "
-                  >
-                    <span
-                      v-for="p in voice.voicePresence.value.get(item.channel.id)?.slice(0, 3)"
-                      :key="p.userId"
-                      class="h-4 w-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white"
-                      style="background: linear-gradient(135deg, #6366f1, #4f46e5)"
-                    >
-                      {{ p.name?.[0]?.toUpperCase() }}
-                    </span>
-                    <span
-                      v-if="(voice.voicePresence.value.get(item.channel.id)?.length ?? 0) > 3"
-                      class="h-4 px-1 rounded-full flex items-center justify-center text-[8px] font-semibold"
-                      style="
-                        background: rgba(255, 255, 255, 0.12);
-                        color: rgba(255, 255, 255, 0.75);
-                      "
-                    >
-                      +{{ (voice.voicePresence.value.get(item.channel.id)?.length ?? 0) - 3 }}
-                    </span>
-                  </span>
-                </button>
-              </div>
-            </template>
-
-            <!-- Top-level category block -->
-            <template v-else>
-              <div class="category-block rounded-lg transition-colors duration-150">
-                <!-- Category header -->
-                <div class="flex h-6 items-center gap-1 px-1 group/cat">
-                  <button
-                    class="flex flex-1 items-center gap-1 min-w-0"
-                    @click="toggleCategory(item.category.id)"
-                  >
-                    <svg
-                      class="flex-shrink-0 transition-transform duration-150"
-                      :style="
-                        collapsedCategories.has(item.category.id) ? 'transform:rotate(-90deg)' : ''
-                      "
-                      width="10"
-                      height="10"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      style="color: rgba(255, 255, 255, 0.25)"
-                    >
-                      <path d="M7 10l5 5 5-5z" />
-                    </svg>
-                    <span
-                      v-if="editingCategoryId !== item.category.id"
-                      class="cat-label truncate text-[10px] font-semibold uppercase tracking-wider transition-colors"
-                      style="color: rgba(255, 255, 255, 0.3)"
-                      >{{ item.category.name }}</span
-                    >
-                    <input
-                      v-else
-                      v-model="editingCategoryName"
-                      class="flex-1 min-w-0 bg-transparent text-[10px] font-semibold uppercase tracking-wider outline-none border-b"
-                      style="color: rgba(255, 255, 255, 0.7); border-color: rgba(99, 102, 241, 0.6)"
-                      @keydown.enter="submitEditCategory"
-                      @keydown.escape="editingCategoryId = null"
-                      @blur="submitEditCategory"
-                      @click.stop
-                    />
-                  </button>
-                  <div
-                    v-if="canManageChannels"
-                    class="flex items-center gap-0.5 opacity-0 group-hover/cat:opacity-100 transition-opacity flex-shrink-0"
-                  >
-                    <div
-                      class="drag-handle flex items-center cursor-grab px-0.5"
-                      style="color: rgba(255, 255, 255, 0.3)"
-                      @click.stop
-                    >
-                      <svg width="8" height="10" viewBox="0 0 8 12" fill="currentColor">
-                        <circle cx="2" cy="2" r="1.5" />
-                        <circle cx="6" cy="2" r="1.5" />
-                        <circle cx="2" cy="6" r="1.5" />
-                        <circle cx="6" cy="6" r="1.5" />
-                        <circle cx="2" cy="10" r="1.5" />
-                        <circle cx="6" cy="10" r="1.5" />
-                      </svg>
-                    </div>
-                    <button
-                      class="rounded p-0.5 hover:bg-white/10"
-                      style="color: rgba(255, 255, 255, 0.3)"
-                      title="Renommer"
-                      @click.stop="startEditCategory(item.category)"
-                    >
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-                        <path
-                          d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
-                        />
-                      </svg>
-                    </button>
-                    <button
-                      class="rounded p-0.5 hover:bg-white/10"
-                      style="color: rgba(255, 255, 255, 0.3)"
-                      title="Supprimer"
-                      @click.stop="handleDeleteCategory(item.category.id)"
-                    >
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-                        <path
-                          d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Inner sortable: channels inside this category -->
-                <VueDraggable
-                  v-show="!collapsedCategories.has(item.category.id)"
-                  v-model="item.children"
-                  class="flex flex-col gap-0.5 min-h-[6px] pl-2"
-                  :group="{ name: 'channels', pull: true, put: innerPut }"
-                  :animation="180"
-                  :empty-insert-threshold="0"
-                  :force-fallback="true"
-                  :delay="180"
-                  :delay-on-touch-only="false"
-                  :touch-start-threshold="3"
-                  :handle="'.drag-handle'"
-                  ghost-class="dnd-ghost"
-                  chosen-class="dnd-chosen"
-                  drag-class="dnd-drag"
-                  fallback-class="dnd-fallback"
-                  @end="commitOrder"
-                >
-                  <div
-                    v-for="childItem in item.children"
-                    :key="childItem.id"
-                    :data-kind="'channel'"
-                    :data-id="childItem.id"
-                    class="relative group"
-                    :class="{ 'drag-handle cursor-grab active:cursor-grabbing': canManageChannels }"
-                    @contextmenu="openChannelMenu($event, childItem.channel)"
-                  >
-                    <button
-                      class="relative flex h-7 w-full items-center gap-2.5 rounded-lg px-2 justify-start transition-all duration-150 hover:bg-white/[0.06]"
-                      :style="channelActiveStyle(childItem.channel)"
-                      @click="handleChannelClick(childItem.channel, $event)"
-                    >
-                      <span
-                        v-if="isChannelActive(childItem.channel)"
-                        class="absolute -left-1.5 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full"
-                        :class="channelIndicatorClass(childItem.channel)"
-                      />
-                      <div class="relative flex-shrink-0">
-                        <ChannelIconDisplay
-                          :icon-url="childItem.channel.iconUrl"
-                          :type="childItem.channel.type"
-                          :size="18"
-                        />
-                        <span
-                          v-if="
-                            childItem.channel.type === 'voice' &&
-                            voice.voicePresence.value.get(childItem.channel.id)?.length
-                          "
-                          class="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-green-500"
-                          style="border: 1.5px solid rgba(12, 12, 18, 0.9)"
-                        />
-                      </div>
-                      <span
-                        class="truncate text-xs font-medium flex-1 text-left min-w-0"
-                        :style="channelLabelStyle(childItem.channel)"
-                        >{{ childItem.channel.name }}</span
-                      >
-                      <span
-                        v-if="
-                          childItem.channel.type === 'voice' &&
-                          voice.voicePresence.value.get(childItem.channel.id)?.length
-                        "
-                        class="flex items-center flex-shrink-0 -space-x-1 ml-1"
-                        :title="
-                          voice.voicePresence.value
-                            .get(childItem.channel.id)
-                            ?.map((p) => p.name)
-                            .join(', ')
-                        "
-                      >
-                        <span
-                          v-for="p in voice.voicePresence.value
-                            .get(childItem.channel.id)
-                            ?.slice(0, 3)"
-                          :key="p.userId"
-                          class="h-4 w-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white"
-                          style="background: linear-gradient(135deg, #6366f1, #4f46e5)"
-                        >
-                          {{ p.name?.[0]?.toUpperCase() }}
-                        </span>
-                        <span
-                          v-if="
-                            (voice.voicePresence.value.get(childItem.channel.id)?.length ?? 0) > 3
-                          "
-                          class="h-4 px-1 rounded-full flex items-center justify-center text-[8px] font-semibold"
-                          style="
-                            background: rgba(255, 255, 255, 0.12);
-                            color: rgba(255, 255, 255, 0.75);
-                          "
-                        >
-                          +{{
-                            (voice.voicePresence.value.get(childItem.channel.id)?.length ?? 0) - 3
-                          }}
-                        </span>
-                      </span>
-                    </button>
-                  </div>
-                </VueDraggable>
-              </div>
-            </template>
-          </div>
-        </VueDraggable>
-
-        <!-- ── Collapsed: flat icons, mirrors topItems order ── -->
-        <template v-else>
-          <template v-for="item in topItems" :key="item.id">
-            <template v-if="item.kind === 'channel'">
-              <button
-                class="relative flex h-8 w-full items-center justify-center rounded-xl transition-all duration-150"
-                :style="channelActiveStyle(item.channel)"
-                :title="item.channel.name"
-                @click="handleChannelClick(item.channel, $event)"
-              >
-                <span
-                  v-if="isChannelActive(item.channel)"
-                  class="absolute -left-1.5 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full"
-                  :class="channelIndicatorClass(item.channel)"
-                />
-                <div class="relative flex-shrink-0">
-                  <ChannelIconDisplay
-                    :icon-url="item.channel.iconUrl"
-                    :type="item.channel.type"
-                    :size="18"
-                  />
-                  <span
-                    v-if="
-                      item.channel.type === 'voice' &&
-                      voice.voicePresence.value.get(item.channel.id)?.length
-                    "
-                    class="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-green-500"
-                    style="border: 1.5px solid rgba(12, 12, 18, 0.9)"
-                  />
-                </div>
-              </button>
-            </template>
-            <template v-else>
-              <button
-                v-for="childItem in item.children"
-                :key="childItem.id"
-                class="relative flex h-8 w-full items-center justify-center rounded-xl transition-all duration-150"
-                :style="channelActiveStyle(childItem.channel)"
-                :title="childItem.channel.name"
-                @click="handleChannelClick(childItem.channel, $event)"
-              >
-                <span
-                  v-if="isChannelActive(childItem.channel)"
-                  class="absolute -left-1.5 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full"
-                  :class="channelIndicatorClass(childItem.channel)"
-                />
-                <div class="relative flex-shrink-0">
-                  <ChannelIconDisplay
-                    :icon-url="childItem.channel.iconUrl"
-                    :type="childItem.channel.type"
-                    :size="15"
-                  />
-                  <span
-                    v-if="
-                      childItem.channel.type === 'voice' &&
-                      voice.voicePresence.value.get(childItem.channel.id)?.length
-                    "
-                    class="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-green-500"
-                    style="border: 1.5px solid rgba(12, 12, 18, 0.9)"
-                  />
-                </div>
-              </button>
-            </template>
-          </template>
-        </template>
-
-        <!-- ── New category inline input ── -->
-        <div v-if="showCreateCategory && railExpanded" class="mt-2 px-0.5">
-          <div
-            class="flex h-8 items-center gap-2 rounded-xl px-2"
-            style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(99, 102, 241, 0.4)"
-          >
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              style="flex-shrink: 0; color: rgba(99, 102, 241, 0.7)"
-            >
-              <path
-                d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"
-              />
-            </svg>
-            <input
-              v-model="newCategoryName"
-              placeholder="Nom de la catégorie"
-              autofocus
-              class="flex-1 min-w-0 bg-transparent text-xs outline-none"
-              style="color: rgba(255, 255, 255, 0.8)"
-              @keydown.enter="submitCreateCategory"
-              @keydown.escape="
-                showCreateCategory = false;
-                newCategoryName = '';
-              "
-            />
-          </div>
-        </div>
+          <RotateCcw :size="13" style="color: rgba(255, 255, 255, 0.5)" />
+          <span class="flex-1 text-xs font-semibold" style="color: rgba(255, 255, 255, 0.85)">
+            Réinitialiser la disposition
+          </span>
+        </button>
       </div>
-
-      <!-- Bottom actions -->
-      <div class="px-1.5">
-        <div class="mx-1 mb-1" style="height: 1px; background: rgba(255, 255, 255, 0.04)" />
-
-        <div
-          :class="
-            railExpanded
-              ? 'flex flex-row flex-wrap items-center justify-center gap-1 py-1'
-              : 'flex flex-col gap-0.5'
-          "
-        >
-          <!-- Build mode (admin-only) -->
-          <button
-            v-if="canManageMap"
-            class="relative flex h-8 items-center justify-center gap-2 rounded-xl transition-all duration-150"
-            :class="railExpanded ? 'w-8' : 'w-full px-2'"
-            :style="
-              buildMode
-                ? 'background: rgba(99,102,241,0.25); color: rgba(165,180,252,1)'
-                : 'color: rgba(255,255,255,0.3)'
-            "
-            :title="buildMode ? 'Quitter le mode build' : 'Mode build'"
-            @click="toggleBuildMode"
-          >
-            <svg
-              class="flex-shrink-0"
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <path
-                d="M22 9l-3.39-.34-1.46-3.15-2.91 1.81L11 6l-1.24 3.32-2.91-1.81L5.39 10.66 2 11l1.81 2.91L2 16.83l3.39.34 1.46 3.15 2.91-1.81L11 22l1.24-3.32 2.91 1.81 1.46-3.15L22 17l-1.81-2.91z"
-              />
-            </svg>
-            <span
-              v-if="isMapSaving"
-              class="absolute right-1 top-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-400"
-              title="Sauvegarde…"
-            />
-          </button>
-
-          <!-- Create channel -->
-          <button
-            v-if="canManageChannels"
-            class="relative flex h-8 items-center justify-center gap-2 rounded-xl transition-colors hover:bg-white/5"
-            :class="railExpanded ? 'w-8' : 'w-full px-2'"
-            style="color: rgba(255, 255, 255, 0.25)"
-            title="Nouveau canal"
-            @click="showCreateModal = true"
-          >
-            <svg
-              class="flex-shrink-0"
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-            </svg>
-          </button>
-
-          <!-- Create category (admin + expanded only) -->
-          <button
-            v-if="canManageChannels && railExpanded"
-            class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl transition-colors hover:bg-white/5"
-            style="color: rgba(255, 255, 255, 0.25)"
-            title="Nouvelle catégorie"
-            @click="showCreateCategory = true"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-              <path
-                d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"
-              />
-            </svg>
-          </button>
-
-          <!-- Dock side toggle -->
-          <button
-            class="flex h-8 items-center justify-center gap-2 rounded-xl transition-all duration-150 hover:bg-white/[0.06]"
-            :class="railExpanded ? 'w-8' : 'w-full px-2 mt-1'"
-            style="color: rgba(255, 255, 255, 0.35)"
-            :title="railSide === 'right' ? 'Ancrer à gauche' : 'Ancrer à droite'"
-            @click="toggleRailSide"
-          >
-            <component
-              :is="railSide === 'right' ? PanelLeft : PanelRight"
-              :size="14"
-              class="flex-shrink-0"
-            />
-          </button>
-
-          <!-- Expand / collapse toggle -->
-          <button
-            class="flex h-8 items-center justify-center gap-2 rounded-xl transition-all duration-150"
-            :class="railExpanded ? 'w-8' : 'w-full px-2 mt-1'"
-            style="color: rgba(255, 255, 255, 0.2)"
-            :title="railExpanded ? 'Réduire' : 'Déplier'"
-            @click="toggleRail"
-          >
-            <svg
-              class="flex-shrink-0 transition-transform duration-200"
-              :style="
-                (railExpanded && railSide === 'right') || (!railExpanded && railSide === 'left')
-                  ? 'transform: rotate(180deg)'
-                  : ''
-              "
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </div>
+    </Teleport>
 
     <!-- ── Server picker dropdown ── -->
     <Teleport to="body">
@@ -1467,8 +747,6 @@ onUnmounted(async () => {
       :server-id="serverId"
       :channel-id="forumPanelChannelId"
       :channel-name="forumPanelChannelName"
-      :side="railSide"
-      :offset="forumPanelOffset"
       @close="forumPanelChannelId = null"
       @open-post="openChannelById"
     />
@@ -1537,38 +815,6 @@ onUnmounted(async () => {
       @close="editingChannel = null"
       @updated="editingChannel = null"
     />
-
-    <!-- ── Chat tab bar ── -->
-    <ChatTabBar
-      v-if="chatTabChannelIds.length > 0"
-      :channel-ids="chatTabChannelIds"
-      :active-id="chatTabActiveId"
-      :dragging-channel-id="draggingFloatingId"
-      @close="closeAllTabs"
-      @close-tab="closeTab"
-      @set-active="chatTabActiveId = $event"
-      @tear-off="onTearOff"
-      @dock="dockToTabBar"
-    />
-
-    <!-- ── Floating chat windows (Ctrl+click or torn off) ── -->
-    <ChatWindow
-      v-for="(win, i) in floatingWindows"
-      :key="win.channelId"
-      :channel-id="win.channelId"
-      :initial-x="win.x"
-      :initial-y="win.y"
-      :z-index="45 + i"
-      @close="closeFloating(win.channelId)"
-      @focus="focusFloating(win.channelId)"
-      @drag-start="draggingFloatingId = win.channelId"
-      @drag-end="draggingFloatingId = null"
-    />
-
-    <!-- Voice panel -->
-    <ClientOnly>
-      <VoicePanel />
-    </ClientOnly>
 
     <!-- Build panel (admin + build mode only) -->
     <ClientOnly>
@@ -1706,6 +952,30 @@ onUnmounted(async () => {
 </template>
 
 <style scoped>
+/* ── Layout shell: world fills viewport, cards float over it ── */
+.page-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* Shared glass-card look for floating panels */
+.card {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 14px;
+  background: rgba(12, 12, 18, 0.78);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
 .server-picker-row {
   transition: background 120ms;
 }
@@ -1736,5 +1006,71 @@ onUnmounted(async () => {
 }
 .category-block:has(.dnd-ghost) .cat-label {
   color: rgba(199, 210, 254, 0.95) !important;
+}
+
+.tile {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(12, 12, 18, 0.78);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.tile--voice {
+  background: rgba(15, 15, 20, 0.78);
+}
+
+.rail-tile {
+  width: 100%;
+  height: 100%;
+  background: rgba(12, 12, 18, 0.75);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.tile__header {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: grab;
+}
+.tile__header:active {
+  cursor: grabbing;
+}
+
+.tile__grip {
+  position: absolute;
+  inset: 0;
+  cursor: grab;
+  z-index: 0;
+}
+.tile__grip:active {
+  cursor: grabbing;
+}
+
+.tile__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
 }
 </style>

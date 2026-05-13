@@ -40,7 +40,8 @@ const emit = defineEmits<{
   close: [];
   focus: [];
   'drag-start': [];
-  'drag-end': [x: number, y: number];
+  'drag-move': [x: number, y: number, width: number, height: number];
+  'drag-end': [x: number, y: number, width: number, height: number];
 }>();
 
 const width = ref(props.initialWidth);
@@ -170,6 +171,7 @@ function onMouseMove(e: MouseEvent) {
     panelX.value = _drag.value.origX + (e.clientX - _drag.value.startX);
     panelY.value = _drag.value.origY + (e.clientY - _drag.value.startY);
     clampPosition();
+    emit('drag-move', panelX.value, panelY.value, width.value, height.value);
     return;
   }
   if (!resizingEdge) return;
@@ -195,9 +197,9 @@ function onMouseMove(e: MouseEvent) {
   }
 }
 
-function onMouseUp(e: MouseEvent) {
+function onMouseUp() {
   if (_drag.value) {
-    emit('drag-end', e.clientX, e.clientY);
+    emit('drag-end', panelX.value, panelY.value, width.value, height.value);
     _drag.value = null;
     persistNow();
   }
@@ -250,22 +252,19 @@ const surfaceStyle = computed(() => {
         style="border-bottom: 1px solid rgba(255, 255, 255, 0.06)"
         @mousedown="onHandleMousedown"
       >
-        <div class="flex gap-1.5" data-no-drag>
-          <button
-            v-if="showClose"
-            class="h-3 w-3 rounded-full transition-opacity hover:opacity-75"
-            style="background: #ef4444"
-            title="Fermer"
-            @click="emit('close')"
-          />
-          <div class="h-3 w-3 rounded-full" style="background: rgba(255, 255, 255, 0.08)" />
-          <div class="h-3 w-3 rounded-full" style="background: rgba(255, 255, 255, 0.08)" />
-        </div>
         <span class="text-xs font-semibold truncate flex-1" style="color: rgba(255, 255, 255, 0.5)">
           {{ title }}
         </span>
-        <div data-no-drag>
+        <div class="flex items-center gap-2" data-no-drag>
           <slot name="header-actions" />
+          <button
+            v-if="showClose"
+            class="flex h-5 w-5 items-center justify-center rounded transition-opacity hover:opacity-60"
+            title="Réduire"
+            @click="emit('close')"
+          >
+            <span class="block h-0.5 w-3 rounded-full" style="background: #ffffff" />
+          </button>
         </div>
       </div>
 

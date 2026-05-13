@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import type { ChannelPublic } from '@nookapp/protocol';
-import { Gamepad2, MessageSquare, Pin, PinOff } from 'lucide-vue-next';
+import { MessageSquare, PinOff } from 'lucide-vue-next';
 import { useHomePins, type HomePin, type HomePinKind } from '~/composables/useHomePins';
 
 const props = defineProps<{
   serverId: string;
-  railSide: 'left' | 'right';
-  railWidth: number;
 }>();
 
 const emit = defineEmits<{
@@ -25,16 +23,6 @@ const pinnedItems = computed(() =>
     .filter((item): item is { pin: HomePin; channel: ChannelPublic } => item !== null),
 );
 
-const minPanelHeight = computed(() => {
-  const visibleRows = Math.min(Math.max(pinnedItems.value.length, 1), 3);
-  return 48 + visibleRows * 44;
-});
-
-const initialX = computed(() => {
-  const offset = props.railWidth + 28;
-  return props.railSide === 'left' ? offset : 16;
-});
-
 function subtitle(pin: HomePin, channel: ChannelPublic): string {
   if (pin.kind === 'game') return pin.parentName ? `Jeu · ${pin.parentName}` : 'Jeu';
   if (channel.type === 'widget') return 'Widget';
@@ -42,73 +30,47 @@ function subtitle(pin: HomePin, channel: ChannelPublic): string {
   if (channel.type === 'voice') return 'Vocal';
   return 'Channel';
 }
+
+function hasImageIcon(url: string | null | undefined) {
+  return !!url && url.startsWith('/');
+}
 </script>
 
 <template>
-  <UiFloatingWindow
-    v-if="pinnedItems.length"
-    title="Épinglés"
-    :initial-width="268"
-    :initial-height="248"
-    :initial-x="initialX"
-    :initial-y="16"
-    :min-width="220"
-    :min-height="minPanelHeight"
-    :max-width="420"
-    :max-height="520"
-    :z-index="35"
-    :close-on-escape="false"
-    :show-close="false"
-    surface="rail"
-    :persist-key="`home-pins-panel:${serverId}`"
-  >
-    <template #header-actions>
-      <div class="home-pins__header-actions">
-        <Pin :size="13" />
-        <span class="home-pins__count">{{ pinnedItems.length }}</span>
-      </div>
-    </template>
-
-    <div class="home-pins__list">
-      <div v-for="{ pin, channel } in pinnedItems" :key="pin.key" class="home-pin">
-        <button class="home-pin__main" @click="emit('open', channel, pin.kind)">
-          <span class="home-pin__icon">
-            <Gamepad2 v-if="pin.kind === 'game'" :size="15" />
-            <ChannelIconDisplay
-              v-else
-              :icon-url="channel.iconUrl"
-              :type="channel.type"
-              :size="15"
-            />
-          </span>
-          <span class="home-pin__copy">
-            <span class="home-pin__name">{{ channel.name }}</span>
-            <span class="home-pin__sub">
-              <MessageSquare v-if="pin.kind === 'game' || channel.type === 'text'" :size="10" />
-              {{ subtitle(pin, channel) }}
-            </span>
-          </span>
-        </button>
-        <button
-          class="home-pin__remove"
-          title="Retirer de l'accueil"
-          @click="homePins.unpin(channel.id, pin.kind)"
+  <div v-if="pinnedItems.length" class="home-pins__list">
+    <div v-for="{ pin, channel } in pinnedItems" :key="pin.key" class="home-pin">
+      <button class="home-pin__main" @click="emit('open', channel, pin.kind)">
+        <span
+          class="home-pin__icon"
+          :class="{ 'home-pin__icon--image': hasImageIcon(channel.iconUrl) }"
         >
-          <PinOff :size="13" />
-        </button>
-      </div>
+          <ChannelIconDisplay
+            :icon-url="channel.iconUrl"
+            :type="pin.kind === 'game' ? 'game' : channel.type"
+            :size="hasImageIcon(channel.iconUrl) ? 26 : 15"
+          />
+        </span>
+        <span class="home-pin__copy">
+          <span class="home-pin__name">{{ channel.name }}</span>
+          <span class="home-pin__sub">
+            <MessageSquare v-if="pin.kind === 'game' || channel.type === 'text'" :size="10" />
+            {{ subtitle(pin, channel) }}
+          </span>
+        </span>
+      </button>
+      <button
+        class="home-pin__remove"
+        title="Retirer de l'accueil"
+        @click="homePins.unpin(channel.id, pin.kind)"
+      >
+        <PinOff :size="13" />
+      </button>
     </div>
-  </UiFloatingWindow>
+  </div>
+  <div v-else class="home-pins__empty">Aucun épinglé</div>
 </template>
 
 <style scoped>
-.home-pins__header-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: rgba(255, 255, 255, 0.42);
-}
-
 .home-pins__list {
   display: flex;
   flex-direction: column;
@@ -118,18 +80,16 @@ function subtitle(pin: HomePin, channel: ChannelPublic): string {
   padding: 5px;
 }
 
-.home-pins__count {
-  display: inline-flex;
+.home-pins__empty {
+  display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
-  color: rgba(255, 255, 255, 0.48);
-  font-size: 10px;
-  font-weight: 800;
+  height: 100%;
+  padding: 24px 12px;
+  color: rgba(255, 255, 255, 0.32);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
 }
 
 .home-pin {
@@ -169,6 +129,10 @@ function subtitle(pin: HomePin, channel: ChannelPublic): string {
   border-radius: 8px;
   background: rgba(99, 102, 241, 0.13);
   color: rgba(199, 210, 254, 0.95);
+  overflow: hidden;
+}
+.home-pin__icon--image {
+  background: transparent;
 }
 
 .home-pin__copy {

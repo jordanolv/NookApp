@@ -97,5 +97,16 @@ export function useUiLayout() {
     scheduleFlush();
   }
 
-  return { ensureLoaded, get, entriesByPrefix, set, remove, flush };
+  // Wipes all layout entries (positions, sizes, rail prefs, hidden panels).
+  // Preserves user content like pinned channels (`home-pin:*`).
+  const PRESERVE_PREFIXES = ['home-pin:'];
+  function resetLayout(): void {
+    const keys = Object.keys(state.value.layout);
+    for (const key of keys) {
+      if (PRESERVE_PREFIXES.some((p) => key.startsWith(p))) continue;
+      remove(key);
+    }
+  }
+
+  return { ensureLoaded, get, entriesByPrefix, set, remove, resetLayout, flush };
 }
