@@ -13,6 +13,7 @@ const serverId = computed(() => route.params.serverId as string);
 const { store, fetchServers } = useServers();
 const { fetchChannels, updateChannel, deleteChannel } = useChannels();
 const { fetchCategories } = useCategories();
+const { store: messagesStore, fetchMessageCounts } = useMessages();
 const { user } = useAuth();
 const { createInvite } = useInvites();
 const socket = useSocket();
@@ -417,6 +418,7 @@ watch(
     await Promise.all([
       fetchChannels(id),
       fetchCategories(id),
+      fetchMessageCounts(id).catch((err) => console.warn('fetchMessageCounts failed', err)),
       loadMember(id).catch((err) => console.warn('loadMember failed', err)),
       loadMap(id).catch((err) => console.warn('loadMap failed', err)),
     ]);
@@ -449,15 +451,21 @@ async function handleVoiceChannelClick(channelId: string) {
 }
 
 let teardownVoiceListeners: (() => void) | null = null;
+let teardownMessageCounter: (() => void) | null = null;
 
 onMounted(() => {
   socket.connect();
   teardownVoiceListeners = voice.setupListeners();
+  teardownMessageCounter = socket.onMessage((msg) => {
+    if (msg.authorId.startsWith('plugin:')) return;
+    messagesStore.incrementCount(msg.channelId);
+  });
 });
 
 onUnmounted(async () => {
   if (voice.currentChannelId.value) await voice.leave();
   teardownVoiceListeners?.();
+  teardownMessageCounter?.();
   socket.disconnect();
 });
 </script>

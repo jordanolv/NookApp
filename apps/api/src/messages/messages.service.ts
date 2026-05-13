@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, lt } from 'drizzle-orm';
+import { and, count, desc, eq, lt } from 'drizzle-orm';
 import { channel, member, message, user, type Database } from '@nookapp/db';
 import type { CreateMessageInput, MessagePublic } from '@nookapp/protocol';
 import { DB } from '../database/database.module';
@@ -48,6 +48,19 @@ export class MessagesService {
       .limit(limit);
 
     return rows.map(toMessagePublic).reverse();
+  }
+
+  async countByServer(serverId: string): Promise<Record<string, number>> {
+    const rows = await this.db
+      .select({ channelId: message.channelId, total: count() })
+      .from(message)
+      .innerJoin(channel, eq(channel.id, message.channelId))
+      .where(eq(channel.serverId, serverId))
+      .groupBy(message.channelId);
+
+    const result: Record<string, number> = {};
+    for (const r of rows) result[r.channelId] = Number(r.total);
+    return result;
   }
 
   async createMessage(

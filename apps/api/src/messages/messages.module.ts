@@ -3,12 +3,13 @@ import { AuthModule } from '../auth/auth.module';
 import { MembersModule } from '../members/members.module';
 import { PluginsModule } from '../plugins/plugins.module';
 import { RealtimeModule } from '../realtime/realtime.module';
+import { MessageCountsController } from './message-counts.controller';
 import { MessagesController } from './messages.controller';
 import { MessagesService } from './messages.service';
 
 @Module({
   imports: [AuthModule, MembersModule, RealtimeModule, PluginsModule],
-  controllers: [MessagesController],
+  controllers: [MessagesController, MessageCountsController],
   providers: [MessagesService],
 })
 export class MessagesModule {}

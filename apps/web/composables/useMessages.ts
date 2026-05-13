@@ -19,6 +19,12 @@ export function useMessages() {
     }
   }
 
+  async function fetchMessageCounts(serverId: string) {
+    const counts = await api.get<Record<string, number>>(`/servers/${serverId}/message-counts`);
+    store.setCounts(counts);
+    return counts;
+  }
+
   async function sendMessage(
     serverId: string,
     channelId: string,
@@ -30,5 +36,5 @@ export function useMessages() {
     );
   }
 
-  return { store, fetchMessages, sendMessage };
+  return { store, fetchMessages, fetchMessageCounts, sendMessage };
 }
