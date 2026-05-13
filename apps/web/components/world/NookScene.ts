@@ -11,6 +11,7 @@ import {
 import { drawGrassBackground } from './scene/background';
 import { BuildOverlay } from './scene/build-overlay';
 import {
+  DISPLAY_SCALE,
   SPAWN_TILE_X,
   SPAWN_TILE_Y,
   TILE_SIZE,
@@ -156,12 +157,13 @@ export class NookScene extends Phaser.Scene {
         });
       }
     }
+    this.load.image('wall_base', '/assets/wall_cream.png');
   }
 
   create() {
     this.physics.world.setBounds(0, 0, WORLD_W, WORLD_H);
     this.cameras.main.setBounds(0, 0, WORLD_W, WORLD_H);
-    this.cameras.main.setZoom(1.5);
+    this.cameras.main.setZoom(1);
     this.cameras.main.setBackgroundColor('#cdd0d4');
 
     drawGrassBackground(this);
@@ -411,6 +413,18 @@ export class NookScene extends Phaser.Scene {
       dir: this.lastDir as PlayerMovedPayload['dir'],
       moving: false,
     } satisfies PlayerMovedPayload);
+  }
+
+  /** Teleport the local player to world-pixel coordinates and broadcast it. */
+  teleport(x: number, y: number) {
+    if (!this.localBody) return;
+    const pb = this.localBody.body as Phaser.Physics.Arcade.Body | undefined;
+    pb?.setVelocity(0, 0);
+    this.localBody.setPosition(x, y);
+    this.localBody.anims.stop();
+    this.localBody.setFrame(IDLE_FRAME[this.lastDir]);
+    this.cameras.main.centerOn(x, y);
+    this.emitCurrentPosition();
   }
 
   removeRemotePlayer(userId: string) {
@@ -769,19 +783,17 @@ export class NookScene extends Phaser.Scene {
     }
     this.interactKeyWasDown = eNow;
 
-    // Manual camera lerp + pixel snap — Phaser 3.90 applies startFollow inside
-    // Camera.preRender(), overriding any external snap. Doing it here in update()
-    // means preRender() sees our already-snapped value and only applies Math.floor
-    // (which is a no-op on an even integer). Even-integer snap: even × 1.5 = integer
-    // screen position → no sub-pixel gaps between adjacent 32px wall tiles.
+    // Manual camera lerp with integer snap. Camera zoom is 1 (the 1.5× display
+    // scale is done by CSS on the canvas), so any integer world position maps
+    // to an integer canvas pixel — no sub-pixel sampling at sprite boundaries.
     {
       const cam = this.cameras.main;
       const tx = this.localBody.x - cam.width / 2;
       const ty = this.localBody.y - cam.height / 2;
       const lx = cam.scrollX + (tx - cam.scrollX) * 0.15;
       const ly = cam.scrollY + (ty - cam.scrollY) * 0.15;
-      cam.scrollX = Math.round(lx / 2) * 2;
-      cam.scrollY = Math.round(ly / 2) * 2;
+      cam.scrollX = Math.round(lx);
+      cam.scrollY = Math.round(ly);
     }
 
     // Lerp remote players toward their last-known target position each frame
@@ -789,8 +801,8 @@ export class NookScene extends Phaser.Scene {
       const spr = remote.layers[0]!;
       const lerpX = Phaser.Math.Linear(spr.x, remote.targetX, 0.3);
       const lerpY = Phaser.Math.Linear(spr.y, remote.targetY, 0.3);
-      const snappedX = Math.round(lerpX / 2) * 2;
-      const snappedY = Math.round(lerpY / 2) * 2;
+      const snappedX = Math.round(lerpX);
+      const snappedY = Math.round(lerpY);
       spr.setPosition(snappedX, snappedY);
       const frame = spr.frame.name;
       for (let i = 1; i < remote.layers.length; i++) {
@@ -807,12 +819,11 @@ export class NookScene extends Phaser.Scene {
     const now = this.time.now;
     const frame = this.localBody.frame.name;
 
-    // Snap visual position to even integers — with camera zoom 1.5× and
-    // even-snapped scroll, an even-integer sprite x maps to an integer screen
-    // pixel. Otherwise the GPU rasterizer can sample 1px outside the frame UV
-    // and pull from the neighboring frame (visible as a thin streak).
-    const snappedX = Math.round(this.localBody.x / 2) * 2;
-    const snappedY = Math.round(this.localBody.y / 2) * 2;
+    // Snap visual position to integer world units. With camera zoom 1, every
+    // integer world pixel lands on an integer canvas pixel — the CSS scale is
+    // applied uniformly to the whole canvas afterward, no per-sprite seams.
+    const snappedX = Math.round(this.localBody.x);
+    const snappedY = Math.round(this.localBody.y);
     this.localBody.setPosition(snappedX, snappedY);
 
     for (let i = 1; i < this.localLayers.length; i++) {
@@ -898,14 +909,16 @@ export class NookScene extends Phaser.Scene {
 
   static projectToScreen(
     cam: Phaser.Cameras.Scene2D.Camera,
-    rect: DOMRect,
+    _rect: DOMRect,
     worldX: number,
     worldY: number,
   ): { x: number; y: number } {
-    const wv = cam.worldView;
+    // scrollX/Y are the world coords of the camera's top-left edge.
+    // (worldX - scrollX) * zoom = canvas-internal pixel offset; the canvas is
+    // CSS-scaled by DISPLAY_SCALE for display, so we multiply once more.
     return {
-      x: ((worldX - wv.x) / wv.width) * rect.width,
-      y: ((worldY - wv.y) / wv.height) * rect.height,
+      x: (worldX - cam.scrollX) * cam.zoom * DISPLAY_SCALE,
+      y: (worldY - cam.scrollY) * cam.zoom * DISPLAY_SCALE,
     };
   }
 }

@@ -1,79 +1,45 @@
 import Phaser from 'phaser';
-import {
-  TILE_SIZE,
-  WALL_FRONT_COLOR,
-  WALL_HIGHLIGHT_COLOR,
-  WALL_SHADOW_COLOR,
-  WALL_TOP_COLOR,
-} from './constants';
+import { TILE_SIZE, WALL_BORDER_COLOR, WALL_BORDER_THICKNESS } from './constants';
 import type { MapModel } from './map-model';
 
-const WALL_THICKNESS = 16;
-const HALF_THICKNESS = WALL_THICKNESS / 2;
-const TOP_FACE_HEIGHT = 8;
-const CENTER = TILE_SIZE / 2;
-const BODY_LEFT = CENTER - HALF_THICKNESS;
-const BODY_RIGHT = CENTER + HALF_THICKNESS;
-const BODY_TOP = CENTER - HALF_THICKNESS;
-const BODY_BOTTOM = CENTER + HALF_THICKNESS;
+const WALL_BASE_TEXTURE = 'wall_base';
 
 interface Neighbors {
-  n: boolean;
-  s: boolean;
-  e: boolean;
-  w: boolean;
+  // true when the neighbor is grass (no wall and no floor). Only those edges
+  // get a dark border — wall-to-wall edges stay seamless, wall-to-floor edges
+  // stay borderless so the wall fill flows softly into the room.
+  ngrass: boolean;
+  sgrass: boolean;
+  egrass: boolean;
+  wgrass: boolean;
 }
 
-function neighborKey({ n, s, e, w }: Neighbors): string {
-  const k = `${n ? 'N' : ''}${s ? 'S' : ''}${e ? 'E' : ''}${w ? 'W' : ''}`;
-  return `wall_${k || 'I'}`;
+function neighborKey(n: Neighbors): string {
+  const suffix = `${n.ngrass ? 'N' : ''}${n.sgrass ? 'S' : ''}${n.egrass ? 'E' : ''}${n.wgrass ? 'W' : ''}`;
+  return `wall_${suffix || 'I'}`;
 }
 
-// Renders the wall as a center body plus arms reaching out to each connected
-// neighbor, with a light top face above any exposed top edge. The top edges of
-// arms that connect to a wall above (N arm) are interior and skipped, which
-// keeps a vertical run visually continuous instead of dashed.
 function ensureWallTexture(scene: Phaser.Scene, neighbors: Neighbors): string {
   const key = neighborKey(neighbors);
   if (scene.textures.exists(key)) return key;
 
+  // Compose the LimeZu base tile + the procedural dark border on a RenderTexture,
+  // then snapshot it under `key` so each unique NSEW combo is built only once.
+  const rt = scene.make.renderTexture({ width: TILE_SIZE, height: TILE_SIZE }, false);
+  rt.draw(WALL_BASE_TEXTURE, 0, 0);
+
+  const b = WALL_BORDER_THICKNESS;
   const g = scene.make.graphics({ x: 0, y: 0 }, false);
-
-  // Front face — center body and the four arms.
-  g.fillStyle(WALL_FRONT_COLOR, 1);
-  g.fillRect(BODY_LEFT, BODY_TOP, WALL_THICKNESS, WALL_THICKNESS);
-  if (neighbors.n) g.fillRect(BODY_LEFT, 0, WALL_THICKNESS, BODY_TOP);
-  if (neighbors.s) g.fillRect(BODY_LEFT, BODY_BOTTOM, WALL_THICKNESS, TILE_SIZE - BODY_BOTTOM);
-  if (neighbors.e) g.fillRect(BODY_RIGHT, BODY_TOP, TILE_SIZE - BODY_RIGHT, WALL_THICKNESS);
-  if (neighbors.w) g.fillRect(0, BODY_TOP, BODY_LEFT, WALL_THICKNESS);
-
-  // Top face — drawn above each horizontal top edge of the body that isn't
-  // covered by an N arm continuing into the wall above.
-  g.fillStyle(WALL_TOP_COLOR, 1);
-  if (!neighbors.n) {
-    g.fillRect(BODY_LEFT, BODY_TOP - TOP_FACE_HEIGHT, WALL_THICKNESS, TOP_FACE_HEIGHT);
-  }
-  if (neighbors.e) {
-    g.fillRect(BODY_RIGHT, BODY_TOP - TOP_FACE_HEIGHT, TILE_SIZE - BODY_RIGHT, TOP_FACE_HEIGHT);
-  }
-  if (neighbors.w) {
-    g.fillRect(0, BODY_TOP - TOP_FACE_HEIGHT, BODY_LEFT, TOP_FACE_HEIGHT);
-  }
-
-  // 1-px highlight at the top of the body (joint between top face and front face).
-  g.fillStyle(WALL_HIGHLIGHT_COLOR, 1);
-  if (!neighbors.n) g.fillRect(BODY_LEFT, BODY_TOP, WALL_THICKNESS, 1);
-  if (neighbors.e) g.fillRect(BODY_RIGHT, BODY_TOP, TILE_SIZE - BODY_RIGHT, 1);
-  if (neighbors.w) g.fillRect(0, BODY_TOP, BODY_LEFT, 1);
-
-  // 1-px shadow at the bottom of the body where exposed (no S arm continuing).
-  g.fillStyle(WALL_SHADOW_COLOR, 1);
-  if (!neighbors.s) g.fillRect(BODY_LEFT, BODY_BOTTOM - 1, WALL_THICKNESS, 1);
-  if (neighbors.e) g.fillRect(BODY_RIGHT, BODY_BOTTOM - 1, TILE_SIZE - BODY_RIGHT, 1);
-  if (neighbors.w) g.fillRect(0, BODY_BOTTOM - 1, BODY_LEFT, 1);
-
-  g.generateTexture(key, TILE_SIZE, TILE_SIZE);
+  g.fillStyle(WALL_BORDER_COLOR, 1);
+  if (neighbors.ngrass) g.fillRect(0, 0, TILE_SIZE, b);
+  if (neighbors.sgrass) g.fillRect(0, TILE_SIZE - b, TILE_SIZE, b);
+  if (neighbors.wgrass) g.fillRect(0, 0, b, TILE_SIZE);
+  if (neighbors.egrass) g.fillRect(TILE_SIZE - b, 0, b, TILE_SIZE);
+  rt.draw(g);
   g.destroy();
+
+  rt.saveTexture(key);
+  rt.destroy();
   return key;
 }
 
@@ -101,11 +67,12 @@ export class WallRenderer {
   }
 
   private spawnWall(model: MapModel, tx: number, ty: number) {
+    const isGrass = (x: number, y: number) => !model.hasWall(x, y) && !model.hasFloor(x, y);
     const neighbors: Neighbors = {
-      n: model.hasWall(tx, ty - 1),
-      s: model.hasWall(tx, ty + 1),
-      e: model.hasWall(tx + 1, ty),
-      w: model.hasWall(tx - 1, ty),
+      ngrass: isGrass(tx, ty - 1),
+      sgrass: isGrass(tx, ty + 1),
+      egrass: isGrass(tx + 1, ty),
+      wgrass: isGrass(tx - 1, ty),
     };
     const textureKey = ensureWallTexture(this.scene, neighbors);
     const cellLeft = tx * TILE_SIZE;

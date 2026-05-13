@@ -12,6 +12,7 @@ import { useCharacter } from '~/composables/useCharacter';
 const serversStore = useServers().store;
 const voice = useVoice();
 const character = useCharacter();
+const presence = usePresence();
 
 import type { MapData } from '@nookapp/protocol';
 import type { BuildTool } from './NookScene';
@@ -387,7 +388,7 @@ onMounted(() => {
       arcade: { gravity: { x: 0, y: 0 }, debug: false },
     },
     scene,
-    scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH },
+    scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.NO_CENTER },
     render: { pixelArt: true, antialias: false, roundPixels: true },
     input: { keyboard: true },
   });
@@ -450,6 +451,12 @@ onMounted(() => {
     _scene = scene;
     scene.events.on('player-moved', (payload: Parameters<typeof socket.emitPlayerMoved>[0]) => {
       socket.emitPlayerMoved(payload);
+      presence.setLocalPlayer({
+        userId: props.userId,
+        name: props.playerName,
+        x: payload.x,
+        y: payload.y,
+      });
     });
 
     scene.events.on('world-object-clicked', (objectId: string) => {
@@ -558,11 +565,27 @@ onMounted(() => {
     }
   });
 });
+
+defineExpose({
+  teleport(x: number, y: number) {
+    _scene?.teleport(x, y);
+  },
+});
 </script>
 
 <template>
   <div class="relative w-full h-full overflow-hidden">
-    <div ref="canvasRef" class="absolute inset-0" />
+    <div
+      ref="canvasRef"
+      class="absolute top-0 left-0"
+      :style="{
+        width: 'calc(100% / 1.5)',
+        height: 'calc(100% / 1.5)',
+        transform: 'scale(1.5)',
+        transformOrigin: '0 0',
+        imageRendering: 'pixelated',
+      }"
+    />
     <div ref="nameTagsContainer" class="absolute inset-0 pointer-events-none" />
 
     <!-- Player interaction popup -->
