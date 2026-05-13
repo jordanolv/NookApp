@@ -125,6 +125,8 @@ export class NookScene extends Phaser.Scene {
   private wallPaintTool?: RectPaintTool;
   private wallCollider?: Phaser.Physics.Arcade.Collider;
   private buildTool: BuildTool = 'tile';
+  private cameraOffset = { x: 0, y: 0 };
+
   localUserId: string;
   readonly localUserName: string;
   onReady?: () => void;
@@ -156,7 +158,6 @@ export class NookScene extends Phaser.Scene {
 
   create() {
     this.physics.world.setBounds(0, 0, WORLD_W, WORLD_H);
-    this.cameras.main.setBounds(0, 0, WORLD_W, WORLD_H);
     this.cameras.main.setZoom(1);
     this.cameras.main.setBackgroundColor('#cdd0d4');
 
@@ -269,6 +270,14 @@ export class NookScene extends Phaser.Scene {
     this.buildTool = tool;
     this.tilePaintTool?.cancel();
     this.wallPaintTool?.cancel();
+  }
+
+  setCameraOffset(x: number, y: number) {
+    this.cameraOffset = { x, y };
+    if (!this.localBody) return;
+    const cam = this.cameras.main;
+    cam.scrollX = Math.round(this.localBody.x - cam.width / 2 - x);
+    cam.scrollY = Math.round(this.localBody.y - cam.height / 2 - y);
   }
 
   private activeTool(): RectPaintTool | undefined {
@@ -657,8 +666,8 @@ export class NookScene extends Phaser.Scene {
     // to an integer canvas pixel — no sub-pixel sampling at sprite boundaries.
     {
       const cam = this.cameras.main;
-      const tx = this.localBody.x - cam.width / 2;
-      const ty = this.localBody.y - cam.height / 2;
+      const tx = this.localBody.x - cam.width / 2 - this.cameraOffset.x;
+      const ty = this.localBody.y - cam.height / 2 - this.cameraOffset.y;
       const lx = cam.scrollX + (tx - cam.scrollX) * 0.15;
       const ly = cam.scrollY + (ty - cam.scrollY) * 0.15;
       cam.scrollX = Math.round(lx);

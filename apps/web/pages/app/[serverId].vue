@@ -484,6 +484,7 @@ onUnmounted(async () => {
         :map-data="currentMap"
         :build-mode="buildMode"
         :build-tool="buildTool"
+        :sidebar-side="sidebar.side.value"
         @zone-picked="onZonePicked"
         @zone-cancel="onZoneCancel"
         @tiles-rect="onTilesRect"

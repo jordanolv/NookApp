@@ -16,6 +16,7 @@ const presence = usePresence();
 
 import type { MapData } from '@nookapp/protocol';
 import type { BuildTool } from './NookScene';
+import { DISPLAY_SCALE } from './scene/constants';
 
 type RectPayload = { x1: number; y1: number; x2: number; y2: number; mode: 'add' | 'remove' };
 
@@ -27,7 +28,10 @@ const props = defineProps<{
   mapData?: MapData | null;
   buildMode?: boolean;
   buildTool?: BuildTool;
+  sidebarSide?: 'left' | 'right' | null;
 }>();
+
+const SIDEBAR_INSET_PX = 390;
 
 const emit = defineEmits<{
   'zone-picked': [zone: { x: number; y: number; w: number; h: number }];
@@ -112,6 +116,25 @@ let cachedRect: DOMRect | null = null;
 // ─── Phaser-space screen share rings (behind sprites via depth sorting) ─
 let _scene: NookScene | null = null;
 const screenRingArcs = new Map<string, Phaser.GameObjects.Arc>();
+
+function computeCameraOffset(
+  side: 'left' | 'right' | null | undefined,
+  scene: NookScene,
+  rect: DOMRect | null,
+): { x: number; y: number } {
+  if (!rect) return { x: 0, y: 0 };
+  const insetLeft = side === 'left' ? SIDEBAR_INSET_PX : 0;
+  const insetRight = side === 'right' ? SIDEBAR_INSET_PX : 0;
+  // The CSS transform stretches canvas internal pixels by DISPLAY_SCALE,
+  // so the visible center in canvas coords = screen center / DISPLAY_SCALE.
+  const visibleCenterScreenX = (insetLeft + (rect.width - insetRight)) / 2;
+  const visibleCenterScreenY = rect.height / 2;
+  const cam = scene.cameras.main;
+  return {
+    x: visibleCenterScreenX / DISPLAY_SCALE - cam.width / 2,
+    y: visibleCenterScreenY / DISPLAY_SCALE - cam.height / 2,
+  };
+}
 
 // ─── Name tags ───────────────────────────────────────────────────────
 
@@ -363,6 +386,15 @@ watch(
   { deep: true },
 );
 
+watch(
+  () => props.sidebarSide ?? null,
+  (side) => {
+    if (!_scene) return;
+    const offset = computeCameraOffset(side, _scene, cachedRect);
+    _scene.setCameraOffset(offset.x, offset.y);
+  },
+);
+
 onMounted(() => {
   if (!canvasRef.value) return;
 
@@ -373,6 +405,10 @@ onMounted(() => {
 
   const ro = new ResizeObserver(() => {
     cachedRect = canvasRef.value?.getBoundingClientRect() ?? null;
+    if (_scene) {
+      const offset = computeCameraOffset(props.sidebarSide ?? null, _scene, cachedRect);
+      _scene.setCameraOffset(offset.x, offset.y);
+    }
   });
   ro.observe(canvasRef.value);
   cachedRect = canvasRef.value.getBoundingClientRect();
@@ -484,6 +520,9 @@ onMounted(() => {
     if (props.mapData) scene.applyMapData(props.mapData);
     if (props.buildTool) scene.setBuildTool(props.buildTool);
     if (props.buildMode) scene.setBuildMode(true);
+
+    const offset = computeCameraOffset(props.sidebarSide ?? null, scene, cachedRect);
+    scene.setCameraOffset(offset.x, offset.y);
 
     // Voice rooms — build zones from the server's voice channels and auto-join on proximity
     const voiceChannels = serversStore.voiceChannels;
