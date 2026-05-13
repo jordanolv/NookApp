@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import type { ChannelPublic, CategoryPublic } from '@nookapp/protocol';
 import { Hash, MessageSquare, Gamepad2, Sticker, ChevronDown, Folder } from 'lucide-vue-next';
 import { useMessagesStore } from '~/stores/messages';
+import { getChannelStat } from '~/plugins-runtime';
 
 const props = defineProps<{
   channels: ChannelPublic[];
@@ -115,8 +116,13 @@ function lastMessageOf(channelId: string) {
   return list && list.length ? list[list.length - 1] : null;
 }
 
-function messageCountOf(channelId: string): number {
-  return messages.byChannel[channelId]?.length ?? 0;
+const statCtx = {
+  messageCount: (channelId: string) => messages.counts[channelId] ?? 0,
+  childrenCount: (channelId: string) => childrenOf(channelId).length,
+};
+
+function statOf(ch: ChannelPublic) {
+  return getChannelStat(ch, statCtx) ?? { num: 0, label: '' };
 }
 
 function authorLabel(authorId: string): string {
@@ -202,9 +208,9 @@ function formatRelativeTime(iso: string): string {
             </span>
             <span v-else class="card__last card__last--empty">Aucun message</span>
           </div>
-          <div class="card__stat">
-            <span class="card__stat-num">{{ formatCount(messageCountOf(ch.id)) }}</span>
-            <span class="card__stat-label">msg</span>
+          <div v-if="statOf(ch).label" class="card__stat">
+            <span class="card__stat-num">{{ formatCount(statOf(ch).num) }}</span>
+            <span class="card__stat-label">{{ statOf(ch).label }}</span>
           </div>
         </button>
 
@@ -239,9 +245,9 @@ function formatRelativeTime(iso: string): string {
               </span>
               <span v-else class="card__last card__last--empty">Aucun message</span>
             </div>
-            <div class="card__stat">
-              <span class="card__stat-num">{{ formatCount(messageCountOf(child.id)) }}</span>
-              <span class="card__stat-label">msg</span>
+            <div v-if="statOf(child).label" class="card__stat">
+              <span class="card__stat-num">{{ formatCount(statOf(child).num) }}</span>
+              <span class="card__stat-label">{{ statOf(child).label }}</span>
             </div>
           </button>
           <div v-if="!childrenOf(ch.id).length" class="card--child-empty">Aucun fil</div>
@@ -301,9 +307,9 @@ function formatRelativeTime(iso: string): string {
               </span>
               <span v-else class="card__last card__last--empty">Aucun message</span>
             </div>
-            <div class="card__stat">
-              <span class="card__stat-num">{{ formatCount(messageCountOf(ch.id)) }}</span>
-              <span class="card__stat-label">msg</span>
+            <div v-if="statOf(ch).label" class="card__stat">
+              <span class="card__stat-num">{{ formatCount(statOf(ch).num) }}</span>
+              <span class="card__stat-label">{{ statOf(ch).label }}</span>
             </div>
           </button>
 
@@ -338,9 +344,9 @@ function formatRelativeTime(iso: string): string {
                 </span>
                 <span v-else class="card__last card__last--empty">Aucun message</span>
               </div>
-              <div class="card__stat">
-                <span class="card__stat-num">{{ formatCount(messageCountOf(child.id)) }}</span>
-                <span class="card__stat-label">msg</span>
+              <div v-if="statOf(child).label" class="card__stat">
+                <span class="card__stat-num">{{ formatCount(statOf(child).num) }}</span>
+                <span class="card__stat-label">{{ statOf(child).label }}</span>
               </div>
             </button>
             <div v-if="!childrenOf(ch.id).length" class="card--child-empty">Aucun fil</div>

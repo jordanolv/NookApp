@@ -1,5 +1,7 @@
 import type { Component } from 'vue';
 
+export * from './channel-stats';
+
 export interface PanelEntry {
   pluginId: string;
   id: string;
