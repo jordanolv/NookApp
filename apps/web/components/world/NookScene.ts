@@ -22,7 +22,6 @@ import {
 } from './scene/constants';
 import { FloorRenderer } from './scene/floor-renderer';
 import { MapModel } from './scene/map-model';
-import { findPathToClosestReachable, type GridPoint } from './scene/pathfinding';
 import { RectPaintTool } from './scene/rect-paint-tool';
 import { WallRenderer } from './scene/wall-renderer';
 
@@ -30,8 +29,6 @@ export type BuildTool = 'tile' | 'wall';
 
 const PLAYER_SPEED = 170;
 const EMIT_INTERVAL_MS = 1000 / 15; // 15 Hz
-const CLICK_DRAG_TOLERANCE = 8;
-const CLICK_MOVE_ARRIVAL_DISTANCE = 3;
 
 const ROOM_W = TILE_SIZE * 9; // 288px room width
 const ROOM_H = TILE_SIZE * 8; // 256px room height
@@ -128,9 +125,6 @@ export class NookScene extends Phaser.Scene {
   private wallPaintTool?: RectPaintTool;
   private wallCollider?: Phaser.Physics.Arcade.Collider;
   private buildTool: BuildTool = 'tile';
-  private clickMovePath: Phaser.Math.Vector2[] = [];
-  private pendingClickStart: { x: number; y: number; overInteractive: boolean } | null = null;
-
   localUserId: string;
   readonly localUserName: string;
   onReady?: () => void;
@@ -181,8 +175,6 @@ export class NookScene extends Phaser.Scene {
     this.input.on('pointerdown', this.onBuildPointerDown, this);
     this.input.on('pointermove', this.onBuildPointerMove, this);
     this.input.on('pointerup', this.onBuildPointerUp, this);
-    this.input.on('pointerdown', this.onMovePointerDown, this);
-    this.input.on('pointerup', this.onMovePointerUp, this);
 
     this.spawnLocalPlayer();
     this.wallCollider = this.wallRenderer.collideWith(this.localBody);
@@ -200,7 +192,6 @@ export class NookScene extends Phaser.Scene {
     this.model = new MapModel(data);
     this.floorRenderer?.apply(this.model);
     this.wallRenderer?.apply(this.model);
-    this.stopClickMove();
   }
 
   applyAppearance(next: Appearance) {
@@ -267,7 +258,6 @@ export class NookScene extends Phaser.Scene {
     if (!this.buildOverlay || this.buildOverlay.isActive() === active) return;
     this.buildOverlay.setActive(active);
     if (this.wallCollider) this.wallCollider.active = !active;
-    if (active) this.stopClickMove();
     if (!active) {
       this.tilePaintTool?.cancel();
       this.wallPaintTool?.cancel();
@@ -320,31 +310,6 @@ export class NookScene extends Phaser.Scene {
     const [tx, ty] = this.pointerToTile(pointer);
     const result = tool.endDrag(tx, ty);
     if (result) this.events.emit(this.commitEventName(), result);
-  }
-
-  private onMovePointerDown(
-    pointer: Phaser.Input.Pointer,
-    gameObjects: Phaser.GameObjects.GameObject[] = [],
-  ) {
-    if (this.isBuildActive() || !pointer.leftButtonDown()) return;
-    this.pendingClickStart = {
-      x: pointer.x,
-      y: pointer.y,
-      overInteractive: gameObjects.length > 0,
-    };
-  }
-
-  private onMovePointerUp(
-    pointer: Phaser.Input.Pointer,
-    gameObjects: Phaser.GameObjects.GameObject[] = [],
-  ) {
-    const start = this.pendingClickStart;
-    this.pendingClickStart = null;
-
-    if (!start || this.isBuildActive() || start.overInteractive || gameObjects.length > 0) return;
-    if (Math.hypot(pointer.x - start.x, pointer.y - start.y) > CLICK_DRAG_TOLERANCE) return;
-
-    this.startClickMove(pointer.worldX, pointer.worldY);
   }
 
   setRooms(zones: RoomZone[]) {
@@ -631,63 +596,6 @@ export class NookScene extends Phaser.Scene {
     return `walk-${dir}-${bodyKey ?? this.appearance.body}`;
   }
 
-  private worldToTile(x: number, y: number): GridPoint {
-    return {
-      x: Math.max(0, Math.min(WORLD_COLS - 1, Math.floor(x / TILE_SIZE))),
-      y: Math.max(0, Math.min(WORLD_ROWS - 1, Math.floor(y / TILE_SIZE))),
-    };
-  }
-
-  private tileToWorldCenter(point: GridPoint): Phaser.Math.Vector2 {
-    return new Phaser.Math.Vector2(
-      point.x * TILE_SIZE + TILE_SIZE / 2,
-      point.y * TILE_SIZE + TILE_SIZE / 2,
-    );
-  }
-
-  private startClickMove(worldX: number, worldY: number) {
-    if (!this.model) return;
-
-    const start = this.worldToTile(this.localBody.x, this.localBody.y);
-    const target = this.worldToTile(worldX, worldY);
-    const path = findPathToClosestReachable(start, target, {
-      cols: WORLD_COLS,
-      rows: WORLD_ROWS,
-      isBlocked: (x, y) => this.model?.hasWall(x, y) ?? true,
-    });
-
-    if (
-      !path.length &&
-      (start.x !== target.x || start.y !== target.y || this.model.hasWall(target.x, target.y))
-    ) {
-      this.stopClickMove();
-      return;
-    }
-
-    const waypoints = path.map((point) => this.tileToWorldCenter(point));
-    const finalTile = path.at(-1) ?? start;
-
-    if (
-      !this.model.hasWall(target.x, target.y) &&
-      finalTile.x === target.x &&
-      finalTile.y === target.y
-    ) {
-      const clampedX = Math.max(0, Math.min(WORLD_W, worldX));
-      const clampedY = Math.max(0, Math.min(WORLD_H, worldY));
-      if (waypoints.length) {
-        waypoints[waypoints.length - 1] = new Phaser.Math.Vector2(clampedX, clampedY);
-      } else {
-        waypoints.push(new Phaser.Math.Vector2(clampedX, clampedY));
-      }
-    }
-
-    this.clickMovePath = waypoints;
-  }
-
-  private stopClickMove() {
-    this.clickMovePath = [];
-  }
-
   private keyboardVector(): { x: number; y: number } {
     let x = 0;
     let y = 0;
@@ -698,37 +606,6 @@ export class NookScene extends Phaser.Scene {
     if (this.cursors.down.isDown || this.wasd.down.isDown) y += 1;
 
     return { x, y };
-  }
-
-  private clickMoveVelocity(delta: number): { x: number; y: number } {
-    while (this.clickMovePath.length) {
-      const target = this.clickMovePath[0]!;
-      const dist = Phaser.Math.Distance.Between(
-        this.localBody.x,
-        this.localBody.y,
-        target.x,
-        target.y,
-      );
-
-      if (dist > CLICK_MOVE_ARRIVAL_DISTANCE) break;
-
-      this.localBody.setPosition(target.x, target.y);
-      this.clickMovePath.shift();
-    }
-
-    const target = this.clickMovePath[0];
-    if (!target) return { x: 0, y: 0 };
-
-    const dx = target.x - this.localBody.x;
-    const dy = target.y - this.localBody.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist === 0) return { x: 0, y: 0 };
-
-    const maxSpeed = delta > 0 ? Math.min(PLAYER_SPEED, dist / (delta / 1000)) : PLAYER_SPEED;
-    return {
-      x: (dx / dist) * maxSpeed,
-      y: (dy / dist) * maxSpeed,
-    };
   }
 
   private applyLocalVelocity(vx: number, vy: number) {
@@ -749,11 +626,10 @@ export class NookScene extends Phaser.Scene {
     (this.localBody.body as Phaser.Physics.Arcade.Body).setVelocity(vx, vy);
   }
 
-  override update(_time: number, delta: number) {
+  override update(_time: number, _delta: number) {
     const tag = (document.activeElement?.tagName ?? '').toLowerCase();
     if (tag === 'input' || tag === 'textarea') {
-      const autoMove = this.clickMoveVelocity(delta);
-      this.applyLocalVelocity(autoMove.x, autoMove.y);
+      this.applyLocalVelocity(0, 0);
       return;
     }
 
@@ -761,17 +637,10 @@ export class NookScene extends Phaser.Scene {
     let vx = keyboard.x;
     let vy = keyboard.y;
 
-    const moving = vx !== 0 || vy !== 0;
-
-    if (moving) {
-      this.stopClickMove();
+    if (vx !== 0 || vy !== 0) {
       const len = Math.sqrt(vx * vx + vy * vy);
       vx = (vx / len) * PLAYER_SPEED;
       vy = (vy / len) * PLAYER_SPEED;
-    } else {
-      const autoMove = this.clickMoveVelocity(delta);
-      vx = autoMove.x;
-      vy = autoMove.y;
     }
 
     this.applyLocalVelocity(vx, vy);
