@@ -115,6 +115,11 @@
     "status": {
       "inNook": "Dans le Nook"
     },
+    "members": {
+      "title": "Dans le vocal",
+      "you": "toi",
+      "empty": "Personne pour l'instant"
+    },
     "accountSettings": "Paramètres du compte",
     "signOut": "Se déconnecter"
   },

@@ -18,6 +18,7 @@ import {
   participantMedia,
   remoteScreenTracks,
   remoteVideoTracks,
+  returnToSpawnOnLeave,
   room,
   voicePresence,
 } from './voice/state';
@@ -97,6 +98,14 @@ export function useVoice() {
     await disconnectActiveRoom();
   }
 
+  // Explicit user-triggered disconnect (the leave button in the dock). Sets a
+  // one-shot flag so the page can teleport the avatar back to spawn — walking
+  // out of the room calls plain leave() instead and the avatar stays put.
+  async function leaveExplicit() {
+    returnToSpawnOnLeave.value = true;
+    await leave();
+  }
+
   async function toggleMute() {
     isMuted.value = !isMuted.value;
     await room.value?.localParticipant.setMicrophoneEnabled(!isMuted.value);
@@ -160,6 +169,8 @@ export function useVoice() {
     setupListeners,
     join,
     leave,
+    leaveExplicit,
+    returnToSpawnOnLeave,
     toggleMute,
     toggleDeafen,
     toggleCamera,

@@ -115,6 +115,11 @@
     "status": {
       "inNook": "In Nook"
     },
+    "members": {
+      "title": "In voice",
+      "you": "you",
+      "empty": "No one here yet"
+    },
     "accountSettings": "Account settings",
     "signOut": "Sign out"
   },
