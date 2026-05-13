@@ -1,11 +1,32 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Mic, MicOff, Headphones, HeadphoneOff, Settings, LogOut } from 'lucide-vue-next';
+import {
+  Mic,
+  MicOff,
+  Headphones,
+  HeadphoneOff,
+  Settings,
+  LogOut,
+  Video,
+  VideoOff,
+  MonitorUp,
+  MonitorOff,
+} from 'lucide-vue-next';
 
 const { user } = useAuth();
 const { store } = useServers();
-const { currentChannelId, isMuted, isDeafened, leaveExplicit, toggleMute, toggleDeafen } =
-  useVoice();
+const {
+  currentChannelId,
+  isMuted,
+  isDeafened,
+  isCameraOn,
+  isScreenSharing,
+  leaveExplicit,
+  toggleMute,
+  toggleDeafen,
+  toggleCamera,
+  toggleScreenShare,
+} = useVoice();
 const { t } = useI18n();
 
 const currentChannel = computed(
@@ -69,11 +90,39 @@ function closeUserMenu() {
       <button
         v-if="currentChannelId"
         type="button"
+        class="ctrl-btn"
+        :class="{ 'ctrl-btn--active': isCameraOn }"
+        :title="isCameraOn ? t('voice.disableCamera') : t('voice.enableCamera')"
+        @click="toggleCamera"
+      >
+        <component :is="isCameraOn ? Video : VideoOff" :size="14" />
+      </button>
+      <button
+        v-if="currentChannelId"
+        type="button"
+        class="ctrl-btn"
+        :class="{ 'ctrl-btn--active': isScreenSharing }"
+        :title="isScreenSharing ? t('voice.stopSharing') : t('voice.shareScreen')"
+        @click="toggleScreenShare"
+      >
+        <component :is="isScreenSharing ? MonitorOff : MonitorUp" :size="14" />
+      </button>
+      <button
+        v-if="currentChannelId"
+        type="button"
         class="ctrl-btn ctrl-btn--leave"
         :title="t('voice.leave')"
         @click="leaveExplicit"
       >
         <LogOut :size="14" />
+      </button>
+      <button
+        type="button"
+        class="ctrl-btn"
+        :title="t('voice.accountSettings')"
+        @click="openUserMenu"
+      >
+        <Settings :size="14" />
       </button>
     </div>
 
@@ -207,6 +256,14 @@ function closeUserMenu() {
 .ctrl-btn--danger:hover {
   background: rgba(239, 68, 68, 0.22);
   color: rgb(248, 113, 113);
+}
+.ctrl-btn--active {
+  background: rgba(34, 197, 94, 0.15);
+  color: rgb(74, 222, 128);
+}
+.ctrl-btn--active:hover {
+  background: rgba(34, 197, 94, 0.22);
+  color: rgb(74, 222, 128);
 }
 .ctrl-btn--leave:hover {
   background: rgba(239, 68, 68, 0.18);
