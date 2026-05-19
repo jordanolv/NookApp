@@ -20,12 +20,52 @@ import {
   WORLD_ROWS,
   WORLD_W,
 } from './scene/constants';
+import { DECOR_CATALOG, getDecorAsset } from './scene/decor-catalog';
+import { DecorRenderer, decorCellTextureKey } from './scene/decor-renderer';
+import { FLOOR_CATALOG } from './scene/floor-catalog';
 import { FloorRenderer } from './scene/floor-renderer';
 import { MapModel } from './scene/map-model';
+import { CellPaintTool } from './scene/cell-paint-tool';
 import { RectPaintTool } from './scene/rect-paint-tool';
-import { WallRenderer } from './scene/wall-renderer';
+import { WallRenderer, WALL_TEXTURE_KEYS } from './scene/wall-renderer';
+import { getRoomTemplate } from './scene/room-templates';
+import { normalizeWallFrame } from './scene/wall-catalog';
 
-export type BuildTool = 'tile' | 'wall';
+export type BuildTool = 'tile' | 'wall' | 'room' | 'decor';
+
+export interface WallCellPayload {
+  x: number;
+  y: number;
+  frame: number;
+  mode: 'add' | 'remove';
+}
+
+export interface RoomTemplatePayload {
+  x: number;
+  y: number;
+  templateId: string;
+}
+
+export interface RoomCustomPayload {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  themeFrame: number;
+}
+
+export const ROOM_CUSTOM_ID = 'custom';
+
+export interface DecorPlacePayload {
+  asset: string;
+  x: number;
+  y: number;
+}
+
+export interface DecorRemovePayload {
+  x: number;
+  y: number;
+}
 
 const PLAYER_SPEED = 170;
 const EMIT_INTERVAL_MS = 1000 / 15; // 15 Hz
@@ -120,11 +160,20 @@ export class NookScene extends Phaser.Scene {
   private model: MapModel | null = null;
   private floorRenderer?: FloorRenderer;
   private wallRenderer?: WallRenderer;
+  private decorRenderer?: DecorRenderer;
   private buildOverlay?: BuildOverlay;
   private tilePaintTool?: RectPaintTool;
-  private wallPaintTool?: RectPaintTool;
+  private wallPaintTool?: CellPaintTool;
   private wallCollider?: Phaser.Physics.Arcade.Collider;
+  private decorCollider?: Phaser.Physics.Arcade.Collider;
   private buildTool: BuildTool = 'tile';
+  private selectedDecor: string | null = null;
+  private selectedFloor: string = 'office_floor_light';
+  private selectedWallFrame: number = 33;
+  private selectedRoomTemplate: string = 'drywall_small';
+  private roomGhost?: Phaser.GameObjects.Graphics;
+  private roomCustomTool?: RectPaintTool;
+  private decorGhost: Phaser.GameObjects.Image[] = [];
   private cameraOffset = { x: 0, y: 0 };
 
   localUserId: string;
@@ -153,21 +202,45 @@ export class NookScene extends Phaser.Scene {
         });
       }
     }
-    this.load.image('wall_base', '/assets/wall_cream.png');
+    for (const asset of DECOR_CATALOG) {
+      for (const cell of asset.cells) {
+        this.load.image(decorCellTextureKey(asset.id, cell.dx, cell.dy), cell.file);
+      }
+    }
+    for (const asset of FLOOR_CATALOG) {
+      if (asset.url) this.load.image(`floor:${asset.id}`, asset.url);
+    }
+
+    for (const { key, url } of WALL_TEXTURE_KEYS) {
+      this.load.spritesheet(key, url, { frameWidth: TILE_SIZE, frameHeight: TILE_SIZE });
+    }
   }
 
   create() {
     this.physics.world.setBounds(0, 0, WORLD_W, WORLD_H);
     this.cameras.main.setZoom(1);
+    this.cameras.main.setRoundPixels(true);
     this.cameras.main.setBackgroundColor('#cdd0d4');
+
+    for (const { key } of WALL_TEXTURE_KEYS) {
+      const tex = this.textures.get(key);
+      if (tex) tex.setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
 
     drawGrassBackground(this);
 
     this.floorRenderer = new FloorRenderer(this);
     this.wallRenderer = new WallRenderer(this);
+    this.decorRenderer = new DecorRenderer(this);
     this.buildOverlay = new BuildOverlay(this);
     this.tilePaintTool = new RectPaintTool(this, { add: 0x6366f1, remove: 0xef4444 });
-    this.wallPaintTool = new RectPaintTool(this, { add: 0x9a9a9a, remove: 0xef4444 });
+    this.wallPaintTool = new CellPaintTool(this, { add: 0x9a9a9a, remove: 0xef4444 });
+    this.roomGhost = this.add.graphics().setDepth(21);
+    this.roomCustomTool = new RectPaintTool(
+      this,
+      { add: 0x4ec9b0, remove: 0xef4444 },
+      { shape: 'outline' },
+    );
 
     // Room graphics layer drawn below players
     this.roomGraphics = this.add.graphics();
@@ -178,7 +251,13 @@ export class NookScene extends Phaser.Scene {
     this.input.on('pointerup', this.onBuildPointerUp, this);
 
     this.spawnLocalPlayer();
+    {
+      const cam = this.cameras.main;
+      cam.scrollX = Math.round(this.localBody.x - cam.width / 2 - this.cameraOffset.x);
+      cam.scrollY = Math.round(this.localBody.y - cam.height / 2 - this.cameraOffset.y);
+    }
     this.wallCollider = this.wallRenderer.collideWith(this.localBody);
+    this.decorCollider = this.decorRenderer.collideWith(this.localBody);
     this.setupInput();
     this.buildAnims();
 
@@ -193,6 +272,8 @@ export class NookScene extends Phaser.Scene {
     this.model = new MapModel(data);
     this.floorRenderer?.apply(this.model);
     this.wallRenderer?.apply(this.model);
+    this.decorRenderer?.apply(this.model);
+    if (!this.isBuildActive()) this.moveLocalPlayerOffBlockedTile();
   }
 
   applyAppearance(next: Appearance) {
@@ -258,10 +339,17 @@ export class NookScene extends Phaser.Scene {
   setBuildMode(active: boolean) {
     if (!this.buildOverlay || this.buildOverlay.isActive() === active) return;
     this.buildOverlay.setActive(active);
-    if (this.wallCollider) this.wallCollider.active = !active;
-    if (!active) {
+
+    if (active) {
+      if (this.wallCollider) this.wallCollider.active = false;
+      if (this.decorCollider) this.decorCollider.active = false;
+    } else {
       this.tilePaintTool?.cancel();
       this.wallPaintTool?.cancel();
+      this.hideDecorGhost();
+      this.moveLocalPlayerOffBlockedTile();
+      if (this.wallCollider) this.wallCollider.active = true;
+      if (this.decorCollider) this.decorCollider.active = true;
     }
   }
 
@@ -270,6 +358,50 @@ export class NookScene extends Phaser.Scene {
     this.buildTool = tool;
     this.tilePaintTool?.cancel();
     this.wallPaintTool?.cancel();
+    this.roomCustomTool?.cancel();
+    this.roomGhost?.clear();
+    if (tool !== 'decor') this.hideDecorGhost();
+  }
+
+  setSelectedFloor(assetId: string) {
+    this.selectedFloor = assetId || 'office_floor_light';
+  }
+
+  setSelectedWallFrame(frame: number) {
+    this.selectedWallFrame = normalizeWallFrame(frame);
+  }
+
+  setSelectedRoomTemplate(id: string) {
+    if (id) this.selectedRoomTemplate = id;
+  }
+
+  setSelectedDecor(assetId: string | null) {
+    this.selectedDecor = assetId;
+    this.rebuildDecorGhost();
+  }
+
+  private rebuildDecorGhost() {
+    for (const img of this.decorGhost) img.destroy();
+    this.decorGhost = [];
+    if (!this.selectedDecor) return;
+    const asset = getDecorAsset(this.selectedDecor);
+    if (!asset) return;
+    for (const cell of asset.cells) {
+      const key = decorCellTextureKey(asset.id, cell.dx, cell.dy);
+      if (!this.textures.exists(key)) continue;
+      const img = this.add
+        .image(0, 0, key)
+        .setOrigin(0.5, 1)
+        .setScale(2)
+        .setAlpha(0.55)
+        .setDepth(99999)
+        .setVisible(false);
+      this.decorGhost.push(img);
+    }
+  }
+
+  private hideDecorGhost() {
+    for (const img of this.decorGhost) img.setVisible(false);
   }
 
   setCameraOffset(x: number, y: number) {
@@ -280,17 +412,15 @@ export class NookScene extends Phaser.Scene {
     cam.scrollY = Math.round(this.localBody.y - cam.height / 2 - y);
   }
 
-  private activeTool(): RectPaintTool | undefined {
-    return this.buildTool === 'tile' ? this.tilePaintTool : this.wallPaintTool;
-  }
-
-  private isPresentAtPointer(tx: number, ty: number): boolean {
+  private isFloorPresentAt(tx: number, ty: number): boolean {
     if (!this.model) return false;
-    return this.buildTool === 'tile' ? this.model.hasFloor(tx, ty) : this.model.hasWall(tx, ty);
+    const floor = this.model.floorAt(tx, ty);
+    return !!floor && floor.asset === this.selectedFloor;
   }
 
-  private commitEventName(): 'tiles-rect' | 'walls-rect' {
-    return this.buildTool === 'tile' ? 'tiles-rect' : 'walls-rect';
+  private isWallPresentAt(tx: number, ty: number): boolean {
+    if (!this.model) return false;
+    return this.model.hasWall(tx, ty);
   }
 
   private isBuildActive() {
@@ -301,24 +431,190 @@ export class NookScene extends Phaser.Scene {
     return [Math.floor(pointer.worldX / TILE_SIZE), Math.floor(pointer.worldY / TILE_SIZE)];
   }
 
+  private worldToTile(x: number, y: number): [number, number] {
+    return [Math.floor(x / TILE_SIZE), Math.floor(y / TILE_SIZE)];
+  }
+
+  private isBlockedTile(tx: number, ty: number): boolean {
+    if (!this.model) return false;
+    if (tx < 0 || ty < 0 || tx >= WORLD_COLS || ty >= WORLD_ROWS) return true;
+    return this.model.hasWall(tx, ty) || !!this.model.decorAt(tx, ty);
+  }
+
+  private moveLocalPlayerOffBlockedTile() {
+    if (!this.model || !this.localBody) return;
+    const [originX, originY] = this.worldToTile(this.localBody.x, this.localBody.y);
+    if (!this.isBlockedTile(originX, originY)) return;
+
+    for (let radius = 1; radius <= 8; radius++) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;
+          const tx = originX + dx;
+          const ty = originY + dy;
+          if (this.isBlockedTile(tx, ty)) continue;
+          this.teleport(tx * TILE_SIZE + TILE_SIZE / 2, ty * TILE_SIZE + TILE_SIZE / 2);
+          return;
+        }
+      }
+    }
+  }
+
   private onBuildPointerDown(pointer: Phaser.Input.Pointer) {
     if (!this.isBuildActive() || !this.model) return;
     const [tx, ty] = this.pointerToTile(pointer);
     if (tx < 0 || ty < 0 || tx >= WORLD_COLS || ty >= WORLD_ROWS) return;
-    this.activeTool()?.beginDrag(tx, ty, this.isPresentAtPointer(tx, ty));
+
+    if (this.buildTool === 'decor') {
+      const existing = this.model.decorAt(tx, ty);
+      if (existing) {
+        this.events.emit('decor-remove', {
+          x: existing.x,
+          y: existing.y,
+        } satisfies DecorRemovePayload);
+        return;
+      }
+      const selected = this.selectedDecor ? getDecorAsset(this.selectedDecor) : undefined;
+      if (!selected) return;
+      for (const cell of selected.cells) {
+        const cx = tx + cell.dx;
+        const cy = ty + cell.dy;
+        if (cx < 0 || cy < 0 || cx >= WORLD_COLS || cy >= WORLD_ROWS) return;
+        if (this.model.decorAt(cx, cy)) return;
+      }
+      this.events.emit('decor-place', {
+        asset: this.selectedDecor!,
+        x: tx,
+        y: ty,
+      } satisfies DecorPlacePayload);
+      return;
+    }
+
+    if (this.buildTool === 'tile') {
+      this.tilePaintTool?.beginDrag(tx, ty, this.isFloorPresentAt(tx, ty));
+      return;
+    }
+    if (this.buildTool === 'wall') {
+      const result = this.wallPaintTool?.begin(tx, ty, this.isWallPresentAt(tx, ty));
+      if (result) this.emitWallCell(result.x, result.y, result.mode);
+      return;
+    }
+    if (this.buildTool === 'room') {
+      if (this.selectedRoomTemplate === ROOM_CUSTOM_ID) {
+        this.roomCustomTool?.beginDrag(tx, ty, false);
+      } else {
+        this.events.emit('room-stamp', {
+          x: tx,
+          y: ty,
+          templateId: this.selectedRoomTemplate,
+        } satisfies RoomTemplatePayload);
+      }
+    }
   }
 
   private onBuildPointerMove(pointer: Phaser.Input.Pointer) {
     const [tx, ty] = this.pointerToTile(pointer);
-    this.activeTool()?.updateDrag(tx, ty);
+    if (this.buildTool === 'decor' && this.isBuildActive()) {
+      this.updateDecorGhost(tx, ty);
+      return;
+    }
+    if (this.buildTool === 'tile') {
+      this.tilePaintTool?.updateDrag(tx, ty);
+      return;
+    }
+    if (this.buildTool === 'wall') {
+      const result = this.wallPaintTool?.move(tx, ty, this.isWallPresentAt(tx, ty));
+      if (result) this.emitWallCell(result.x, result.y, result.mode);
+      return;
+    }
+    if (this.buildTool === 'room') {
+      if (this.selectedRoomTemplate === ROOM_CUSTOM_ID) {
+        this.roomGhost?.clear();
+        this.roomCustomTool?.updateDrag(tx, ty);
+      } else {
+        this.updateRoomGhost(tx, ty);
+      }
+    }
   }
 
   private onBuildPointerUp(pointer: Phaser.Input.Pointer) {
-    const tool = this.activeTool();
-    if (!tool) return;
-    const [tx, ty] = this.pointerToTile(pointer);
-    const result = tool.endDrag(tx, ty);
-    if (result) this.events.emit(this.commitEventName(), result);
+    if (this.buildTool === 'decor') return;
+    if (this.buildTool === 'tile') {
+      const tool = this.tilePaintTool;
+      if (!tool) return;
+      const [tx, ty] = this.pointerToTile(pointer);
+      const result = tool.endDrag(tx, ty);
+      if (result) this.events.emit('tiles-rect', result);
+      return;
+    }
+    if (this.buildTool === 'wall') {
+      this.wallPaintTool?.end();
+      return;
+    }
+    if (this.buildTool === 'room' && this.selectedRoomTemplate === ROOM_CUSTOM_ID) {
+      const tool = this.roomCustomTool;
+      if (!tool) return;
+      const [tx, ty] = this.pointerToTile(pointer);
+      const result = tool.endDrag(tx, ty);
+      if (result && result.mode === 'add') {
+        this.events.emit('room-custom-stamp', {
+          x1: result.x1,
+          y1: result.y1,
+          x2: result.x2,
+          y2: result.y2,
+          themeFrame: this.selectedWallFrame,
+        } satisfies RoomCustomPayload);
+      }
+    }
+  }
+
+  private emitWallCell(x: number, y: number, mode: 'add' | 'remove') {
+    this.events.emit('wall-cell', {
+      x,
+      y,
+      frame: this.selectedWallFrame,
+      mode,
+    } satisfies WallCellPayload);
+  }
+
+  private updateRoomGhost(tx: number, ty: number) {
+    if (!this.roomGhost) return;
+    const tpl = getRoomTemplate(this.selectedRoomTemplate);
+    this.roomGhost.clear();
+    if (!tpl) return;
+    this.roomGhost.lineStyle(2, 0x4ec9b0, 0.85);
+    this.roomGhost.strokeRect(
+      tx * TILE_SIZE,
+      ty * TILE_SIZE,
+      tpl.width * TILE_SIZE,
+      tpl.height * TILE_SIZE,
+    );
+    this.roomGhost.fillStyle(0x4ec9b0, 0.12);
+    this.roomGhost.fillRect(
+      tx * TILE_SIZE,
+      ty * TILE_SIZE,
+      tpl.width * TILE_SIZE,
+      tpl.height * TILE_SIZE,
+    );
+  }
+
+  private updateDecorGhost(tx: number, ty: number) {
+    if (!this.decorGhost.length) this.rebuildDecorGhost();
+    if (!this.selectedDecor) return;
+    const asset = getDecorAsset(this.selectedDecor);
+    if (!asset) return;
+    if (tx < 0 || ty < 0 || tx >= WORLD_COLS || ty >= WORLD_ROWS) {
+      this.hideDecorGhost();
+      return;
+    }
+    for (let i = 0; i < this.decorGhost.length; i++) {
+      const cell = asset.cells[i]!;
+      const cx = (tx + cell.dx) * TILE_SIZE + TILE_SIZE / 2;
+      const cy = (ty + cell.dy) * TILE_SIZE + TILE_SIZE;
+      this.decorGhost[i]!.setPosition(cx, cy)
+        .setDepth(cy + 0.5)
+        .setVisible(true);
+    }
   }
 
   setRooms(zones: RoomZone[]) {

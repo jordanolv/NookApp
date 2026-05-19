@@ -65,6 +65,7 @@ async function submitGame() {
       name,
       type: 'text',
       parentId: props.channelId,
+      showStat: true,
     });
     if (pendingFile.value) {
       await setChannelIcon(props.serverId, game.id, pendingFile.value);

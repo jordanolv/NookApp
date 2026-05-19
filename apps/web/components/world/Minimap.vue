@@ -114,9 +114,13 @@ function onPointerUp() {
 }
 
 // ── Map data ──
-const walls = computed(() => props.mapData?.items.filter((i) => i.type === 'wall') ?? []);
+const floors = computed(() => props.mapData?.layers?.floors ?? []);
+const walls = computed(() => props.mapData?.layers?.walls ?? []);
 const zonedChannels = computed(() => props.voiceChannels.filter((c) => c.mapZone));
 const playerList = computed(() => Array.from(props.players.values()));
+
+const floorPath = computed(() => cellsToPath(floors.value));
+const wallPath = computed(() => cellsToPath(walls.value));
 
 const viewBoxStr = computed(() => {
   const me = props.currentUserId ? props.players.get(props.currentUserId) : null;
@@ -158,6 +162,10 @@ function membersOfZone(channelId: string): VoiceParticipant[] {
   return augmentedVoiceMembers.value.get(channelId) ?? [];
 }
 
+function cellsToPath(cells: ReadonlyArray<{ x: number; y: number }>): string {
+  return cells.map((cell) => `M${cell.x} ${cell.y}h1v1h-1z`).join('');
+}
+
 function onZoneClick(ch: ChannelPublic) {
   if (dragStart.moved) return; // ignore click that came after a drag
   if (!ch.mapZone) return;
@@ -176,26 +184,10 @@ function onZoneClick(ch: ChannelPublic) {
   >
     <svg class="minimap__svg" :viewBox="viewBoxStr" preserveAspectRatio="xMidYMid meet">
       <!-- Floor tiles -->
-      <rect
-        v-for="(t, i) in mapData?.tiles ?? []"
-        :key="`t${i}`"
-        :x="t[0]"
-        :y="t[1]"
-        width="1"
-        height="1"
-        fill="rgba(243, 234, 212, 0.5)"
-      />
+      <path v-if="floorPath" :d="floorPath" fill="rgba(243, 234, 212, 0.5)" />
 
       <!-- Walls -->
-      <rect
-        v-for="(w, i) in walls"
-        :key="`w${i}`"
-        :x="w.x"
-        :y="w.y"
-        width="1"
-        height="1"
-        fill="rgba(40, 40, 50, 0.95)"
-      />
+      <path v-if="wallPath" :d="wallPath" fill="rgba(40, 40, 50, 0.95)" />
 
       <!-- Voice zones -->
       <g v-for="ch in zonedChannels" :key="ch.id">

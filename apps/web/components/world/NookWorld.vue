@@ -15,10 +15,24 @@ const character = useCharacter();
 const presence = usePresence();
 
 import type { MapData } from '@nookapp/protocol';
-import type { BuildTool } from './NookScene';
+import type {
+  BuildTool,
+  DecorPlacePayload,
+  DecorRemovePayload,
+  WallCellPayload,
+  RoomTemplatePayload,
+  RoomCustomPayload,
+} from './NookScene';
 import { DISPLAY_SCALE } from './scene/constants';
 
-type RectPayload = { x1: number; y1: number; x2: number; y2: number; mode: 'add' | 'remove' };
+type RectPayload = {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  mode: 'add' | 'remove';
+  rot?: 0 | 90 | 180 | 270;
+};
 
 const props = defineProps<{
   serverId: string;
@@ -28,6 +42,10 @@ const props = defineProps<{
   mapData?: MapData | null;
   buildMode?: boolean;
   buildTool?: BuildTool;
+  selectedDecor?: string | null;
+  selectedFloor?: string | null;
+  selectedWallFrame?: number | null;
+  selectedRoomTemplate?: string | null;
   sidebarSide?: 'left' | 'right' | null;
 }>();
 
@@ -37,7 +55,11 @@ const emit = defineEmits<{
   'zone-picked': [zone: { x: number; y: number; w: number; h: number }];
   'zone-cancel': [];
   'tiles-rect': [rect: RectPayload];
-  'walls-rect': [rect: RectPayload];
+  'wall-cell': [payload: WallCellPayload];
+  'room-template-stamp': [payload: RoomTemplatePayload];
+  'room-custom-stamp': [payload: RoomCustomPayload];
+  'decor-place': [payload: DecorPlacePayload];
+  'decor-remove': [payload: DecorRemovePayload];
 }>();
 
 const zoneDrag = ref<{ startX: number; startY: number; curX: number; curY: number } | null>(null);
@@ -115,7 +137,23 @@ let cachedRect: DOMRect | null = null;
 
 // ─── Phaser-space screen share rings (behind sprites via depth sorting) ─
 let _scene: NookScene | null = null;
+let pendingMapData: MapData | null = null;
+let pendingMapApplyFrame: number | null = null;
 const screenRingArcs = new Map<string, Phaser.GameObjects.Arc>();
+
+function applyPendingMapData() {
+  pendingMapApplyFrame = null;
+  if (!pendingMapData || !_scene) return;
+  const data = pendingMapData;
+  pendingMapData = null;
+  _scene.applyMapData(data);
+}
+
+function queueMapDataApply(data: MapData) {
+  pendingMapData = data;
+  if (pendingMapApplyFrame !== null) return;
+  pendingMapApplyFrame = requestAnimationFrame(applyPendingMapData);
+}
 
 function computeCameraOffset(
   side: 'left' | 'right' | null | undefined,
@@ -358,9 +396,8 @@ function updateNameTags(tags: NameTagUpdate[], cam: Phaser.Cameras.Scene2D.Camer
 watch(
   () => props.mapData,
   (data) => {
-    if (data && _scene) _scene.applyMapData(data);
+    if (data && _scene) queueMapDataApply(data);
   },
-  { deep: true },
 );
 
 watch(
@@ -374,6 +411,34 @@ watch(
   () => props.buildTool ?? 'tile',
   (tool) => {
     if (_scene) _scene.setBuildTool(tool);
+  },
+);
+
+watch(
+  () => props.selectedDecor ?? null,
+  (asset) => {
+    if (_scene) _scene.setSelectedDecor(asset);
+  },
+);
+
+watch(
+  () => props.selectedFloor ?? 'office_floor_light',
+  (asset) => {
+    if (_scene) _scene.setSelectedFloor(asset);
+  },
+);
+
+watch(
+  () => props.selectedWallFrame ?? 33,
+  (frame) => {
+    if (_scene) _scene.setSelectedWallFrame(frame);
+  },
+);
+
+watch(
+  () => props.selectedRoomTemplate ?? 'drywall_small',
+  (id) => {
+    if (_scene) _scene.setSelectedRoomTemplate(id);
   },
 );
 
@@ -500,7 +565,15 @@ onMounted(() => {
     });
 
     scene.events.on('tiles-rect', (rect: RectPayload) => emit('tiles-rect', rect));
-    scene.events.on('walls-rect', (rect: RectPayload) => emit('walls-rect', rect));
+    scene.events.on('wall-cell', (payload: WallCellPayload) => emit('wall-cell', payload));
+    scene.events.on('room-stamp', (payload: RoomTemplatePayload) =>
+      emit('room-template-stamp', payload),
+    );
+    scene.events.on('room-custom-stamp', (payload: RoomCustomPayload) =>
+      emit('room-custom-stamp', payload),
+    );
+    scene.events.on('decor-place', (p: DecorPlacePayload) => emit('decor-place', p));
+    scene.events.on('decor-remove', (p: DecorRemovePayload) => emit('decor-remove', p));
 
     scene.events.on(
       'player:interact',
@@ -517,8 +590,12 @@ onMounted(() => {
       },
     );
 
-    if (props.mapData) scene.applyMapData(props.mapData);
+    if (props.mapData) queueMapDataApply(props.mapData);
     if (props.buildTool) scene.setBuildTool(props.buildTool);
+    if (props.selectedDecor) scene.setSelectedDecor(props.selectedDecor);
+    scene.setSelectedFloor(props.selectedFloor ?? 'office_floor_light');
+    scene.setSelectedWallFrame(props.selectedWallFrame ?? 33);
+    scene.setSelectedRoomTemplate(props.selectedRoomTemplate ?? 'drywall_small');
     if (props.buildMode) scene.setBuildMode(true);
 
     const offset = computeCameraOffset(props.sidebarSide ?? null, scene, cachedRect);
@@ -584,6 +661,11 @@ onMounted(() => {
     rawSocket.off('world:object:spawn', onWorldSpawn);
     rawSocket.off('world:object:remove', onWorldRemove);
     ro.disconnect();
+    if (pendingMapApplyFrame !== null) {
+      cancelAnimationFrame(pendingMapApplyFrame);
+      pendingMapApplyFrame = null;
+    }
+    pendingMapData = null;
     game.value?.destroy(true);
     game.value = null;
     nameTagEls.clear();
