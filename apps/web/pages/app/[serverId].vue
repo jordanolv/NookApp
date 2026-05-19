@@ -5,6 +5,7 @@ import type { ChannelPublic } from '@nookapp/protocol';
 import { useHomePins, type HomePinKind } from '~/composables/useHomePins';
 import { useInterfacePreferences } from '~/composables/useInterfacePreferences';
 import WidgetGamingTopic from '~/widgets/WidgetGamingTopic.vue';
+import type ClassicLayout from '~/components/classic/Layout.vue';
 
 definePageMeta({ layout: 'app' });
 
@@ -20,16 +21,25 @@ const { createInvite } = useInvites();
 const socket = useSocket();
 const voice = useVoice();
 const { isAdmin, canManageChannels, canManageMap, loadMember } = useMember();
+const { t } = useI18n();
 const interfacePrefs = useInterfacePreferences();
 const classicEnabled = computed(() => interfacePrefs.prefs.value.useClassicInterface);
 const {
   currentMap,
   buildMode,
   buildTool,
+  selectedDecor,
+  selectedFloor,
+  selectedWallFrame,
+  selectedRoomTemplate,
   isSaving: isMapSaving,
   loadMap,
   paintRect,
-  paintWallsRect,
+  paintWallCell,
+  stampRoomTemplate,
+  stampCustomRoom,
+  placeDecor,
+  removeDecorAt,
 } = useMap();
 
 // ── Chat: main tab bar + torn-off floating windows ──
@@ -126,20 +136,23 @@ async function resetLayout() {
 }
 
 // ── Server picker ──
-const showServerPicker = ref(false);
+type ServerDropdown = 'switcher' | 'menu';
+const serverDropdown = ref<ServerDropdown | null>(null);
 const serverPickerAnchor = ref<DOMRect | null>(null);
-const serversExpanded = ref(false);
 const showServerSettings = ref(false);
 
 function switchServer(id: string) {
-  showServerPicker.value = false;
-  serversExpanded.value = false;
+  serverDropdown.value = null;
   navigateTo(`/app/${id}`);
 }
 
 const pickerTop = computed(() => {
   if (!serverPickerAnchor.value) return 64;
-  return serverPickerAnchor.value.bottom + 8;
+  return serverPickerAnchor.value.bottom + 6;
+});
+const pickerLeft = computed(() => {
+  if (!serverPickerAnchor.value) return 16;
+  return serverPickerAnchor.value.left;
 });
 
 // ── Channel creation ──
@@ -147,6 +160,15 @@ const showCreateModal = ref(false);
 
 // ── Channel editing ──
 const editingChannel = ref<import('@nookapp/protocol').ChannelPublic | null>(null);
+const editCategory = ref<import('@nookapp/protocol').CategoryPublic | null>(null);
+
+function openChannelEdit(channelId: string) {
+  editingChannel.value = store.channels.find((c) => c.id === channelId) ?? null;
+}
+
+function openCategoryEdit(categoryId: string) {
+  editCategory.value = store.categories.find((c) => c.id === categoryId) ?? null;
+}
 
 const channelMenu = ref<{
   x: number;
@@ -182,9 +204,28 @@ function isChannelPinnedToHome(channelId: string): boolean {
   return homePins.isPinned(channelId, 'channel');
 }
 
+const classicLayoutRef = ref<InstanceType<typeof ClassicLayout> | null>(null);
+
+function sidebarWidth(side: 'left' | 'right'): number {
+  const hasSections =
+    (side === 'left' ? sidebar.leftKeys.value : sidebar.rightKeys.value).length > 0;
+  const hasHeader = sidebar.serverHeaderSide.value === side;
+  const hasDock = sidebar.userDockSide.value === side;
+  const hasContent = hasSections || hasHeader || hasDock;
+  if (!hasContent) return side === 'left' ? 70 : 0;
+  if (!hasSections) return 280;
+  return 400;
+}
+const classicLeftPad = computed(() => sidebarWidth('left'));
+const classicRightPad = computed(() => sidebarWidth('right'));
+
 function handleChannelClick(ch: import('@nookapp/protocol').ChannelPublic, e: MouseEvent) {
   if (ch.type === 'voice') {
     handleVoiceChannelClick(ch.id);
+    return;
+  }
+  if (classicEnabled.value) {
+    classicLayoutRef.value?.openChannel(ch.id);
     return;
   }
   if (ch.type === 'forum') {
@@ -323,7 +364,12 @@ watch(
 
 function openServerMenuFromSidebar(e: MouseEvent) {
   serverPickerAnchor.value = (e.currentTarget as HTMLElement).getBoundingClientRect();
-  showServerPicker.value = true;
+  serverDropdown.value = 'menu';
+}
+
+function openServerSwitcherFromSidebar(e: MouseEvent) {
+  serverPickerAnchor.value = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  serverDropdown.value = 'switcher';
 }
 
 function openHomePinnedItem(channel: ChannelPublic, kind: HomePinKind) {
@@ -429,16 +475,49 @@ watch(
   { immediate: true },
 );
 
-type RectPayload = { x1: number; y1: number; x2: number; y2: number; mode: 'add' | 'remove' };
+type RectPayload = {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  mode: 'add' | 'remove';
+  rot?: 0 | 90 | 180 | 270;
+};
 
 function onTilesRect(rect: RectPayload) {
   if (!canManageMap.value || !buildMode.value) return;
-  paintRect(rect.x1, rect.y1, rect.x2, rect.y2, rect.mode);
+  paintRect(rect.x1, rect.y1, rect.x2, rect.y2, rect.mode, selectedFloor.value);
 }
 
-function onWallsRect(rect: RectPayload) {
+function onWallCell(payload: { x: number; y: number; frame: number; mode: 'add' | 'remove' }) {
   if (!canManageMap.value || !buildMode.value) return;
-  paintWallsRect(rect.x1, rect.y1, rect.x2, rect.y2, rect.mode);
+  paintWallCell(payload.x, payload.y, payload.frame, payload.mode);
+}
+
+function onRoomTemplateStamp(payload: { x: number; y: number; templateId: string }) {
+  if (!canManageMap.value || !buildMode.value) return;
+  stampRoomTemplate(payload.x, payload.y, payload.templateId);
+}
+
+function onRoomCustomStamp(payload: {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  themeFrame: number;
+}) {
+  if (!canManageMap.value || !buildMode.value) return;
+  stampCustomRoom(payload.x1, payload.y1, payload.x2, payload.y2, payload.themeFrame);
+}
+
+function onDecorPlace(payload: { asset: string; x: number; y: number }) {
+  if (!canManageMap.value || !buildMode.value) return;
+  placeDecor(payload.asset, payload.x, payload.y);
+}
+
+function onDecorRemove(payload: { x: number; y: number }) {
+  if (!canManageMap.value || !buildMode.value) return;
+  removeDecorAt(payload.x, payload.y);
 }
 
 function toggleBuildMode() {
@@ -449,6 +528,20 @@ function toggleBuildMode() {
 watch(classicEnabled, (enabled) => {
   if (enabled && buildMode.value) buildMode.value = false;
 });
+
+function onBuildShortcut(e: KeyboardEvent) {
+  if (e.key !== 'b' && e.key !== 'B') return;
+  if (!canManageMap.value || classicEnabled.value) return;
+  const target = e.target as HTMLElement | null;
+  if (target) {
+    const tag = target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable) {
+      return;
+    }
+  }
+  e.preventDefault();
+  toggleBuildMode();
+}
 
 async function handleVoiceChannelClick(channelId: string) {
   if (voice.currentChannelId.value === channelId) {
@@ -468,6 +561,7 @@ onMounted(() => {
     if (msg.authorId.startsWith('plugin:')) return;
     messagesStore.incrementCount(msg.channelId);
   });
+  window.addEventListener('keydown', onBuildShortcut);
 });
 
 onUnmounted(async () => {
@@ -475,12 +569,135 @@ onUnmounted(async () => {
   teardownVoiceListeners?.();
   teardownMessageCounter?.();
   socket.disconnect();
+  window.removeEventListener('keydown', onBuildShortcut);
 });
 </script>
 
 <template>
   <div class="page-root">
-    <ClassicLayout v-if="classicEnabled" :server-id="serverId" />
+    <!-- Left sidebar — always visible; "…" picker configures only itself -->
+    <LayoutSideBar
+      side="left"
+      :sections="SIDEBAR_SECTIONS"
+      :keys="sidebar.leftKeys.value"
+      :active-keys="sidebar.activeSet.value"
+      :section-heights="sidebar.sectionHeights.value"
+      :server-name="server?.name ?? ''"
+      :banner-url="resolveUrl(server?.bannerUrl) ?? null"
+      :always-show="true"
+      :show-server-header="sidebar.serverHeaderSide.value === 'left'"
+      :show-user-dock="sidebar.userDockSide.value === 'left'"
+      :other-side-has-sections="sidebar.rightKeys.value.length > 0"
+      @toggle-section="sidebar.toggleSection"
+      @toggle-key="(key) => sidebar.setSectionSide(key, 'right')"
+      @toggle-server-header="sidebar.setServerHeaderSide('right')"
+      @toggle-user-dock="sidebar.setUserDockSide('right')"
+      @set-section-height="sidebar.setSectionHeight"
+      @open-server-switcher="openServerSwitcherFromSidebar"
+      @open-server-menu="openServerMenuFromSidebar"
+    >
+      <template #user-dock>
+        <LayoutUserDock />
+      </template>
+
+      <template #channels-action>
+        <button
+          type="button"
+          class="section__close"
+          title="Créer un channel"
+          @click="showCreateModal = true"
+        >
+          +
+        </button>
+      </template>
+      <template #channels>
+        <LayoutChannelsList
+          :channels="store.channels.filter((c) => c.serverId === serverId && c.type !== 'voice')"
+          :categories="store.categories.filter((c) => c.serverId === serverId)"
+          :active-channel-ids="activeChannelIds"
+          :current-voice-id="voice.currentChannelId.value"
+          :can-manage="canManageChannels"
+          @select="handleChannelClick"
+          @edit-channel="openChannelEdit"
+          @edit-category="openCategoryEdit"
+        />
+      </template>
+      <template #members>
+        <HomeMembersList :server-id="serverId" />
+      </template>
+      <template #pinned>
+        <HomePinsList :server-id="serverId" @open="openHomePinnedItem" />
+      </template>
+    </LayoutSideBar>
+
+    <!-- Right sidebar — visible iff hosting at least one section or singleton -->
+    <LayoutSideBar
+      v-if="
+        sidebar.rightKeys.value.length ||
+        sidebar.serverHeaderSide.value === 'right' ||
+        sidebar.userDockSide.value === 'right'
+      "
+      side="right"
+      :sections="SIDEBAR_SECTIONS"
+      :keys="sidebar.rightKeys.value"
+      :active-keys="sidebar.activeSet.value"
+      :section-heights="sidebar.sectionHeights.value"
+      :server-name="server?.name ?? ''"
+      :banner-url="resolveUrl(server?.bannerUrl) ?? null"
+      :show-server-header="sidebar.serverHeaderSide.value === 'right'"
+      :show-user-dock="sidebar.userDockSide.value === 'right'"
+      :other-side-has-sections="sidebar.leftKeys.value.length > 0"
+      @toggle-section="sidebar.toggleSection"
+      @toggle-key="(key) => sidebar.setSectionSide(key, 'left')"
+      @toggle-server-header="sidebar.setServerHeaderSide('left')"
+      @toggle-user-dock="sidebar.setUserDockSide('left')"
+      @set-section-height="sidebar.setSectionHeight"
+      @open-server-switcher="openServerSwitcherFromSidebar"
+      @open-server-menu="openServerMenuFromSidebar"
+    >
+      <template #user-dock>
+        <LayoutUserDock />
+      </template>
+      <template #channels-action>
+        <button
+          type="button"
+          class="section__close"
+          title="Créer un channel"
+          @click="showCreateModal = true"
+        >
+          +
+        </button>
+      </template>
+      <template #channels>
+        <LayoutChannelsList
+          :channels="store.channels.filter((c) => c.serverId === serverId && c.type !== 'voice')"
+          :categories="store.categories.filter((c) => c.serverId === serverId)"
+          :active-channel-ids="activeChannelIds"
+          :current-voice-id="voice.currentChannelId.value"
+          :can-manage="canManageChannels"
+          @select="handleChannelClick"
+          @edit-channel="openChannelEdit"
+          @edit-category="openCategoryEdit"
+        />
+      </template>
+      <template #members>
+        <HomeMembersList :server-id="serverId" />
+      </template>
+      <template #pinned>
+        <HomePinsList :server-id="serverId" @open="openHomePinnedItem" />
+      </template>
+    </LayoutSideBar>
+
+    <ClassicLayout
+      v-if="classicEnabled"
+      ref="classicLayoutRef"
+      :server-id="serverId"
+      class="classic-shell"
+      :style="{
+        paddingLeft: classicLeftPad + 'px',
+        paddingRight: classicRightPad + 'px',
+      }"
+    />
 
     <template v-else>
       <!-- World fills the entire viewport behind everything -->
@@ -495,63 +712,37 @@ onUnmounted(async () => {
           :map-data="currentMap"
           :build-mode="buildMode"
           :build-tool="buildTool"
-          :sidebar-side="sidebar.side.value"
+          :selected-decor="selectedDecor"
+          :selected-floor="selectedFloor"
+          :selected-wall-frame="selectedWallFrame"
+          :selected-room-template="selectedRoomTemplate"
+          sidebar-side="left"
           @zone-picked="onZonePicked"
           @zone-cancel="onZoneCancel"
           @tiles-rect="onTilesRect"
-          @walls-rect="onWallsRect"
+          @wall-cell="onWallCell"
+          @room-template-stamp="onRoomTemplateStamp"
+          @room-custom-stamp="onRoomCustomStamp"
+          @decor-place="onDecorPlace"
+          @decor-remove="onDecorRemove"
         />
       </ClientOnly>
-
-      <!-- Sidebar (icons + stacked content + user dock) -->
-      <LayoutSideBar
-        :side="sidebar.side.value"
-        :sections="SIDEBAR_SECTIONS"
-        :order="sidebar.order.value"
-        :active-keys="sidebar.activeSet.value"
-        :section-heights="sidebar.sectionHeights.value"
-        :server-name="server?.name ?? ''"
-        :banner-url="resolveUrl(server?.bannerUrl) ?? null"
-        @toggle-section="sidebar.toggleSection"
-        @swap-side="sidebar.swapSide"
-        @set-order="sidebar.setOrder"
-        @set-section-height="sidebar.setSectionHeight"
-        @open-server-menu="openServerMenuFromSidebar"
-      >
-        <template #user-dock>
-          <LayoutUserDock />
-        </template>
-        <template #channels>
-          <LayoutChannelsList
-            :channels="store.channels.filter((c) => c.serverId === serverId && c.type !== 'voice')"
-            :categories="store.categories.filter((c) => c.serverId === serverId)"
-            :active-channel-ids="activeChannelIds"
-            :current-voice-id="voice.currentChannelId.value"
-            @select="handleChannelClick"
-          />
-        </template>
-        <template #members>
-          <HomeMembersList :server-id="serverId" />
-        </template>
-        <template #pinned>
-          <HomePinsList :server-id="serverId" @open="openHomePinnedItem" />
-        </template>
-      </LayoutSideBar>
 
       <!-- Voice members list (visible while connected to a voice channel) -->
       <VoiceMembersWindow />
 
       <!-- Minimap (self-contained, draggable, round tactical HUD) -->
-      <WorldMinimap
-        :map-data="currentMap ?? null"
-        :voice-channels="voiceChannels"
-        :players="presence.players.value"
-        :voice-members="presence.voiceMembers.value"
-        :current-user-id="user?.id ?? null"
-        :current-user-name="user?.name ?? null"
-        :current-voice-channel-id="voice.currentChannelId.value"
-        @teleport-to="onMinimapTeleport"
-      />
+      <ClientOnly
+        ><WorldMinimap
+          :map-data="currentMap ?? null"
+          :voice-channels="voiceChannels"
+          :players="presence.players.value"
+          :voice-members="presence.voiceMembers.value"
+          :current-user-id="user?.id ?? null"
+          :current-user-name="user?.name ?? null"
+          :current-voice-channel-id="voice.currentChannelId.value"
+          @teleport-to="onMinimapTeleport"
+      /></ClientOnly>
 
       <!-- Main chat window (chrome-style tabs) -->
       <ChatTabBar
@@ -612,85 +803,110 @@ onUnmounted(async () => {
 
       <!-- ── Server picker dropdown ── -->
       <Teleport to="body">
+        <div v-if="serverDropdown" class="fixed inset-0 z-[55]" @click="serverDropdown = null" />
+
         <div
-          v-if="showServerPicker"
-          class="fixed inset-0 z-[55]"
-          @click="showServerPicker = false"
-        />
-        <div
-          v-if="showServerPicker"
-          class="fixed z-[56] flex flex-col rounded-2xl overflow-hidden py-1.5"
+          v-if="serverDropdown === 'switcher'"
+          class="fixed z-[56] flex flex-col rounded-xl overflow-hidden py-1.5"
           :style="{
             top: pickerTop + 'px',
-            right: '16px',
-            minWidth: '200px',
-            background: 'rgba(10, 10, 16, 0.95)',
-            backdropFilter: 'blur(28px) saturate(160%)',
-            WebkitBackdropFilter: 'blur(28px) saturate(160%)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            boxShadow: '0 16px 48px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)',
+            left: pickerLeft + 'px',
+            minWidth: '220px',
+            background: 'rgba(20, 20, 28, 0.92)',
+            backdropFilter: 'blur(20px) saturate(160%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(160%)',
+            border: '1px solid rgba(255, 255, 255, 0.07)',
+            boxShadow: '0 12px 36px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
           }"
         >
-          <!-- Nook select (collapsed by default — click to expand list) -->
-          <div class="px-1.5 pt-1.5">
+          <div
+            class="px-3 pt-1.5 pb-1 text-[10px] uppercase tracking-wider"
+            style="color: rgba(255, 255, 255, 0.4)"
+          >
+            {{ t('serverPicker.switchNook') }}
+          </div>
+          <div class="px-1.5 pb-1.5 flex flex-col gap-0.5">
             <button
-              class="server-picker-row flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors"
-              :style="serversExpanded ? 'background: rgba(255,255,255,0.05)' : ''"
-              @click="serversExpanded = !serversExpanded"
+              v-for="s in store.list"
+              :key="s.id"
+              class="server-picker-row flex items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors"
+              :style="s.id === serverId ? 'background: rgba(255,255,255,0.05)' : ''"
+              @click="s.id === serverId ? (serverDropdown = null) : switchServer(s.id)"
             >
               <div
                 class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white"
                 style="background: linear-gradient(135deg, #6366f1, #4338ca)"
               >
-                {{ server?.name?.[0]?.toUpperCase() }}
+                {{ s.name[0]?.toUpperCase() }}
               </div>
               <span
                 class="flex-1 truncate text-xs font-medium"
-                style="color: rgba(255, 255, 255, 0.85)"
-                >{{ server?.name }}</span
+                :style="
+                  s.id === serverId
+                    ? 'color: rgba(255,255,255,0.95)'
+                    : 'color: rgba(255,255,255,0.7)'
+                "
+                >{{ s.name }}</span
               >
               <svg
-                class="flex-shrink-0 transition-transform duration-150"
-                :style="serversExpanded ? 'transform: rotate(180deg)' : ''"
+                v-if="s.id === serverId"
                 width="12"
                 height="12"
                 viewBox="0 0 24 24"
                 fill="currentColor"
-                style="color: rgba(255, 255, 255, 0.4)"
+                style="color: rgba(255, 255, 255, 0.55); flex-shrink: 0"
               >
-                <path d="M7 10l5 5 5-5z" />
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
               </svg>
             </button>
-
-            <div v-if="serversExpanded" class="mt-1 flex flex-col gap-0.5">
-              <button
-                v-for="s in store.list.filter((s) => s.id !== serverId)"
-                :key="s.id"
-                class="server-picker-row flex items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors"
-                @click="switchServer(s.id)"
-              >
-                <div
-                  class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white"
-                  style="background: linear-gradient(135deg, #6366f1, #4338ca)"
-                >
-                  {{ s.name[0]?.toUpperCase() }}
-                </div>
-                <span
-                  class="truncate text-xs font-medium"
-                  style="color: rgba(255, 255, 255, 0.7)"
-                  >{{ s.name }}</span
-                >
-              </button>
-            </div>
           </div>
 
-          <div class="mx-3 my-1.5" style="height: 1px; background: rgba(255, 255, 255, 0.06)" />
+          <div class="mx-3 my-1" style="height: 1px; background: rgba(255, 255, 255, 0.06)" />
 
-          <!-- Current server actions -->
+          <NuxtLink
+            to="/app"
+            class="flex items-center gap-3 px-3 py-2 transition-colors server-picker-row"
+            @click="serverDropdown = null"
+          >
+            <div
+              class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
+              style="background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.4)"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+              </svg>
+            </div>
+            <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.4)">{{
+              t('serverPicker.appHome')
+            }}</span>
+          </NuxtLink>
+        </div>
+
+        <div
+          v-if="serverDropdown === 'menu'"
+          class="fixed z-[56] flex flex-col rounded-xl overflow-hidden py-1.5"
+          :style="{
+            top: pickerTop + 'px',
+            left: pickerLeft + 'px',
+            minWidth: '220px',
+            background: 'rgba(20, 20, 28, 0.92)',
+            backdropFilter: 'blur(20px) saturate(160%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(160%)',
+            border: '1px solid rgba(255, 255, 255, 0.07)',
+            boxShadow: '0 12px 36px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
+          }"
+        >
+          <div
+            class="px-3 pt-1.5 pb-1 truncate text-[10px] uppercase tracking-wider"
+            style="color: rgba(255, 255, 255, 0.4)"
+          >
+            {{ server?.name }}
+          </div>
+
           <button
             class="flex items-center gap-3 px-3 py-2 text-left transition-colors server-picker-row"
             @click="
-              showServerPicker = false;
+              serverDropdown = null;
               handleInvite();
             "
           >
@@ -704,14 +920,14 @@ onUnmounted(async () => {
                 />
               </svg>
             </div>
-            <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.75)"
-              >Inviter des gens</span
-            >
+            <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.75)">{{
+              t('serverPicker.invite')
+            }}</span>
           </button>
           <NuxtLink
             :to="`/app/${serverId}/plugins`"
             class="flex items-center gap-3 px-3 py-2 transition-colors server-picker-row"
-            @click="showServerPicker = false"
+            @click="serverDropdown = null"
           >
             <div
               class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
@@ -723,15 +939,15 @@ onUnmounted(async () => {
                 />
               </svg>
             </div>
-            <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.75)"
-              >Plugins</span
-            >
+            <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.75)">{{
+              t('serverPicker.plugins')
+            }}</span>
           </NuxtLink>
           <button
             v-if="isAdmin"
             class="flex items-center gap-3 px-3 py-2 text-left transition-colors server-picker-row"
             @click="
-              showServerPicker = false;
+              serverDropdown = null;
               showServerSettings = true;
             "
           >
@@ -745,27 +961,10 @@ onUnmounted(async () => {
                 />
               </svg>
             </div>
-            <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.75)"
-              >Paramètres du serveur</span
-            >
+            <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.75)">{{
+              t('serverPicker.settings')
+            }}</span>
           </button>
-
-          <div class="mx-3 my-1" style="height: 1px; background: rgba(255, 255, 255, 0.06)" />
-          <NuxtLink
-            to="/app"
-            class="flex items-center gap-3 px-3 py-2 transition-colors server-picker-row"
-            @click="showServerPicker = false"
-          >
-            <div
-              class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
-              style="background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.4)"
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-              </svg>
-            </div>
-            <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.4)">Accueil</span>
-          </NuxtLink>
         </div>
       </Teleport>
 
@@ -843,6 +1042,33 @@ onUnmounted(async () => {
         @close="editingChannel = null"
         @updated="editingChannel = null"
       />
+      <ChannelEditCategoryModal
+        v-if="editCategory"
+        :server-id="serverId"
+        :category="editCategory"
+        @close="editCategory = null"
+        @updated="editCategory = null"
+      />
+
+      <!-- Build toggle (admin only) — floating bottom-right button -->
+      <button
+        v-if="canManageMap"
+        class="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full px-4 py-2.5 text-xs font-semibold transition-all"
+        :style="
+          buildMode
+            ? 'background:rgba(99,102,241,0.92);color:white;box-shadow:0 8px 24px rgba(99,102,241,0.45),inset 0 1px 0 rgba(255,255,255,0.18);border:1px solid rgba(165,180,252,0.5)'
+            : 'background:rgba(15,15,20,0.78);color:rgba(255,255,255,0.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.08);box-shadow:0 8px 24px rgba(0,0,0,0.35)'
+        "
+        :title="buildMode ? 'Quitter le mode build (B)' : 'Activer le mode build (B)'"
+        @click="toggleBuildMode"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M22 9l-3.39-.34-1.46-3.15-2.91 1.81L11 6l-1.24 3.32-2.91-1.81L5.39 10.66 2 11l1.81 2.91L2 16.83l3.39.34 1.46 3.15 2.91-1.81L11 22l1.24-3.32 2.91 1.81 1.46-3.15L22 17l-1.81-2.91z"
+          />
+        </svg>
+        <span>{{ buildMode ? 'Quitter' : 'Build' }}</span>
+      </button>
 
       <!-- Build panel (admin + build mode only) -->
       <ClientOnly>
@@ -850,7 +1076,15 @@ onUnmounted(async () => {
           v-if="canManageMap && buildMode"
           :tool="buildTool"
           :is-saving="isMapSaving"
+          :selected-decor="selectedDecor"
+          :selected-floor="selectedFloor"
+          :selected-wall-frame="selectedWallFrame"
+          :selected-room-template="selectedRoomTemplate"
           @update:tool="buildTool = $event"
+          @update:selected-decor="selectedDecor = $event"
+          @update:selected-floor="selectedFloor = $event"
+          @update:selected-wall-frame="selectedWallFrame = $event"
+          @update:selected-room-template="selectedRoomTemplate = $event"
           @close="toggleBuildMode"
         />
       </ClientOnly>
@@ -982,6 +1216,12 @@ onUnmounted(async () => {
 
 <style scoped>
 /* ── Layout shell: world fills viewport, cards float over it ── */
+.classic-shell {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+}
+
 .page-root {
   position: relative;
   width: 100%;
