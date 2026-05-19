@@ -21,6 +21,7 @@ export const createChannelInputSchema = z.object({
   parentId: z.string().optional(),
   mapZone: mapZoneSchema.optional(),
   widgetKind: widgetKindSchema.optional(),
+  showStat: z.boolean().default(true),
 });
 export type CreateChannelInput = z.infer<typeof createChannelInputSchema>;
 
@@ -30,7 +31,9 @@ export const updateChannelInputSchema = z.object({
   parentId: z.string().nullable().optional(),
   mapZone: mapZoneSchema.nullable().optional(),
   iconUrl: z.string().nullable().optional(),
+  bannerUrl: z.string().nullable().optional(),
   categoryId: z.string().nullable().optional(),
+  showStat: z.boolean().optional(),
 });
 export type UpdateChannelInput = z.infer<typeof updateChannelInputSchema>;
 
@@ -44,7 +47,9 @@ export const channelPublicSchema = z.object({
   parentId: z.string().nullable(),
   mapZone: mapZoneSchema.nullable(),
   iconUrl: z.string().nullable(),
+  bannerUrl: z.string().nullable(),
   widgetKind: widgetKindSchema.nullable(),
+  showStat: z.boolean(),
   createdAt: z.string().datetime(),
 });
 export type ChannelPublic = z.infer<typeof channelPublicSchema>;
@@ -58,6 +63,9 @@ export type CreateCategoryInput = z.infer<typeof createCategoryInputSchema>;
 export const updateCategoryInputSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   position: z.number().int().min(0).optional(),
+  color: z.string().nullable().optional(),
+  iconUrl: z.string().nullable().optional(),
+  bannerUrl: z.string().nullable().optional(),
 });
 export type UpdateCategoryInput = z.infer<typeof updateCategoryInputSchema>;
 
@@ -66,6 +74,9 @@ export const categoryPublicSchema = z.object({
   serverId: z.string(),
   name: z.string(),
   position: z.number(),
+  color: z.string().nullable(),
+  iconUrl: z.string().nullable(),
+  bannerUrl: z.string().nullable(),
   createdAt: z.string().datetime(),
 });
 export type CategoryPublic = z.infer<typeof categoryPublicSchema>;
