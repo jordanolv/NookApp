@@ -20,6 +20,13 @@
     "description": "Un bureau virtuel pixel-art pour les petites équipes. Construisez votre carte, rejoignez un salon vocal et lancez des plugins.",
     "getStarted": "Commencer"
   },
+  "serverPicker": {
+    "switchNook": "Changer de Nook",
+    "invite": "Inviter des gens",
+    "plugins": "Plugins",
+    "settings": "Paramètres du serveur",
+    "appHome": "Accueil"
+  },
   "auth": {
     "login": {
       "title": "Connexion — NookApp",
@@ -162,7 +169,10 @@
         "notes": "Mes notes",
         "gaming": "Gaming",
         "voice": "Salon vocal"
-      }
+      },
+      "banner": "BANNIÈRE",
+      "bannerOptional": "— optionnel",
+      "bannerPick": "Choisir une image"
     },
     "edit": {
       "title": "Modifier le canal",

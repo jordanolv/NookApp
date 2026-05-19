@@ -20,6 +20,13 @@
     "description": "A pixel-art virtual office for small teams. Build your map, hop on voice, run plugins.",
     "getStarted": "Get started"
   },
+  "serverPicker": {
+    "switchNook": "Switch Nook",
+    "invite": "Invite people",
+    "plugins": "Plugins",
+    "settings": "Server settings",
+    "appHome": "Home"
+  },
   "auth": {
     "login": {
       "title": "Sign in — NookApp",
@@ -162,7 +169,10 @@
         "notes": "My notes",
         "gaming": "Gaming",
         "voice": "Voice room"
-      }
+      },
+      "banner": "BANNER",
+      "bannerOptional": "— optional",
+      "bannerPick": "Pick an image"
     },
     "edit": {
       "title": "Edit channel",
