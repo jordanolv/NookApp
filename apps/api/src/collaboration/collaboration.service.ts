@@ -7,7 +7,13 @@ import {
 } from '@hocuspocus/server';
 import { and, eq } from 'drizzle-orm';
 import { map as mapTable, member, type Database } from '@nookapp/db';
-import { mapDataSchema, DEFAULT_MAP, type MapItem } from '@nookapp/protocol';
+import {
+  mapDataSchema,
+  DEFAULT_MAP,
+  type DecorObject,
+  type FloorCell,
+  type WallCell,
+} from '@nookapp/protocol';
 import { DB } from '../database/database.module';
 import { AUTH, type AuthInstance, type AuthSession } from '../auth/auth.types';
 import crypto from 'node:crypto';
@@ -90,8 +96,10 @@ export class CollaborationService implements OnApplicationShutdown {
   }
 
   private async onLoadDocument({ documentName, document }: onLoadDocumentPayload) {
-    const tilesArray = document.getArray<number[]>('tiles');
-    if (tilesArray.length > 0) return;
+    const floorsArray = document.getArray<FloorCell>('floors');
+    const wallsArray = document.getArray<WallCell>('walls');
+    const decorArray = document.getArray<DecorObject>('decor');
+    if (floorsArray.length > 0 || wallsArray.length > 0 || decorArray.length > 0) return;
 
     const [row] = await this.db
       .select()
@@ -105,10 +113,10 @@ export class CollaborationService implements OnApplicationShutdown {
 
     if (!parsed.success) return;
 
-    const itemsArray = document.getArray<MapItem>('items');
     document.transact(() => {
-      tilesArray.insert(0, parsed.data.tiles);
-      if (parsed.data.items.length) itemsArray.insert(0, parsed.data.items);
+      if (parsed.data.layers.floors.length) floorsArray.insert(0, parsed.data.layers.floors);
+      if (parsed.data.layers.walls.length) wallsArray.insert(0, parsed.data.layers.walls);
+      if (parsed.data.layers.decor.length) decorArray.insert(0, parsed.data.layers.decor);
     });
   }
 
@@ -126,10 +134,16 @@ export class CollaborationService implements OnApplicationShutdown {
   }
 
   private async persistDoc(serverId: string, document: onChangePayload['document']) {
-    const tiles = document.getArray<number[]>('tiles').toArray();
-    const items = document.getArray<MapItem>('items').toArray();
+    const floors = document.getArray<FloorCell>('floors').toArray();
+    const walls = document.getArray<WallCell>('walls').toArray();
+    const decor = document.getArray<DecorObject>('decor').toArray();
 
-    const parsed = mapDataSchema.safeParse({ tiles, items });
+    const parsed = mapDataSchema.safeParse({
+      width: DEFAULT_MAP.width,
+      height: DEFAULT_MAP.height,
+      spawn: DEFAULT_MAP.spawn,
+      layers: { floors, walls, decor },
+    });
     if (!parsed.success) {
       this.logger.warn(`invalid map data for ${serverId}, skipping persist`);
       return;

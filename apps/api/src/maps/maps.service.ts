@@ -12,18 +12,19 @@ import {
 import { DB } from '../database/database.module';
 import { RolesService } from '../roles/roles.service';
 
-// Drop unknown item types so a renamed/removed item shape doesn't fail the whole parse.
+// Drop unknown layer rows so a renamed/removed cell shape doesn't fail the whole parse.
 function sanitizeRawData(raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') return raw;
-  const obj = raw as { items?: unknown };
-  if (!Array.isArray(obj.items)) return raw;
-  const knownTypes = new Set(['wall']);
+  const obj = raw as { layers?: { floors?: unknown; walls?: unknown; decor?: unknown } };
+  if (!obj.layers || typeof obj.layers !== 'object') return raw;
   return {
     ...obj,
-    items: obj.items.filter(
-      (it): it is { type: string } =>
-        !!it && typeof it === 'object' && knownTypes.has((it as { type?: string }).type ?? ''),
-    ),
+    layers: {
+      ...obj.layers,
+      floors: Array.isArray(obj.layers.floors) ? obj.layers.floors : [],
+      walls: Array.isArray(obj.layers.walls) ? obj.layers.walls : [],
+      decor: Array.isArray(obj.layers.decor) ? obj.layers.decor : [],
+    },
   };
 }
 
