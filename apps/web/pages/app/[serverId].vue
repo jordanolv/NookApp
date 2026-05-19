@@ -3,6 +3,7 @@ import { markRaw } from 'vue';
 import { Hash, Pin, PinOff, RotateCcw, Settings, Trash2, Users } from 'lucide-vue-next';
 import type { ChannelPublic } from '@nookapp/protocol';
 import { useHomePins, type HomePinKind } from '~/composables/useHomePins';
+import { useInterfacePreferences } from '~/composables/useInterfacePreferences';
 import WidgetGamingTopic from '~/widgets/WidgetGamingTopic.vue';
 
 definePageMeta({ layout: 'app' });
@@ -19,6 +20,8 @@ const { createInvite } = useInvites();
 const socket = useSocket();
 const voice = useVoice();
 const { isAdmin, canManageChannels, canManageMap, loadMember } = useMember();
+const interfacePrefs = useInterfacePreferences();
+const classicEnabled = computed(() => interfacePrefs.prefs.value.useClassicInterface);
 const {
   currentMap,
   buildMode,
@@ -439,8 +442,13 @@ function onWallsRect(rect: RectPayload) {
 }
 
 function toggleBuildMode() {
+  if (classicEnabled.value) return;
   buildMode.value = !buildMode.value;
 }
+
+watch(classicEnabled, (enabled) => {
+  if (enabled && buildMode.value) buildMode.value = false;
+});
 
 async function handleVoiceChannelClick(channelId: string) {
   if (voice.currentChannelId.value === channelId) {
@@ -472,369 +480,381 @@ onUnmounted(async () => {
 
 <template>
   <div class="page-root">
-    <!-- World fills the entire viewport behind everything -->
-    <ClientOnly>
-      <WorldNookWorld
-        v-if="user?.id"
-        ref="worldRef"
-        :server-id="serverId"
-        :user-id="user.id"
-        :player-name="user.name"
-        :zone-picker-active="zonePickerActive"
-        :map-data="currentMap"
-        :build-mode="buildMode"
-        :build-tool="buildTool"
-        :sidebar-side="sidebar.side.value"
-        @zone-picked="onZonePicked"
-        @zone-cancel="onZoneCancel"
-        @tiles-rect="onTilesRect"
-        @walls-rect="onWallsRect"
-      />
-    </ClientOnly>
+    <ClassicLayout v-if="classicEnabled" :server-id="serverId" />
 
-    <!-- Sidebar (icons + stacked content + user dock) -->
-    <LayoutSideBar
-      :side="sidebar.side.value"
-      :sections="SIDEBAR_SECTIONS"
-      :order="sidebar.order.value"
-      :active-keys="sidebar.activeSet.value"
-      :section-heights="sidebar.sectionHeights.value"
-      :server-name="server?.name ?? ''"
-      :banner-url="resolveUrl(server?.bannerUrl) ?? null"
-      @toggle-section="sidebar.toggleSection"
-      @swap-side="sidebar.swapSide"
-      @set-order="sidebar.setOrder"
-      @set-section-height="sidebar.setSectionHeight"
-      @open-server-menu="openServerMenuFromSidebar"
-    >
-      <template #user-dock>
-        <LayoutUserDock />
-      </template>
-      <template #channels>
-        <LayoutChannelsList
-          :channels="store.channels.filter((c) => c.serverId === serverId && c.type !== 'voice')"
-          :categories="store.categories.filter((c) => c.serverId === serverId)"
-          :active-channel-ids="activeChannelIds"
-          :current-voice-id="voice.currentChannelId.value"
-          @select="handleChannelClick"
+    <template v-else>
+      <!-- World fills the entire viewport behind everything -->
+      <ClientOnly>
+        <WorldNookWorld
+          v-if="user?.id"
+          ref="worldRef"
+          :server-id="serverId"
+          :user-id="user.id"
+          :player-name="user.name"
+          :zone-picker-active="zonePickerActive"
+          :map-data="currentMap"
+          :build-mode="buildMode"
+          :build-tool="buildTool"
+          :sidebar-side="sidebar.side.value"
+          @zone-picked="onZonePicked"
+          @zone-cancel="onZoneCancel"
+          @tiles-rect="onTilesRect"
+          @walls-rect="onWallsRect"
         />
-      </template>
-      <template #members>
-        <HomeMembersList :server-id="serverId" />
-      </template>
-      <template #pinned>
-        <HomePinsList :server-id="serverId" @open="openHomePinnedItem" />
-      </template>
-    </LayoutSideBar>
+      </ClientOnly>
 
-    <!-- Voice members list (visible while connected to a voice channel) -->
-    <VoiceMembersWindow />
-
-    <!-- Minimap (self-contained, draggable, round tactical HUD) -->
-    <WorldMinimap
-      :map-data="currentMap ?? null"
-      :voice-channels="voiceChannels"
-      :players="presence.players.value"
-      :voice-members="presence.voiceMembers.value"
-      :current-user-id="user?.id ?? null"
-      :current-user-name="user?.name ?? null"
-      :current-voice-channel-id="voice.currentChannelId.value"
-      @teleport-to="onMinimapTeleport"
-    />
-
-    <!-- Main chat window (chrome-style tabs) -->
-    <ChatTabBar
-      v-if="chatTabChannelIds.length > 0"
-      :channel-ids="chatTabChannelIds"
-      :active-id="chatTabActiveId"
-      :dragging-channel-id="draggingFloatingId"
-      @close="closeAllTabs"
-      @close-tab="closeTab"
-      @set-active="chatTabActiveId = $event"
-      @tear-off="onTearOff"
-      @dock="dockToTabBar"
-    />
-
-    <!-- Torn-off floating chat windows -->
-    <ChatWindow
-      v-for="(win, i) in floatingChats"
-      :key="win.channelId"
-      :channel-id="win.channelId"
-      :initial-x="win.x"
-      :initial-y="win.y"
-      :z-index="45 + i"
-      @close="closeFloating(win.channelId)"
-      @focus="focusFloating(win.channelId)"
-      @drag-start="draggingFloatingId = win.channelId"
-      @drag-end="draggingFloatingId = null"
-    />
-
-    <!-- Layout menu popover -->
-    <Teleport to="body">
-      <div v-if="showLayoutMenu" class="fixed inset-0 z-[80]" @click="closeLayoutMenu" />
-      <div
-        v-if="showLayoutMenu"
-        class="fixed flex flex-col gap-0.5 rounded-xl p-1.5 z-[81]"
-        :style="{
-          left: `${layoutMenuAnchor.left}px`,
-          bottom: `${layoutMenuAnchor.bottom}px`,
-          width: '220px',
-          background: 'rgba(10, 10, 16, 0.96)',
-          backdropFilter: 'blur(24px) saturate(160%)',
-          WebkitBackdropFilter: 'blur(24px) saturate(160%)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          boxShadow: '0 16px 48px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)',
-        }"
-        @click.stop
+      <!-- Sidebar (icons + stacked content + user dock) -->
+      <LayoutSideBar
+        :side="sidebar.side.value"
+        :sections="SIDEBAR_SECTIONS"
+        :order="sidebar.order.value"
+        :active-keys="sidebar.activeSet.value"
+        :section-heights="sidebar.sectionHeights.value"
+        :server-name="server?.name ?? ''"
+        :banner-url="resolveUrl(server?.bannerUrl) ?? null"
+        @toggle-section="sidebar.toggleSection"
+        @swap-side="sidebar.swapSide"
+        @set-order="sidebar.setOrder"
+        @set-section-height="sidebar.setSectionHeight"
+        @open-server-menu="openServerMenuFromSidebar"
       >
-        <button
-          class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-white/[0.06]"
-          @click="resetLayout"
+        <template #user-dock>
+          <LayoutUserDock />
+        </template>
+        <template #channels>
+          <LayoutChannelsList
+            :channels="store.channels.filter((c) => c.serverId === serverId && c.type !== 'voice')"
+            :categories="store.categories.filter((c) => c.serverId === serverId)"
+            :active-channel-ids="activeChannelIds"
+            :current-voice-id="voice.currentChannelId.value"
+            @select="handleChannelClick"
+          />
+        </template>
+        <template #members>
+          <HomeMembersList :server-id="serverId" />
+        </template>
+        <template #pinned>
+          <HomePinsList :server-id="serverId" @open="openHomePinnedItem" />
+        </template>
+      </LayoutSideBar>
+
+      <!-- Voice members list (visible while connected to a voice channel) -->
+      <VoiceMembersWindow />
+
+      <!-- Minimap (self-contained, draggable, round tactical HUD) -->
+      <WorldMinimap
+        :map-data="currentMap ?? null"
+        :voice-channels="voiceChannels"
+        :players="presence.players.value"
+        :voice-members="presence.voiceMembers.value"
+        :current-user-id="user?.id ?? null"
+        :current-user-name="user?.name ?? null"
+        :current-voice-channel-id="voice.currentChannelId.value"
+        @teleport-to="onMinimapTeleport"
+      />
+
+      <!-- Main chat window (chrome-style tabs) -->
+      <ChatTabBar
+        v-if="chatTabChannelIds.length > 0"
+        :channel-ids="chatTabChannelIds"
+        :active-id="chatTabActiveId"
+        :dragging-channel-id="draggingFloatingId"
+        @close="closeAllTabs"
+        @close-tab="closeTab"
+        @set-active="chatTabActiveId = $event"
+        @tear-off="onTearOff"
+        @dock="dockToTabBar"
+      />
+
+      <!-- Torn-off floating chat windows -->
+      <ChatWindow
+        v-for="(win, i) in floatingChats"
+        :key="win.channelId"
+        :channel-id="win.channelId"
+        :initial-x="win.x"
+        :initial-y="win.y"
+        :z-index="45 + i"
+        @close="closeFloating(win.channelId)"
+        @focus="focusFloating(win.channelId)"
+        @drag-start="draggingFloatingId = win.channelId"
+        @drag-end="draggingFloatingId = null"
+      />
+
+      <!-- Layout menu popover -->
+      <Teleport to="body">
+        <div v-if="showLayoutMenu" class="fixed inset-0 z-[80]" @click="closeLayoutMenu" />
+        <div
+          v-if="showLayoutMenu"
+          class="fixed flex flex-col gap-0.5 rounded-xl p-1.5 z-[81]"
+          :style="{
+            left: `${layoutMenuAnchor.left}px`,
+            bottom: `${layoutMenuAnchor.bottom}px`,
+            width: '220px',
+            background: 'rgba(10, 10, 16, 0.96)',
+            backdropFilter: 'blur(24px) saturate(160%)',
+            WebkitBackdropFilter: 'blur(24px) saturate(160%)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            boxShadow: '0 16px 48px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)',
+          }"
+          @click.stop
         >
-          <RotateCcw :size="13" style="color: rgba(255, 255, 255, 0.5)" />
-          <span class="flex-1 text-xs font-semibold" style="color: rgba(255, 255, 255, 0.85)">
-            Réinitialiser la disposition
-          </span>
-        </button>
-      </div>
-    </Teleport>
-
-    <!-- ── Server picker dropdown ── -->
-    <Teleport to="body">
-      <div v-if="showServerPicker" class="fixed inset-0 z-[55]" @click="showServerPicker = false" />
-      <div
-        v-if="showServerPicker"
-        class="fixed z-[56] flex flex-col rounded-2xl overflow-hidden py-1.5"
-        :style="{
-          top: pickerTop + 'px',
-          right: '16px',
-          minWidth: '200px',
-          background: 'rgba(10, 10, 16, 0.95)',
-          backdropFilter: 'blur(28px) saturate(160%)',
-          WebkitBackdropFilter: 'blur(28px) saturate(160%)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          boxShadow: '0 16px 48px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)',
-        }"
-      >
-        <!-- Nook select (collapsed by default — click to expand list) -->
-        <div class="px-1.5 pt-1.5">
           <button
-            class="server-picker-row flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors"
-            :style="serversExpanded ? 'background: rgba(255,255,255,0.05)' : ''"
-            @click="serversExpanded = !serversExpanded"
+            class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-white/[0.06]"
+            @click="resetLayout"
           >
-            <div
-              class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white"
-              style="background: linear-gradient(135deg, #6366f1, #4338ca)"
-            >
-              {{ server?.name?.[0]?.toUpperCase() }}
-            </div>
-            <span
-              class="flex-1 truncate text-xs font-medium"
-              style="color: rgba(255, 255, 255, 0.85)"
-              >{{ server?.name }}</span
-            >
-            <svg
-              class="flex-shrink-0 transition-transform duration-150"
-              :style="serversExpanded ? 'transform: rotate(180deg)' : ''"
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              style="color: rgba(255, 255, 255, 0.4)"
-            >
-              <path d="M7 10l5 5 5-5z" />
-            </svg>
+            <RotateCcw :size="13" style="color: rgba(255, 255, 255, 0.5)" />
+            <span class="flex-1 text-xs font-semibold" style="color: rgba(255, 255, 255, 0.85)">
+              Réinitialiser la disposition
+            </span>
           </button>
+        </div>
+      </Teleport>
 
-          <div v-if="serversExpanded" class="mt-1 flex flex-col gap-0.5">
+      <!-- ── Server picker dropdown ── -->
+      <Teleport to="body">
+        <div
+          v-if="showServerPicker"
+          class="fixed inset-0 z-[55]"
+          @click="showServerPicker = false"
+        />
+        <div
+          v-if="showServerPicker"
+          class="fixed z-[56] flex flex-col rounded-2xl overflow-hidden py-1.5"
+          :style="{
+            top: pickerTop + 'px',
+            right: '16px',
+            minWidth: '200px',
+            background: 'rgba(10, 10, 16, 0.95)',
+            backdropFilter: 'blur(28px) saturate(160%)',
+            WebkitBackdropFilter: 'blur(28px) saturate(160%)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            boxShadow: '0 16px 48px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)',
+          }"
+        >
+          <!-- Nook select (collapsed by default — click to expand list) -->
+          <div class="px-1.5 pt-1.5">
             <button
-              v-for="s in store.list.filter((s) => s.id !== serverId)"
-              :key="s.id"
-              class="server-picker-row flex items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors"
-              @click="switchServer(s.id)"
+              class="server-picker-row flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors"
+              :style="serversExpanded ? 'background: rgba(255,255,255,0.05)' : ''"
+              @click="serversExpanded = !serversExpanded"
             >
               <div
                 class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white"
                 style="background: linear-gradient(135deg, #6366f1, #4338ca)"
               >
-                {{ s.name[0]?.toUpperCase() }}
+                {{ server?.name?.[0]?.toUpperCase() }}
               </div>
-              <span class="truncate text-xs font-medium" style="color: rgba(255, 255, 255, 0.7)">{{
-                s.name
-              }}</span>
+              <span
+                class="flex-1 truncate text-xs font-medium"
+                style="color: rgba(255, 255, 255, 0.85)"
+                >{{ server?.name }}</span
+              >
+              <svg
+                class="flex-shrink-0 transition-transform duration-150"
+                :style="serversExpanded ? 'transform: rotate(180deg)' : ''"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                style="color: rgba(255, 255, 255, 0.4)"
+              >
+                <path d="M7 10l5 5 5-5z" />
+              </svg>
             </button>
+
+            <div v-if="serversExpanded" class="mt-1 flex flex-col gap-0.5">
+              <button
+                v-for="s in store.list.filter((s) => s.id !== serverId)"
+                :key="s.id"
+                class="server-picker-row flex items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors"
+                @click="switchServer(s.id)"
+              >
+                <div
+                  class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white"
+                  style="background: linear-gradient(135deg, #6366f1, #4338ca)"
+                >
+                  {{ s.name[0]?.toUpperCase() }}
+                </div>
+                <span
+                  class="truncate text-xs font-medium"
+                  style="color: rgba(255, 255, 255, 0.7)"
+                  >{{ s.name }}</span
+                >
+              </button>
+            </div>
           </div>
+
+          <div class="mx-3 my-1.5" style="height: 1px; background: rgba(255, 255, 255, 0.06)" />
+
+          <!-- Current server actions -->
+          <button
+            class="flex items-center gap-3 px-3 py-2 text-left transition-colors server-picker-row"
+            @click="
+              showServerPicker = false;
+              handleInvite();
+            "
+          >
+            <div
+              class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
+              style="background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.55)"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
+                />
+              </svg>
+            </div>
+            <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.75)"
+              >Inviter des gens</span
+            >
+          </button>
+          <NuxtLink
+            :to="`/app/${serverId}/plugins`"
+            class="flex items-center gap-3 px-3 py-2 transition-colors server-picker-row"
+            @click="showServerPicker = false"
+          >
+            <div
+              class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
+              style="background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.55)"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7s2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"
+                />
+              </svg>
+            </div>
+            <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.75)"
+              >Plugins</span
+            >
+          </NuxtLink>
+          <button
+            v-if="isAdmin"
+            class="flex items-center gap-3 px-3 py-2 text-left transition-colors server-picker-row"
+            @click="
+              showServerPicker = false;
+              showServerSettings = true;
+            "
+          >
+            <div
+              class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
+              style="background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.55)"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
+                />
+              </svg>
+            </div>
+            <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.75)"
+              >Paramètres du serveur</span
+            >
+          </button>
+
+          <div class="mx-3 my-1" style="height: 1px; background: rgba(255, 255, 255, 0.06)" />
+          <NuxtLink
+            to="/app"
+            class="flex items-center gap-3 px-3 py-2 transition-colors server-picker-row"
+            @click="showServerPicker = false"
+          >
+            <div
+              class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
+              style="background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.4)"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+              </svg>
+            </div>
+            <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.4)">Accueil</span>
+          </NuxtLink>
         </div>
+      </Teleport>
 
-        <div class="mx-3 my-1.5" style="height: 1px; background: rgba(255, 255, 255, 0.06)" />
-
-        <!-- Current server actions -->
-        <button
-          class="flex items-center gap-3 px-3 py-2 text-left transition-colors server-picker-row"
-          @click="
-            showServerPicker = false;
-            handleInvite();
-          "
-        >
-          <div
-            class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
-            style="background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.55)"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-              <path
-                d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
-              />
-            </svg>
-          </div>
-          <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.75)"
-            >Inviter des gens</span
-          >
-        </button>
-        <NuxtLink
-          :to="`/app/${serverId}/plugins`"
-          class="flex items-center gap-3 px-3 py-2 transition-colors server-picker-row"
-          @click="showServerPicker = false"
-        >
-          <div
-            class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
-            style="background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.55)"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-              <path
-                d="M20.5 11H19V7c0-1.1-.9-2-2-2h-4V3.5C13 2.12 11.88 1 10.5 1S8 2.12 8 3.5V5H4c-1.1 0-1.99.9-1.99 2v3.8H3.5c1.49 0 2.7 1.21 2.7 2.7s-1.21 2.7-2.7 2.7H2V20c0 1.1.9 2 2 2h3.8v-1.5c0-1.49 1.21-2.7 2.7-2.7s2.7 1.21 2.7 2.7V22H17c1.1 0 2-.9 2-2v-4h1.5c1.38 0 2.5-1.12 2.5-2.5S21.88 11 20.5 11z"
-              />
-            </svg>
-          </div>
-          <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.75)">Plugins</span>
-        </NuxtLink>
-        <button
-          v-if="isAdmin"
-          class="flex items-center gap-3 px-3 py-2 text-left transition-colors server-picker-row"
-          @click="
-            showServerPicker = false;
-            showServerSettings = true;
-          "
-        >
-          <div
-            class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
-            style="background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.55)"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-              <path
-                d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
-              />
-            </svg>
-          </div>
-          <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.75)"
-            >Paramètres du serveur</span
-          >
-        </button>
-
-        <div class="mx-3 my-1" style="height: 1px; background: rgba(255, 255, 255, 0.06)" />
-        <NuxtLink
-          to="/app"
-          class="flex items-center gap-3 px-3 py-2 transition-colors server-picker-row"
-          @click="showServerPicker = false"
-        >
-          <div
-            class="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg"
-            style="background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.4)"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-            </svg>
-          </div>
-          <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.4)">Accueil</span>
-        </NuxtLink>
-      </div>
-    </Teleport>
-
-    <!-- ── Forum panel ── -->
-    <ChannelForumPanel
-      v-if="forumPanelChannelId"
-      :server-id="serverId"
-      :channel-id="forumPanelChannelId"
-      :channel-name="forumPanelChannelName"
-      @close="forumPanelChannelId = null"
-      @open-post="openChannelById"
-    />
-
-    <!-- ── Widget windows ── -->
-    <WidgetWindow
-      v-for="(w, i) in widgetWindows"
-      :key="w.channelId"
-      :server-id="serverId"
-      :channel-id="w.channelId"
-      :channel-name="w.channelName"
-      :widget-kind="w.widgetKind"
-      :initial-x="w.x"
-      :initial-y="w.y"
-      :z-index="70 + i"
-      @close="closeWidgetWindow(w.channelId)"
-      @focus="focusWidgetWindow(w.channelId)"
-      @drag-end="
-        (x, y) => {
-          w.x = x;
-          w.y = y;
-        }
-      "
-    />
-
-    <WidgetGamingTopic
-      v-for="(w, i) in homeTopicWindows"
-      :key="w.channelId"
-      :server-id="serverId"
-      :channel-id="w.channelId"
-      :channel-name="w.channelName"
-      :initial-x="w.x"
-      :initial-y="w.y"
-      :z-index="82 + i"
-      @close="closeHomeTopicWindow(w.channelId)"
-      @focus="focusHomeTopicWindow(w.channelId)"
-      @drag-end="
-        (x, y) => {
-          w.x = x;
-          w.y = y;
-        }
-      "
-    />
-
-    <!-- ── Server settings modal ── -->
-    <ServerSettingsModal
-      v-if="showServerSettings"
-      :server-id="serverId"
-      :server-name="server?.name"
-      @close="showServerSettings = false"
-    />
-
-    <!-- ── Create channel modal ── -->
-    <ChannelCreateChannelModal
-      v-if="showCreateModal"
-      :server-id="serverId"
-      @close="showCreateModal = false"
-      @created="onChannelCreated"
-    />
-
-    <!-- ── Edit channel modal ── -->
-    <ChannelEditChannelModal
-      v-if="editingChannel"
-      :server-id="serverId"
-      :channel="editingChannel"
-      @close="editingChannel = null"
-      @updated="editingChannel = null"
-    />
-
-    <!-- Build panel (admin + build mode only) -->
-    <ClientOnly>
-      <WorldBuildPanel
-        v-if="canManageMap && buildMode"
-        :tool="buildTool"
-        :is-saving="isMapSaving"
-        @update:tool="buildTool = $event"
-        @close="toggleBuildMode"
+      <!-- ── Forum panel ── -->
+      <ChannelForumPanel
+        v-if="forumPanelChannelId"
+        :server-id="serverId"
+        :channel-id="forumPanelChannelId"
+        :channel-name="forumPanelChannelName"
+        @close="forumPanelChannelId = null"
+        @open-post="openChannelById"
       />
-    </ClientOnly>
+
+      <!-- ── Widget windows ── -->
+      <WidgetWindow
+        v-for="(w, i) in widgetWindows"
+        :key="w.channelId"
+        :server-id="serverId"
+        :channel-id="w.channelId"
+        :channel-name="w.channelName"
+        :widget-kind="w.widgetKind"
+        :initial-x="w.x"
+        :initial-y="w.y"
+        :z-index="70 + i"
+        @close="closeWidgetWindow(w.channelId)"
+        @focus="focusWidgetWindow(w.channelId)"
+        @drag-end="
+          (x, y) => {
+            w.x = x;
+            w.y = y;
+          }
+        "
+      />
+
+      <WidgetGamingTopic
+        v-for="(w, i) in homeTopicWindows"
+        :key="w.channelId"
+        :server-id="serverId"
+        :channel-id="w.channelId"
+        :channel-name="w.channelName"
+        :initial-x="w.x"
+        :initial-y="w.y"
+        :z-index="82 + i"
+        @close="closeHomeTopicWindow(w.channelId)"
+        @focus="focusHomeTopicWindow(w.channelId)"
+        @drag-end="
+          (x, y) => {
+            w.x = x;
+            w.y = y;
+          }
+        "
+      />
+
+      <!-- ── Server settings modal ── -->
+      <ServerSettingsModal
+        v-if="showServerSettings"
+        :server-id="serverId"
+        :server-name="server?.name"
+        @close="showServerSettings = false"
+      />
+
+      <!-- ── Create channel modal ── -->
+      <ChannelCreateChannelModal
+        v-if="showCreateModal"
+        :server-id="serverId"
+        @close="showCreateModal = false"
+        @created="onChannelCreated"
+      />
+
+      <!-- ── Edit channel modal ── -->
+      <ChannelEditChannelModal
+        v-if="editingChannel"
+        :server-id="serverId"
+        :channel="editingChannel"
+        @close="editingChannel = null"
+        @updated="editingChannel = null"
+      />
+
+      <!-- Build panel (admin + build mode only) -->
+      <ClientOnly>
+        <WorldBuildPanel
+          v-if="canManageMap && buildMode"
+          :tool="buildTool"
+          :is-saving="isMapSaving"
+          @update:tool="buildTool = $event"
+          @close="toggleBuildMode"
+        />
+      </ClientOnly>
+    </template>
 
     <!-- Invite modal -->
     <Teleport to="body">
