@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ChannelPublic } from '@nookapp/protocol';
 import { Hash, MessageSquare, Volume2, Layers, Settings } from 'lucide-vue-next';
+import { useMessagesStore } from '~/stores/messages';
 
 const props = defineProps<{
   serverId: string;
@@ -10,6 +11,7 @@ const { store } = useServers();
 const voice = useVoice();
 const { user } = useAuth();
 const { t } = useI18n();
+const messagesStore = useMessagesStore();
 
 const selectedChannelId = ref<string | null>(null);
 const openForumId = ref<string | null>(null);
@@ -37,8 +39,19 @@ const selectedChannel = computed(() =>
 
 const forumPosts = computed(() => {
   if (!openForumId.value) return [];
-  return store.channels.filter((c) => c.parentId === openForumId.value);
+  return store.channels
+    .filter((c) => c.parentId === openForumId.value)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 });
+
+function postReplies(postId: string): number {
+  return messagesStore.countFor(postId) ?? 0;
+}
+
+function postCreatedLabel(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+}
 
 const openForum = computed(() =>
   openForumId.value ? (channelById.value.get(openForumId.value) ?? null) : null,
@@ -171,15 +184,34 @@ function isActive(ch: ChannelPublic): boolean {
 
     <!-- Center: lobby or active channel -->
     <main class="classic-main">
-      <header v-if="selectedChannel || openForum" class="classic-main__bar">
-        <button class="classic-main__back" @click="backToLobby">
-          {{ t('lobby.backToLobby') }}
+      <nav v-if="selectedChannel || openForum" class="classic-breadcrumb" aria-label="Breadcrumb">
+        <button
+          class="classic-breadcrumb__crumb classic-breadcrumb__crumb--link"
+          @click="backToLobby"
+        >
+          <Layers :size="11" :stroke-width="2" />
+          <span>{{ store.current?.name ?? 'Board' }}</span>
         </button>
-        <div class="classic-main__crumb">
-          <span class="classic-main__crumb-hash">{{ openForum ? '::' : '#' }}</span>
-          <span class="classic-main__crumb-name">{{ (selectedChannel ?? openForum)?.name }}</span>
-        </div>
-      </header>
+        <span class="classic-breadcrumb__sep">›</span>
+        <template v-if="selectedChannel && selectedChannel.parentId">
+          <button
+            class="classic-breadcrumb__crumb classic-breadcrumb__crumb--link"
+            @click="onOpenForumFromFeed(selectedChannel.parentId!)"
+          >
+            <span class="classic-breadcrumb__hash">::</span>
+            <span>{{ channelById.get(selectedChannel.parentId!)?.name ?? '…' }}</span>
+          </button>
+          <span class="classic-breadcrumb__sep">›</span>
+          <span class="classic-breadcrumb__crumb classic-breadcrumb__crumb--current">
+            <span class="classic-breadcrumb__hash">#</span>
+            <span>{{ selectedChannel.name }}</span>
+          </span>
+        </template>
+        <span v-else class="classic-breadcrumb__crumb classic-breadcrumb__crumb--current">
+          <span class="classic-breadcrumb__hash">{{ openForum ? '::' : '#' }}</span>
+          <span>{{ (selectedChannel ?? openForum)?.name }}</span>
+        </span>
+      </nav>
 
       <ChatPane
         v-if="selectedChannel && selectedChannel.type === 'text'"
@@ -188,24 +220,64 @@ function isActive(ch: ChannelPublic): boolean {
         class="classic-main__chat"
       />
 
-      <div v-else-if="openForum" class="classic-main__forum">
-        <header class="classic-forum__header">
-          <h2>:: {{ openForum.name }}</h2>
-          <p>{{ forumPosts.length }} post(s)</p>
+      <div v-else-if="openForum" class="classic-forum">
+        <header class="classic-forum__head">
+          <div>
+            <h2 class="classic-forum__title">{{ openForum.name }}</h2>
+            <p class="classic-forum__desc">
+              {{ forumPosts.length }}
+              {{ forumPosts.length === 1 ? 'topic' : 'topics' }} in this board
+            </p>
+          </div>
+          <span class="classic-forum__pager">Page <strong>1</strong> of 1</span>
         </header>
-        <ul v-if="forumPosts.length" class="classic-forum__posts">
-          <li
-            v-for="post in forumPosts"
+
+        <div v-if="!forumPosts.length" class="classic-forum__empty">
+          {{ t('lobby.noActivity') }}
+        </div>
+
+        <div v-else class="classic-forum__table" role="table">
+          <div class="classic-forum__row classic-forum__row--head" role="row">
+            <div class="classic-forum__cell classic-forum__cell--name" role="columnheader">
+              Topic
+            </div>
+            <div class="classic-forum__cell classic-forum__cell--num" role="columnheader">
+              Replies
+            </div>
+            <div class="classic-forum__cell classic-forum__cell--date" role="columnheader">
+              Started
+            </div>
+          </div>
+
+          <div
+            v-for="(post, i) in forumPosts"
             :key="post.id"
-            class="classic-forum__post"
+            class="classic-forum__row"
+            :class="{ 'classic-forum__row--alt': i % 2 === 1 }"
+            role="row"
             @click="onOpenChannelFromFeed(post.id)"
           >
-            <span class="classic-forum__post-hash">#</span>
-            <span class="classic-forum__post-name">{{ post.name }}</span>
-            <span class="classic-forum__post-arrow">→</span>
-          </li>
-        </ul>
-        <p v-else class="classic-forum__empty">{{ t('lobby.noActivity') }}</p>
+            <div class="classic-forum__cell classic-forum__cell--name" role="cell">
+              <span class="classic-forum__topic-icon" aria-hidden="true">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <path
+                    d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z"
+                  />
+                </svg>
+              </span>
+              <div class="classic-forum__namecol">
+                <span class="classic-forum__topic-name">{{ post.name }}</span>
+                <span class="classic-forum__topic-meta">Thread #{{ post.id.slice(0, 6) }}</span>
+              </div>
+            </div>
+            <div class="classic-forum__cell classic-forum__cell--num" role="cell">
+              {{ postReplies(post.id) }}
+            </div>
+            <div class="classic-forum__cell classic-forum__cell--date" role="cell">
+              {{ postCreatedLabel(post.createdAt) }}
+            </div>
+          </div>
+        </div>
       </div>
 
       <ClassicLobbyFeed
@@ -459,49 +531,63 @@ function isActive(ch: ChannelPublic): boolean {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  font-family: 'Verdana', 'Geneva', 'Tahoma', sans-serif;
 }
 
-.classic-main__bar {
+.classic-breadcrumb {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 18px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  background: rgba(10, 10, 16, 0.5);
+  gap: 6px;
+  padding: 8px 18px;
+  background:
+    linear-gradient(180deg, rgba(99, 102, 241, 0.16), rgba(99, 102, 241, 0.04)),
+    rgba(15, 16, 24, 0.9);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 11px;
+  flex-wrap: wrap;
 }
 
-.classic-main__back {
-  font-size: 11px;
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-  color: rgba(255, 255, 255, 0.4);
+.classic-breadcrumb__crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: 3px;
+  color: rgba(255, 255, 255, 0.65);
+  background: transparent;
+  font-weight: 500;
+}
+
+.classic-breadcrumb__crumb--link {
+  color: rgb(165, 180, 252);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(165, 180, 252, 0.35);
+  text-underline-offset: 2px;
   transition:
     background 120ms,
     color 120ms;
 }
 
-.classic-main__back:hover {
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(255, 255, 255, 0.85);
+.classic-breadcrumb__crumb--link:hover {
+  background: rgba(99, 102, 241, 0.18);
+  color: rgb(199, 210, 254);
+  text-decoration-color: rgb(199, 210, 254);
 }
 
-.classic-main__crumb {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-}
-
-.classic-main__crumb-hash {
-  color: rgba(255, 255, 255, 0.3);
-  font-size: 13px;
-}
-
-.classic-main__crumb-name {
-  font-size: 14px;
-  font-weight: 700;
+.classic-breadcrumb__crumb--current {
   color: rgba(255, 255, 255, 0.92);
+  font-weight: 700;
+}
+
+.classic-breadcrumb__hash {
+  font-family: ui-monospace, 'Lucida Console', monospace;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.classic-breadcrumb__sep {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 12px;
 }
 
 .classic-main__chat {
@@ -509,89 +595,177 @@ function isActive(ch: ChannelPublic): boolean {
   min-height: 0;
 }
 
-.classic-main__forum {
+.classic-forum {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 28px 36px;
+  padding: 22px 28px 48px;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
 }
 
-.classic-forum__header {
+.classic-forum__head {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding-bottom: 14px;
-  border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
-  margin-bottom: 16px;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  margin-bottom: 0;
+  background:
+    linear-gradient(180deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.06)),
+    rgba(20, 22, 32, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
 }
 
-.classic-forum__header h2 {
+.classic-forum__title {
   margin: 0;
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.95);
 }
 
-.classic-forum__header p {
-  margin: 0;
+.classic-forum__desc {
+  margin: 2px 0 0;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.45);
 }
 
-.classic-forum__posts {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+.classic-forum__pager {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.45);
+  font-family: ui-monospace, 'Lucida Console', monospace;
+}
+
+.classic-forum__pager strong {
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 700;
+}
+
+.classic-forum__table {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0 0 4px 4px;
+  background: rgba(15, 16, 24, 0.55);
+  overflow: hidden;
 }
 
-.classic-forum__post {
+.classic-forum__row {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) 90px 140px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: background 100ms;
+}
+
+.classic-forum__row:last-child {
+  border-bottom: none;
+}
+
+.classic-forum__row--alt {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.classic-forum__row:hover {
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.classic-forum__row--head {
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: default;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.45);
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.classic-forum__row--head:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.classic-forum__cell {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 14px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  cursor: pointer;
-  transition:
-    background 120ms,
-    border-color 120ms;
-}
-
-.classic-forum__post:hover {
-  background: rgba(99, 102, 241, 0.08);
-  border-color: rgba(129, 140, 248, 0.3);
-}
-
-.classic-forum__post-hash {
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.78);
+  min-width: 0;
 }
 
-.classic-forum__post-name {
-  flex: 1;
+.classic-forum__cell--num {
+  justify-content: center;
+  font-family: ui-monospace, 'Lucida Console', monospace;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.classic-forum__cell--date {
+  justify-content: flex-end;
+  font-family: ui-monospace, 'Lucida Console', monospace;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.classic-forum__topic-icon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.18);
+  color: rgb(165, 180, 252);
+  border: 1px solid rgba(129, 140, 248, 0.32);
+}
+
+.classic-forum__namecol {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.classic-forum__topic-name {
   font-size: 13px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.85);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  text-decoration: underline;
+  text-decoration-color: rgba(165, 180, 252, 0.4);
+  text-underline-offset: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.classic-forum__post-arrow {
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-  color: rgba(255, 255, 255, 0.3);
+.classic-forum__row:hover .classic-forum__topic-name {
+  color: rgb(199, 210, 254);
+  text-decoration-color: rgb(199, 210, 254);
+}
+
+.classic-forum__topic-meta {
+  margin-top: 1px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: ui-monospace, 'Lucida Console', monospace;
+  font-style: italic;
 }
 
 .classic-forum__empty {
+  padding: 24px;
+  text-align: center;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.35);
   font-style: italic;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-top: none;
+  border-radius: 0 0 4px 4px;
 }
 </style>
