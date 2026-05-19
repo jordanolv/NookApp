@@ -1,4 +1,13 @@
-import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { user } from './users';
 
 export const server = pgTable(
@@ -29,6 +38,9 @@ export const channelCategory = pgTable(
       .references(() => server.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     position: integer('position').notNull().default(0),
+    color: text('color'),
+    iconUrl: text('icon_url'),
+    bannerUrl: text('banner_url'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
@@ -52,7 +64,9 @@ export const channel = pgTable(
     parentId: text('parent_id'),
     mapZone: jsonb('map_zone'),
     iconUrl: text('icon_url'),
+    bannerUrl: text('banner_url'),
     widgetKind: text('widget_kind'),
+    showStat: boolean('show_stat').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
