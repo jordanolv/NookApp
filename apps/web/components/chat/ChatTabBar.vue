@@ -23,6 +23,18 @@ function channelName(id: string) {
   return store.channels.find((c) => c.id === id)?.name ?? '…';
 }
 
+const { apiBase } = useRuntimeConfig().public;
+const apiOrigin = new URL(apiBase as string).origin;
+function resolveUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  return url.startsWith('/') ? `${apiOrigin}${url}` : url;
+}
+
+const activeBannerUrl = computed(() => {
+  if (!props.activeId) return null;
+  return resolveUrl(store.channels.find((c) => c.id === props.activeId)?.bannerUrl);
+});
+
 const titleText = computed(() => {
   const count = props.channelIds.length;
   if (count === 0) return 'Chats';
@@ -103,6 +115,7 @@ onUnmounted(() => {
 
   <UiFloatingWindow
     :title="titleText"
+    :banner-url="activeBannerUrl"
     :initial-x="80"
     :initial-y="80"
     :initial-width="480"

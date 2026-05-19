@@ -2,6 +2,7 @@
 const props = withDefaults(
   defineProps<{
     title?: string;
+    bannerUrl?: string | null;
     initialWidth?: number;
     initialHeight?: number;
     initialX?: number | null;
@@ -248,14 +249,32 @@ const surfaceStyle = computed(() => {
       @mousedown="emit('focus')"
     >
       <div
-        class="flex flex-shrink-0 items-center gap-3 px-4 py-2.5 cursor-grab active:cursor-grabbing select-none"
+        class="flex flex-shrink-0 items-center gap-3 px-4 py-2.5 cursor-grab active:cursor-grabbing select-none relative overflow-hidden"
         style="border-bottom: 1px solid rgba(255, 255, 255, 0.06)"
         @mousedown="onHandleMousedown"
       >
-        <span class="text-xs font-semibold truncate flex-1" style="color: rgba(255, 255, 255, 0.5)">
+        <img
+          v-if="bannerUrl"
+          :src="bannerUrl"
+          aria-hidden="true"
+          style="
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+            opacity: 0.45;
+            pointer-events: none;
+          "
+        />
+        <span
+          class="text-xs font-semibold truncate flex-1 relative"
+          style="color: rgba(255, 255, 255, 0.9)"
+        >
           {{ title }}
         </span>
-        <div class="flex items-center gap-2" data-no-drag>
+        <div class="flex items-center gap-2 relative" data-no-drag>
           <slot name="header-actions" />
           <button
             v-if="showClose"

@@ -22,11 +22,19 @@ const { canManageChannels } = useMember();
 
 const showEdit = ref(false);
 const channel = computed(() => store.channels.find((c) => c.id === props.channelId) ?? null);
+
+const { apiBase } = useRuntimeConfig().public;
+const apiOrigin = new URL(apiBase as string).origin;
+function resolveBannerUrl(url: string | null | undefined) {
+  if (!url) return null;
+  return url.startsWith('/') ? `${apiOrigin}${url}` : url;
+}
 </script>
 
 <template>
   <UiFloatingWindow
     :title="`# ${channel?.name ?? '…'}`"
+    :banner-url="resolveBannerUrl(channel?.bannerUrl)"
     :initial-x="initialX"
     :initial-y="initialY"
     :initial-width="400"
