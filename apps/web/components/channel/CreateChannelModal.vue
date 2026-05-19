@@ -7,7 +7,7 @@ const emit = defineEmits<{
   created: [channelId: string, type: ChannelType];
 }>();
 
-const { createChannel } = useChannels();
+const { createChannel, setChannelBanner } = useChannels();
 const { t } = useI18n();
 
 const selectedType = ref<ChannelType>('text');
@@ -15,6 +15,22 @@ const selectedWidgetKind = ref<WidgetKind>('notes');
 const name = ref('');
 const loading = ref(false);
 const error = ref('');
+const bannerFile = ref<File | null>(null);
+const bannerPreview = ref('');
+const bannerInputRef = ref<HTMLInputElement | null>(null);
+
+function onBannerChange(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  bannerFile.value = file;
+  bannerPreview.value = URL.createObjectURL(file);
+}
+
+function clearBanner() {
+  bannerFile.value = null;
+  bannerPreview.value = '';
+  if (bannerInputRef.value) bannerInputRef.value.value = '';
+}
 
 const types: { value: ChannelType; icon: string; labelKey: string; hintKey: string }[] = [
   {
@@ -77,8 +93,12 @@ async function submit() {
     const channel = await createChannel(props.serverId, {
       name: name.value.trim(),
       type: selectedType.value,
+      showStat: true,
       ...(selectedType.value === 'widget' && { widgetKind: selectedWidgetKind.value }),
     });
+    if (bannerFile.value) {
+      await setChannelBanner(props.serverId, channel.id, bannerFile.value);
+    }
     emit('created', channel.id, channel.type);
   } catch {
     error.value = t('channels.create.error');
@@ -218,6 +238,52 @@ async function submit() {
             >
               {{ t('channels.create.voiceZoneHint') }}
             </p>
+          </div>
+
+          <!-- Banner (optional) -->
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium px-0.5" style="color: rgba(255, 255, 255, 0.25)">
+              {{ t('channels.create.banner') }}
+              <span class="ml-1" style="color: rgba(255, 255, 255, 0.15)">{{
+                t('channels.create.bannerOptional')
+              }}</span>
+            </label>
+            <div
+              class="relative rounded-xl overflow-hidden cursor-pointer"
+              style="border: 1px dashed rgba(255, 255, 255, 0.1)"
+              @click="bannerInputRef?.click()"
+            >
+              <img
+                v-if="bannerPreview"
+                :src="bannerPreview"
+                class="w-full object-cover"
+                style="height: 72px"
+              />
+              <div
+                v-else
+                class="flex items-center justify-center gap-2"
+                style="height: 52px; background: rgba(255, 255, 255, 0.025)"
+              >
+                <span class="text-xs" style="color: rgba(255, 255, 255, 0.2)">{{
+                  t('channels.create.bannerPick')
+                }}</span>
+              </div>
+              <button
+                v-if="bannerPreview"
+                class="absolute top-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded-full text-xs"
+                style="background: rgba(0, 0, 0, 0.6); color: rgba(255, 255, 255, 0.7)"
+                @click.stop="clearBanner"
+              >
+                ×
+              </button>
+              <input
+                ref="bannerInputRef"
+                type="file"
+                accept="image/*"
+                class="hidden"
+                @change="onBannerChange"
+              />
+            </div>
           </div>
 
           <p v-if="error" class="text-xs px-0.5" style="color: rgb(248, 113, 113)">{{ error }}</p>

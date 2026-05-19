@@ -56,5 +56,28 @@ export function useChannels() {
     return updated;
   }
 
-  return { store, fetchChannels, createChannel, updateChannel, deleteChannel, setChannelIcon };
+  async function setChannelBanner(
+    serverId: string,
+    channelId: string,
+    file: File,
+  ): Promise<ChannelPublic> {
+    const form = new FormData();
+    form.append('file', file);
+    const updated = await api.postForm<ChannelPublic>(
+      `/servers/${serverId}/channels/${channelId}/banner`,
+      form,
+    );
+    store.setChannels(store.channels.map((c) => (c.id === channelId ? updated : c)));
+    return updated;
+  }
+
+  return {
+    store,
+    fetchChannels,
+    createChannel,
+    updateChannel,
+    deleteChannel,
+    setChannelIcon,
+    setChannelBanner,
+  };
 }

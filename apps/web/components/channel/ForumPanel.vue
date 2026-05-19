@@ -27,6 +27,7 @@ async function submitPost() {
       name: newPostName.value.trim(),
       type: 'text',
       parentId: props.channelId,
+      showStat: true,
     });
     newPostName.value = '';
     showNewPost.value = false;

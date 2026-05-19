@@ -41,5 +41,43 @@ export function useCategories() {
     store.removeCategory(categoryId);
   }
 
-  return { store, fetchCategories, createCategory, updateCategory, deleteCategory };
+  async function setCategoryIcon(
+    serverId: string,
+    categoryId: string,
+    file: File,
+  ): Promise<CategoryPublic> {
+    const form = new FormData();
+    form.append('file', file);
+    const updated = await api.postForm<CategoryPublic>(
+      `/servers/${serverId}/categories/${categoryId}/icon`,
+      form,
+    );
+    store.upsertCategory(updated);
+    return updated;
+  }
+
+  async function setCategoryBanner(
+    serverId: string,
+    categoryId: string,
+    file: File,
+  ): Promise<CategoryPublic> {
+    const form = new FormData();
+    form.append('file', file);
+    const updated = await api.postForm<CategoryPublic>(
+      `/servers/${serverId}/categories/${categoryId}/banner`,
+      form,
+    );
+    store.upsertCategory(updated);
+    return updated;
+  }
+
+  return {
+    store,
+    fetchCategories,
+    createCategory,
+    updateCategory,
+    deleteCategory,
+    setCategoryIcon,
+    setCategoryBanner,
+  };
 }
