@@ -22,7 +22,7 @@ import { ZodPipe } from '../common/zod.pipe';
 import { ServerScopeGuard } from '../members/server-scope.guard';
 import { ChannelsService } from './channels.service';
 
-interface UploadedIcon {
+interface UploadedChannelImageFile {
   filename: string;
 }
 
@@ -76,7 +76,7 @@ export class ChannelsController {
     @CurrentUser() user: AuthSession['user'],
     @Param('serverId') serverId: string,
     @Param('channelId') channelId: string,
-    @UploadedFile() file: UploadedIcon | undefined,
+    @UploadedFile() file: UploadedChannelImageFile | undefined,
   ) {
     if (!file) throw new BadRequestException('No file provided');
     const previous = await this.channelsService.getChannel(serverId, channelId, user.id);
@@ -86,6 +86,25 @@ export class ChannelsController {
     });
     if (previous.iconUrl && previous.iconUrl !== iconUrl) {
       void this.storage.deleteByUrl(previous.iconUrl);
+    }
+    return updated;
+  }
+  @Post(':channelId/banner')
+  @UseInterceptors(FileInterceptor('file', imageUploadOptions({ scope: 'channel-banners' })))
+  async setBanner(
+    @CurrentUser() user: AuthSession['user'],
+    @Param('serverId') serverId: string,
+    @Param('channelId') channelId: string,
+    @UploadedFile() file: UploadedChannelImageFile | undefined,
+  ) {
+    if (!file) throw new BadRequestException('No file provided');
+    const previous = await this.channelsService.getChannel(serverId, channelId, user.id);
+    const bannerUrl = this.storage.urlFor('channel-banners', file.filename);
+    const updated = await this.channelsService.updateChannel(serverId, channelId, user.id, {
+      bannerUrl,
+    });
+    if (previous.bannerUrl && previous.bannerUrl !== bannerUrl) {
+      void this.storage.deleteByUrl(previous.bannerUrl);
     }
     return updated;
   }

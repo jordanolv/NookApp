@@ -55,7 +55,7 @@ describe('ChannelsService', () => {
       });
 
       await expect(
-        service.createChannel('s1', 'u1', { name: 'new', type: 'text' }),
+        service.createChannel('s1', 'u1', { name: 'new', type: 'text', showStat: true }),
       ).rejects.toThrow(ForbiddenException);
     });
   });

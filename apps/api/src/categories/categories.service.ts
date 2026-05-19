@@ -18,6 +18,9 @@ function toCategoryPublic(row: typeof channelCategory.$inferSelect): CategoryPub
     serverId: row.serverId,
     name: row.name,
     position: row.position,
+    color: row.color ?? null,
+    iconUrl: row.iconUrl ?? null,
+    bannerUrl: row.bannerUrl ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -69,6 +72,9 @@ export class CategoriesService {
       .set({
         ...(input.name !== undefined && { name: input.name }),
         ...(input.position !== undefined && { position: input.position }),
+        ...(input.color !== undefined && { color: input.color }),
+        ...(input.iconUrl !== undefined && { iconUrl: input.iconUrl }),
+        ...(input.bannerUrl !== undefined && { bannerUrl: input.bannerUrl }),
       })
       .where(and(eq(channelCategory.id, categoryId), eq(channelCategory.serverId, serverId)))
       .returning();
