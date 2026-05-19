@@ -88,8 +88,30 @@
       },
       "appearance": {
         "heading": "Appearance",
-        "description": "Soon — theme, interface density and chat size."
+        "description": "Choose how you want to explore your Nook.",
+        "classicLayout": {
+          "title": "Use the classic interface",
+          "hint": "Swap the 2D Phaser world for a retro BBS lobby: feed of latest threads, recent messages, and voice always pinned on the right. Perfect to follow conversations without moving your avatar."
+        }
       }
+    }
+  },
+  "lobby": {
+    "heading": "Lobby",
+    "subtitle": "Recent activity on your Nook",
+    "latestThreads": "Latest threads",
+    "recentMessages": "Recent messages",
+    "forumHighlights": "Forums",
+    "noActivity": "Nothing to show yet.",
+    "noMessages": "No messages.",
+    "openChannel": "Open",
+    "backToLobby": "← Back to lobby",
+    "messagesCount": "{count} message | {count} messages",
+    "postsCount": "{count} post | {count} posts",
+    "voice": {
+      "title": "Voice",
+      "notConnected": "You're not connected to a voice channel.",
+      "joinHint": "Click a voice channel in the sidebar to join."
     }
   },
   "voice": {

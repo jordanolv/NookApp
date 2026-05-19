@@ -8,11 +8,13 @@ import {
   useCharacter,
   type CgLayer,
 } from '~/composables/useCharacter';
+import { useInterfacePreferences } from '~/composables/useInterfacePreferences';
 
 const emit = defineEmits<{ close: [] }>();
 const { user, refreshUser } = useAuth();
 const { authBase } = useRuntimeConfig().public;
 const character = useCharacter();
+const interfacePrefs = useInterfacePreferences();
 const { locale, setLocale, t } = useI18n();
 
 function layerLabel(layer: CgLayer): string {
@@ -366,21 +368,67 @@ async function saveProfile() {
           </p>
         </section>
 
-        <section
-          v-else-if="activeTab === 'appearance'"
-          class="h-full flex flex-col items-center justify-center text-center"
-        >
-          <Palette
-            class="h-10 w-10 mb-3"
-            :stroke-width="1.5"
-            style="color: rgba(255, 255, 255, 0.25)"
-          />
-          <p class="text-sm font-semibold" style="color: rgba(255, 255, 255, 0.7)">
-            {{ t('settings.user.appearance.heading') }}
-          </p>
-          <p class="text-xs mt-1 max-w-xs" style="color: rgba(255, 255, 255, 0.4)">
-            {{ t('settings.user.appearance.description') }}
-          </p>
+        <section v-else-if="activeTab === 'appearance'" class="space-y-6">
+          <header>
+            <h3 class="text-base font-semibold" style="color: rgba(255, 255, 255, 0.95)">
+              {{ t('settings.user.appearance.heading') }}
+            </h3>
+            <p class="text-xs mt-0.5" style="color: rgba(255, 255, 255, 0.45)">
+              {{ t('settings.user.appearance.description') }}
+            </p>
+          </header>
+
+          <div
+            class="rounded-xl p-4 flex items-start gap-4"
+            style="
+              background: rgba(255, 255, 255, 0.03);
+              border: 1px solid rgba(255, 255, 255, 0.06);
+            "
+          >
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <Palette
+                  class="h-4 w-4"
+                  :stroke-width="1.75"
+                  style="color: rgba(255, 255, 255, 0.55)"
+                />
+                <label
+                  for="classic-interface-toggle"
+                  class="text-sm font-medium cursor-pointer"
+                  style="color: rgba(255, 255, 255, 0.9)"
+                >
+                  {{ t('settings.user.appearance.classicLayout.title') }}
+                </label>
+              </div>
+              <p class="text-[11px] mt-2 leading-relaxed" style="color: rgba(255, 255, 255, 0.45)">
+                {{ t('settings.user.appearance.classicLayout.hint') }}
+              </p>
+            </div>
+            <button
+              id="classic-interface-toggle"
+              type="button"
+              role="switch"
+              :aria-checked="interfacePrefs.prefs.value.useClassicInterface"
+              class="relative shrink-0 h-6 w-11 rounded-full transition-colors"
+              :style="{
+                background: interfacePrefs.prefs.value.useClassicInterface
+                  ? '#5865f2'
+                  : 'rgba(255, 255, 255, 0.12)',
+              }"
+              @click="
+                interfacePrefs.setClassicInterface(!interfacePrefs.prefs.value.useClassicInterface)
+              "
+            >
+              <span
+                class="absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform"
+                :style="{
+                  transform: interfacePrefs.prefs.value.useClassicInterface
+                    ? 'translateX(22px)'
+                    : 'translateX(2px)',
+                }"
+              />
+            </button>
+          </div>
         </section>
       </div>
     </div>

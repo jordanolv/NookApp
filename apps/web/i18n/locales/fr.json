@@ -88,8 +88,30 @@
       },
       "appearance": {
         "heading": "Apparence",
-        "description": "Bientôt — thème, densité de l'interface et taille du chat."
+        "description": "Choisis la façon dont tu veux explorer ton Nook.",
+        "classicLayout": {
+          "title": "Utiliser l'interface classique",
+          "hint": "Remplace le monde 2D Phaser par un lobby BBS rétro : feed des derniers threads, messages récents, et vocal toujours visible à droite. Idéal pour suivre les conversations sans bouger ton avatar."
+        }
       }
+    }
+  },
+  "lobby": {
+    "heading": "Lobby",
+    "subtitle": "Activité récente sur ton Nook",
+    "latestThreads": "Derniers threads",
+    "recentMessages": "Messages récents",
+    "forumHighlights": "Forums",
+    "noActivity": "Rien à afficher pour l'instant.",
+    "noMessages": "Aucun message.",
+    "openChannel": "Ouvrir",
+    "backToLobby": "← Retour au lobby",
+    "messagesCount": "{count} message | {count} messages",
+    "postsCount": "{count} post | {count} posts",
+    "voice": {
+      "title": "Vocal",
+      "notConnected": "Tu n'es pas connecté à un salon vocal.",
+      "joinHint": "Clique un salon vocal dans la barre latérale pour rejoindre."
     }
   },
   "voice": {
