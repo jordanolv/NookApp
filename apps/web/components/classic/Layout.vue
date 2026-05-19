@@ -1,25 +1,19 @@
 <script setup lang="ts">
+import { Hash, MessageSquare, X, Plus, Sparkles } from 'lucide-vue-next';
 import type { ChannelPublic } from '@nookapp/protocol';
-import { Hash, MessageSquare, Volume2, Layers, Settings } from 'lucide-vue-next';
-import { useMessagesStore } from '~/stores/messages';
 
 const props = defineProps<{
   serverId: string;
 }>();
 
 const { store } = useServers();
-const voice = useVoice();
 const { user } = useAuth();
-const { t } = useI18n();
-const messagesStore = useMessagesStore();
+const voice = useVoice();
 
 const selectedChannelId = ref<string | null>(null);
-const openForumId = ref<string | null>(null);
-const showUserSettings = ref(false);
-
-const channels = computed(() =>
-  store.channels.filter((c) => c.serverId === props.serverId && !c.parentId),
-);
+const widgetIds = ref<string[]>([]);
+const dropActive = ref(false);
+const showPicker = ref(false);
 
 const channelById = computed(() => {
   const map = new Map<string, ChannelPublic>();
@@ -27,745 +21,579 @@ const channelById = computed(() => {
   return map;
 });
 
-const groupedChannels = computed(() => ({
-  text: channels.value.filter((c) => c.type === 'text'),
-  forum: channels.value.filter((c) => c.type === 'forum'),
-  voice: channels.value.filter((c) => c.type === 'voice'),
-}));
-
 const selectedChannel = computed(() =>
   selectedChannelId.value ? (channelById.value.get(selectedChannelId.value) ?? null) : null,
 );
 
-const forumPosts = computed(() => {
-  if (!openForumId.value) return [];
-  return store.channels
-    .filter((c) => c.parentId === openForumId.value)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-});
-
-function postReplies(postId: string): number {
-  return messagesStore.countFor(postId) ?? 0;
-}
-
-function postCreatedLabel(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
-const openForum = computed(() =>
-  openForumId.value ? (channelById.value.get(openForumId.value) ?? null) : null,
+const pickableChannels = computed(() =>
+  store.channels.filter(
+    (c) =>
+      c.serverId === props.serverId &&
+      (c.type === 'text' || c.type === 'forum') &&
+      !widgetIds.value.includes(c.id),
+  ),
 );
 
-async function onSelectChannel(ch: ChannelPublic) {
-  if (ch.type === 'voice') {
-    if (voice.currentChannelId.value === ch.id) await voice.leave();
-    else await voice.join(props.serverId, ch.id);
-    return;
-  }
-  if (ch.type === 'forum') {
-    openForumId.value = ch.id;
-    selectedChannelId.value = null;
-    return;
-  }
-  openForumId.value = null;
+function openChannel(channelId: string) {
+  const ch = channelById.value.get(channelId);
+  if (!ch) return;
   selectedChannelId.value = ch.id;
 }
 
-function onOpenChannelFromFeed(channelId: string) {
-  openForumId.value = null;
-  selectedChannelId.value = channelId;
+function pinAsWidget(channelId: string) {
+  if (widgetIds.value.includes(channelId)) return;
+  widgetIds.value = [...widgetIds.value, channelId];
+  if (selectedChannelId.value === channelId) selectedChannelId.value = null;
 }
 
-function onOpenForumFromFeed(channelId: string) {
+function unpinWidget(channelId: string) {
+  widgetIds.value = widgetIds.value.filter((id) => id !== channelId);
+}
+
+function reorderWidgets(ids: string[]) {
+  widgetIds.value = ids;
+}
+
+function pickAndPin(channelId: string) {
+  pinAsWidget(channelId);
+  showPicker.value = false;
+}
+
+function backToHome() {
   selectedChannelId.value = null;
-  openForumId.value = channelId;
 }
 
-function backToLobby() {
-  selectedChannelId.value = null;
-  openForumId.value = null;
+// ── Drag-and-drop from the sidebar onto the widget bar ──────────────
+//
+// Channel rows in the sidebar carry a `data-channel-id` attribute. When the
+// user drags one anywhere within the classic shell, we listen at the root
+// level — no need to modify the shared sidebar component.
+
+function onRootDragOver(e: DragEvent) {
+  if (e.dataTransfer?.types?.includes('text/x-nookapp-channel-id')) {
+    e.preventDefault();
+    dropActive.value = true;
+  }
 }
 
-function isActive(ch: ChannelPublic): boolean {
-  if (ch.type === 'voice') return voice.currentChannelId.value === ch.id;
-  if (ch.type === 'forum') return openForumId.value === ch.id;
-  return selectedChannelId.value === ch.id;
+function onRootDragLeave(e: DragEvent) {
+  const related = e.relatedTarget as Node | null;
+  if (related && (e.currentTarget as HTMLElement).contains(related)) return;
+  dropActive.value = false;
 }
+
+function onWidgetBarDrop(e: DragEvent) {
+  const id = e.dataTransfer?.getData('text/x-nookapp-channel-id');
+  dropActive.value = false;
+  if (id) pinAsWidget(id);
+}
+
+defineExpose({
+  openChannel,
+  pinAsWidget,
+  backToHome,
+});
 </script>
 
 <template>
-  <div class="classic-layout">
-    <!-- Left: channels nav -->
-    <nav class="classic-nav">
-      <div class="classic-nav__brand">
-        <span class="classic-nav__brand-prompt">::</span>
-        <span class="classic-nav__brand-name">{{ store.current?.name ?? '—' }}</span>
-      </div>
+  <div class="classic" @dragover="onRootDragOver" @dragleave="onRootDragLeave">
+    <!-- Ambient Phaser-ish backdrop -->
+    <div class="classic__backdrop" aria-hidden="true">
+      <div class="classic__backdrop-floor" />
+      <div class="classic__backdrop-grid" />
+      <div class="classic__backdrop-glow" />
+      <span class="classic__backdrop-prop classic__backdrop-prop--1">🪴</span>
+      <span class="classic__backdrop-prop classic__backdrop-prop--2">🛋️</span>
+      <span class="classic__backdrop-prop classic__backdrop-prop--3">🪑</span>
+      <span class="classic__backdrop-prop classic__backdrop-prop--4">🧸</span>
+      <div class="classic__backdrop-haze" />
+    </div>
 
-      <button
-        class="classic-nav__home"
-        :class="{ 'classic-nav__home--active': !selectedChannelId && !openForumId }"
-        @click="backToLobby"
-      >
-        <Layers :size="14" :stroke-width="1.75" />
-        <span>{{ t('lobby.heading') }}</span>
-      </button>
+    <!-- Center: floating chat window or welcome -->
+    <main class="classic__stage">
+      <Transition name="classic-window">
+        <article v-if="selectedChannel" :key="selectedChannel.id" class="window">
+          <header class="window__head">
+            <span class="window__head-dots" aria-hidden="true"> <span /><span /><span /> </span>
+            <span class="window__head-icon">
+              <component
+                :is="selectedChannel.type === 'forum' ? MessageSquare : Hash"
+                :size="14"
+                :stroke-width="2.2"
+              />
+            </span>
+            <span class="window__head-name">{{ selectedChannel.name }}</span>
+            <button
+              class="window__head-pin"
+              title="Pin to widget bar"
+              @click="pinAsWidget(selectedChannel.id)"
+            >
+              <Plus :size="13" :stroke-width="2.2" />
+            </button>
+            <button class="window__head-close" title="Close" @click="backToHome">
+              <X :size="14" :stroke-width="2.2" />
+            </button>
+          </header>
+          <ChatPane :channel-id="selectedChannel.id" class="window__chat" />
+        </article>
 
-      <section v-if="groupedChannels.text.length" class="classic-nav__group">
-        <h3 class="classic-nav__group-title">
-          <Hash :size="11" :stroke-width="2" />
-          <span>Text</span>
-        </h3>
-        <button
-          v-for="ch in groupedChannels.text"
-          :key="ch.id"
-          class="classic-nav__row"
-          :class="{ 'classic-nav__row--active': isActive(ch) }"
-          @click="onSelectChannel(ch)"
-        >
-          <span class="classic-nav__row-hash">#</span>
-          <span class="classic-nav__row-name">{{ ch.name }}</span>
-        </button>
-      </section>
-
-      <section v-if="groupedChannels.forum.length" class="classic-nav__group">
-        <h3 class="classic-nav__group-title">
-          <MessageSquare :size="11" :stroke-width="2" />
-          <span>Forums</span>
-        </h3>
-        <button
-          v-for="ch in groupedChannels.forum"
-          :key="ch.id"
-          class="classic-nav__row"
-          :class="{ 'classic-nav__row--active': isActive(ch) }"
-          @click="onSelectChannel(ch)"
-        >
-          <span class="classic-nav__row-hash">::</span>
-          <span class="classic-nav__row-name">{{ ch.name }}</span>
-        </button>
-      </section>
-
-      <section v-if="groupedChannels.voice.length" class="classic-nav__group">
-        <h3 class="classic-nav__group-title">
-          <Volume2 :size="11" :stroke-width="2" />
-          <span>Voice</span>
-        </h3>
-        <button
-          v-for="ch in groupedChannels.voice"
-          :key="ch.id"
-          class="classic-nav__row"
-          :class="{ 'classic-nav__row--voice-active': isActive(ch) }"
-          @click="onSelectChannel(ch)"
-        >
-          <span class="classic-nav__row-hash">»</span>
-          <span class="classic-nav__row-name">{{ ch.name }}</span>
-          <span v-if="isActive(ch)" class="classic-nav__row-live" :title="t('voice.connected')" />
-        </button>
-      </section>
-
-      <div class="classic-nav__user">
-        <div class="classic-nav__user-avatar">{{ user?.name?.[0]?.toUpperCase() ?? '?' }}</div>
-        <div class="classic-nav__user-meta">
-          <p class="classic-nav__user-name">{{ user?.name ?? '—' }}</p>
-          <p class="classic-nav__user-status">
-            {{ voice.currentChannelId.value ? t('voice.connected') : t('voice.status.inNook') }}
-          </p>
-        </div>
-        <button
-          class="classic-nav__user-settings"
-          :title="t('voice.accountSettings')"
-          @click="showUserSettings = true"
-        >
-          <Settings :size="14" :stroke-width="1.75" />
-        </button>
-      </div>
-    </nav>
-
-    <!-- Center: lobby or active channel -->
-    <main class="classic-main">
-      <nav v-if="selectedChannel || openForum" class="classic-breadcrumb" aria-label="Breadcrumb">
-        <button
-          class="classic-breadcrumb__crumb classic-breadcrumb__crumb--link"
-          @click="backToLobby"
-        >
-          <Layers :size="11" :stroke-width="2" />
-          <span>{{ store.current?.name ?? 'Board' }}</span>
-        </button>
-        <span class="classic-breadcrumb__sep">›</span>
-        <template v-if="selectedChannel && selectedChannel.parentId">
-          <button
-            class="classic-breadcrumb__crumb classic-breadcrumb__crumb--link"
-            @click="onOpenForumFromFeed(selectedChannel.parentId!)"
-          >
-            <span class="classic-breadcrumb__hash">::</span>
-            <span>{{ channelById.get(selectedChannel.parentId!)?.name ?? '…' }}</span>
-          </button>
-          <span class="classic-breadcrumb__sep">›</span>
-          <span class="classic-breadcrumb__crumb classic-breadcrumb__crumb--current">
-            <span class="classic-breadcrumb__hash">#</span>
-            <span>{{ selectedChannel.name }}</span>
-          </span>
-        </template>
-        <span v-else class="classic-breadcrumb__crumb classic-breadcrumb__crumb--current">
-          <span class="classic-breadcrumb__hash">{{ openForum ? '::' : '#' }}</span>
-          <span>{{ (selectedChannel ?? openForum)?.name }}</span>
-        </span>
-      </nav>
-
-      <ChatPane
-        v-if="selectedChannel && selectedChannel.type === 'text'"
-        :key="selectedChannel.id"
-        :channel-id="selectedChannel.id"
-        class="classic-main__chat"
-      />
-
-      <div v-else-if="openForum" class="classic-forum">
-        <header class="classic-forum__head">
-          <div>
-            <h2 class="classic-forum__title">{{ openForum.name }}</h2>
-            <p class="classic-forum__desc">
-              {{ forumPosts.length }}
-              {{ forumPosts.length === 1 ? 'topic' : 'topics' }} in this board
+        <article v-else class="window window--welcome">
+          <header class="window__head window__head--ghost">
+            <span class="window__head-dots" aria-hidden="true"> <span /><span /><span /> </span>
+            <span class="window__head-name">{{ store.current?.name ?? 'Nook' }} · classic</span>
+          </header>
+          <div class="welcome">
+            <div class="welcome__badge">
+              <Sparkles :size="18" :stroke-width="2" />
+            </div>
+            <h1 class="welcome__title">Hey {{ user?.name ?? 'there' }}.</h1>
+            <p class="welcome__line">
+              Pick a channel on the left to chat here, or drag any channel to the right rail to keep
+              an eye on it while you focus.
+            </p>
+            <p class="welcome__hint">
+              The faint room behind these windows is your Nook — we're just keeping things quiet for
+              now.
             </p>
           </div>
-          <span class="classic-forum__pager">Page <strong>1</strong> of 1</span>
-        </header>
-
-        <div v-if="!forumPosts.length" class="classic-forum__empty">
-          {{ t('lobby.noActivity') }}
-        </div>
-
-        <div v-else class="classic-forum__table" role="table">
-          <div class="classic-forum__row classic-forum__row--head" role="row">
-            <div class="classic-forum__cell classic-forum__cell--name" role="columnheader">
-              Topic
-            </div>
-            <div class="classic-forum__cell classic-forum__cell--num" role="columnheader">
-              Replies
-            </div>
-            <div class="classic-forum__cell classic-forum__cell--date" role="columnheader">
-              Started
-            </div>
-          </div>
-
-          <div
-            v-for="(post, i) in forumPosts"
-            :key="post.id"
-            class="classic-forum__row"
-            :class="{ 'classic-forum__row--alt': i % 2 === 1 }"
-            role="row"
-            @click="onOpenChannelFromFeed(post.id)"
-          >
-            <div class="classic-forum__cell classic-forum__cell--name" role="cell">
-              <span class="classic-forum__topic-icon" aria-hidden="true">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                  <path
-                    d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z"
-                  />
-                </svg>
-              </span>
-              <div class="classic-forum__namecol">
-                <span class="classic-forum__topic-name">{{ post.name }}</span>
-                <span class="classic-forum__topic-meta">Thread #{{ post.id.slice(0, 6) }}</span>
-              </div>
-            </div>
-            <div class="classic-forum__cell classic-forum__cell--num" role="cell">
-              {{ postReplies(post.id) }}
-            </div>
-            <div class="classic-forum__cell classic-forum__cell--date" role="cell">
-              {{ postCreatedLabel(post.createdAt) }}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <ClassicLobbyFeed
-        v-else
-        :server-id="serverId"
-        @open-channel="onOpenChannelFromFeed"
-        @open-forum="onOpenForumFromFeed"
-      />
+        </article>
+      </Transition>
     </main>
 
-    <!-- Right: voice column -->
-    <ClassicVoiceColumn />
+    <!-- Right: voice column (when joined) + widget bar -->
+    <div class="classic__rail" @dragover.prevent @drop="onWidgetBarDrop">
+      <div v-if="voice.currentChannelId.value" class="classic__rail-voice">
+        <ClassicVoiceColumn />
+      </div>
+      <ClassicWidgetBar
+        :server-id="serverId"
+        :widget-ids="widgetIds"
+        :drop-active="dropActive"
+        @close="unpinWidget"
+        @reorder="reorderWidgets"
+        @pick="showPicker = true"
+      />
+    </div>
 
-    <UserSettingsModal v-if="showUserSettings" @close="showUserSettings = false" />
+    <!-- Channel picker modal -->
+    <Teleport to="body">
+      <div v-if="showPicker" class="picker-veil" @click="showPicker = false">
+        <div class="picker" @click.stop>
+          <header class="picker__head">
+            <h3>Pin a channel</h3>
+            <button class="picker__close" @click="showPicker = false">
+              <X :size="14" :stroke-width="2.2" />
+            </button>
+          </header>
+          <div v-if="!pickableChannels.length" class="picker__empty">No more channels to pin.</div>
+          <ul v-else class="picker__list">
+            <li v-for="ch in pickableChannels" :key="ch.id">
+              <button class="picker__row" @click="pickAndPin(ch.id)">
+                <component
+                  :is="ch.type === 'forum' ? MessageSquare : Hash"
+                  :size="13"
+                  :stroke-width="2.2"
+                  class="picker__row-icon"
+                />
+                <span>{{ ch.name }}</span>
+              </button>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <style scoped>
-.classic-layout {
-  position: fixed;
-  inset: 0;
+.classic {
+  position: relative;
+  width: 100%;
+  height: 100%;
   display: grid;
-  grid-template-columns: 260px 1fr 340px;
-  background:
-    radial-gradient(circle at 20% 0%, rgba(99, 102, 241, 0.08), transparent 60%),
-    radial-gradient(circle at 80% 100%, rgba(34, 197, 94, 0.05), transparent 55%), #07070b;
-  color: rgba(255, 255, 255, 0.85);
+  grid-template-columns: 1fr 360px;
+  font-family:
+    'Inter',
+    system-ui,
+    -apple-system,
+    sans-serif;
+  overflow: hidden;
 }
 
 @media (max-width: 1100px) {
-  .classic-layout {
-    grid-template-columns: 220px 1fr 280px;
+  .classic {
+    grid-template-columns: 1fr 300px;
   }
 }
 
-/* ── Left nav ────────────────────────────────────────── */
-.classic-nav {
+/* ── Ambient backdrop ─────────────────────────────── */
+.classic__backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.classic__backdrop-floor {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 80%, rgba(99, 102, 241, 0.18), transparent 65%),
+    linear-gradient(180deg, #0c0d18 0%, #11121f 60%, #0a0a14 100%);
+}
+
+.classic__backdrop-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: 16px 16px;
+  mask-image: radial-gradient(ellipse at 50% 60%, black 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 60%, black 30%, transparent 80%);
+  filter: blur(0.4px);
+}
+
+.classic__backdrop-glow {
+  position: absolute;
+  top: -20%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 800px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(129, 140, 248, 0.18), transparent 70%);
+  filter: blur(40px);
+}
+
+.classic__backdrop-haze {
+  position: absolute;
+  inset: 0;
+  background: rgba(7, 7, 11, 0.55);
+  backdrop-filter: blur(0.5px);
+  -webkit-backdrop-filter: blur(0.5px);
+}
+
+.classic__backdrop-prop {
+  position: absolute;
+  font-size: 32px;
+  opacity: 0.16;
+  filter: blur(0.4px) grayscale(0.4);
+  user-select: none;
+}
+
+.classic__backdrop-prop--1 {
+  top: 12%;
+  left: 8%;
+  transform: rotate(-10deg) scale(1.4);
+}
+
+.classic__backdrop-prop--2 {
+  bottom: 22%;
+  left: 18%;
+  font-size: 44px;
+  transform: rotate(4deg) scale(1.8);
+}
+
+.classic__backdrop-prop--3 {
+  bottom: 30%;
+  right: 30%;
+  font-size: 28px;
+  transform: rotate(-8deg) scale(1.3);
+}
+
+.classic__backdrop-prop--4 {
+  top: 22%;
+  right: 14%;
+  font-size: 32px;
+  transform: rotate(8deg);
+}
+
+/* ── Center stage with floating window ────────────────── */
+.classic__stage {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 28px 28px 28px 28px;
+}
+
+.window {
+  position: relative;
+  width: 100%;
+  max-width: 780px;
   display: flex;
   flex-direction: column;
-  padding: 14px 10px 10px;
-  background: rgba(10, 10, 16, 0.7);
-  border-right: 1px solid rgba(255, 255, 255, 0.05);
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+  border-radius: 18px;
+  background: rgba(15, 16, 24, 0.86);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 32px 80px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(99, 102, 241, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  overflow: hidden;
 }
 
-.classic-nav__brand {
+.window--welcome {
+  align-self: center;
+  max-width: 540px;
+  flex: 0 0 auto;
+}
+
+.window__head {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 4px 8px 16px;
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0));
 }
 
-.classic-nav__brand-prompt {
-  color: rgb(129, 140, 248);
-  font-weight: 700;
+.window__head--ghost {
+  border-bottom-color: transparent;
 }
 
-.classic-nav__brand-name {
+.window__head-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.window__head-dots span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.window__head-dots span:first-child {
+  background: rgba(239, 68, 68, 0.6);
+}
+
+.window__head-dots span:nth-child(2) {
+  background: rgba(234, 179, 8, 0.6);
+}
+
+.window__head-dots span:nth-child(3) {
+  background: rgba(34, 197, 94, 0.6);
+}
+
+.window__head-icon {
+  display: flex;
+  align-items: center;
+  color: rgba(165, 180, 252, 0.85);
+}
+
+.window__head-name {
+  flex: 1;
   font-size: 13px;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.92);
-}
-
-.classic-nav__home {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  margin-bottom: 16px;
-  border-radius: 8px;
-  font-size: 12px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.75);
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  transition:
-    background 120ms,
-    color 120ms;
+  color: rgba(255, 255, 255, 0.92);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.classic-nav__home:hover {
-  background: rgba(99, 102, 241, 0.1);
-  color: rgba(255, 255, 255, 0.95);
-}
-
-.classic-nav__home--active {
-  background: rgba(99, 102, 241, 0.18);
-  border-color: rgba(129, 140, 248, 0.4);
-  color: rgb(199, 210, 254);
-}
-
-.classic-nav__group {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  margin-bottom: 14px;
-}
-
-.classic-nav__group-title {
+.window__head-pin,
+.window__head-close {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px 4px;
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: rgba(255, 255, 255, 0.4);
-  margin: 0;
-}
-
-.classic-nav__row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
   border-radius: 6px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
-  text-align: left;
+  color: rgba(255, 255, 255, 0.4);
   transition:
     background 120ms,
     color 120ms;
 }
 
-.classic-nav__row:hover {
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.classic-nav__row--active {
-  background: rgba(99, 102, 241, 0.18);
+.window__head-pin:hover {
+  background: rgba(99, 102, 241, 0.2);
   color: rgb(199, 210, 254);
 }
 
-.classic-nav__row--voice-active {
-  background: rgba(34, 197, 94, 0.15);
-  color: rgb(134, 239, 172);
+.window__head-close:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: rgb(248, 113, 113);
 }
 
-.classic-nav__row-hash {
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.3);
-  width: 14px;
+.window__chat {
+  flex: 1;
+  min-height: 0;
+}
+
+.classic-window-enter-active,
+.classic-window-leave-active {
+  transition:
+    opacity 200ms,
+    transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.classic-window-enter-from,
+.classic-window-leave-to {
+  opacity: 0;
+  transform: translateY(8px) scale(0.98);
+}
+
+/* ── Welcome card ─────────────────────────────────── */
+.welcome {
+  padding: 28px 32px 36px;
   text-align: center;
 }
 
-.classic-nav__row--active .classic-nav__row-hash,
-.classic-nav__row--voice-active .classic-nav__row-hash {
-  color: currentColor;
-  opacity: 0.7;
-}
-
-.classic-nav__row-name {
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.classic-nav__row-live {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #22c55e;
-  box-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
-  animation: classic-live-pulse 1.6s ease-in-out infinite;
-}
-
-@keyframes classic-live-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.4;
-  }
-}
-
-.classic-nav__user {
-  margin-top: auto;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-  margin-top: auto;
-}
-
-.classic-nav__user-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 700;
-  color: white;
-  background: linear-gradient(135deg, #6366f1, #4f46e5);
-}
-
-.classic-nav__user-meta {
-  min-width: 0;
-  flex: 1;
-}
-
-.classic-nav__user-name {
-  font-size: 12px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.85);
-  margin: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.classic-nav__user-status {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.4);
-  margin: 0;
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-}
-
-.classic-nav__user-settings {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px;
-  border-radius: 6px;
-  color: rgba(255, 255, 255, 0.4);
-  transition:
-    background 120ms,
-    color 120ms;
-}
-
-.classic-nav__user-settings:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.9);
-}
-
-/* ── Center main ─────────────────────────────────────── */
-.classic-main {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  font-family: 'Verdana', 'Geneva', 'Tahoma', sans-serif;
-}
-
-.classic-breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 18px;
-  background:
-    linear-gradient(180deg, rgba(99, 102, 241, 0.16), rgba(99, 102, 241, 0.04)),
-    rgba(15, 16, 24, 0.9);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  font-size: 11px;
-  flex-wrap: wrap;
-}
-
-.classic-breadcrumb__crumb {
+.welcome__badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 8px;
-  border-radius: 3px;
-  color: rgba(255, 255, 255, 0.65);
-  background: transparent;
-  font-weight: 500;
-}
-
-.classic-breadcrumb__crumb--link {
-  color: rgb(165, 180, 252);
-  cursor: pointer;
-  text-decoration: underline;
-  text-decoration-color: rgba(165, 180, 252, 0.35);
-  text-underline-offset: 2px;
-  transition:
-    background 120ms,
-    color 120ms;
-}
-
-.classic-breadcrumb__crumb--link:hover {
-  background: rgba(99, 102, 241, 0.18);
-  color: rgb(199, 210, 254);
-  text-decoration-color: rgb(199, 210, 254);
-}
-
-.classic-breadcrumb__crumb--current {
-  color: rgba(255, 255, 255, 0.92);
-  font-weight: 700;
-}
-
-.classic-breadcrumb__hash {
-  font-family: ui-monospace, 'Lucida Console', monospace;
-  color: rgba(255, 255, 255, 0.45);
-}
-
-.classic-breadcrumb__sep {
-  color: rgba(255, 255, 255, 0.3);
-  font-size: 12px;
-}
-
-.classic-main__chat {
-  flex: 1;
-  min-height: 0;
-}
-
-.classic-forum {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 22px 28px 48px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
-}
-
-.classic-forum__head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 12px 14px;
-  margin-bottom: 0;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  margin-bottom: 14px;
   background:
-    linear-gradient(180deg, rgba(99, 102, 241, 0.2), rgba(99, 102, 241, 0.06)),
-    rgba(20, 22, 32, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-bottom: none;
-  border-radius: 4px 4px 0 0;
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.25), transparent 60%),
+    linear-gradient(135deg, #6366f1, #4f46e5);
+  color: white;
+  box-shadow: 0 12px 24px rgba(99, 102, 241, 0.45);
 }
 
-.classic-forum__title {
-  margin: 0;
-  font-size: 16px;
+.welcome__title {
+  margin: 0 0 8px;
+  font-size: 22px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.95);
+  letter-spacing: -0.01em;
 }
 
-.classic-forum__desc {
-  margin: 2px 0 0;
-  font-size: 11px;
-  font-style: italic;
-  color: rgba(255, 255, 255, 0.45);
-}
-
-.classic-forum__pager {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.45);
-  font-family: ui-monospace, 'Lucida Console', monospace;
-}
-
-.classic-forum__pager strong {
-  color: rgba(255, 255, 255, 0.85);
-  font-weight: 700;
-}
-
-.classic-forum__table {
-  display: flex;
-  flex-direction: column;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 0 0 4px 4px;
-  background: rgba(15, 16, 24, 0.55);
-  overflow: hidden;
-}
-
-.classic-forum__row {
-  display: grid;
-  grid-template-columns: minmax(240px, 1fr) 90px 140px;
-  padding: 10px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  cursor: pointer;
-  transition: background 100ms;
-}
-
-.classic-forum__row:last-child {
-  border-bottom: none;
-}
-
-.classic-forum__row--alt {
-  background: rgba(255, 255, 255, 0.015);
-}
-
-.classic-forum__row:hover {
-  background: rgba(99, 102, 241, 0.12);
-}
-
-.classic-forum__row--head {
-  background: rgba(255, 255, 255, 0.03);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  cursor: default;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: rgba(255, 255, 255, 0.45);
-  padding-top: 6px;
-  padding-bottom: 6px;
-}
-
-.classic-forum__row--head:hover {
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.classic-forum__cell {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.78);
-  min-width: 0;
-}
-
-.classic-forum__cell--num {
-  justify-content: center;
-  font-family: ui-monospace, 'Lucida Console', monospace;
+.welcome__line {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.6;
   color: rgba(255, 255, 255, 0.7);
 }
 
-.classic-forum__cell--date {
-  justify-content: flex-end;
-  font-family: ui-monospace, 'Lucida Console', monospace;
+.welcome__hint {
+  margin: 0;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.4);
+  font-style: italic;
 }
 
-.classic-forum__topic-icon {
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
+/* ── Right rail ───────────────────────────────────── */
+.classic__rail {
+  position: relative;
+  z-index: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.classic__rail-voice {
+  flex: 0 0 auto;
+  max-height: 50%;
+  display: flex;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ── Channel picker modal ─────────────────────────── */
+.picker-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.55);
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  background: rgba(99, 102, 241, 0.18);
-  color: rgb(165, 180, 252);
-  border: 1px solid rgba(129, 140, 248, 0.32);
 }
 
-.classic-forum__namecol {
+.picker {
+  width: min(380px, 90vw);
+  max-height: 70vh;
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  border-radius: 14px;
+  background: rgba(15, 16, 24, 0.96);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
 }
 
-.classic-forum__topic-name {
+.picker__head {
+  display: flex;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.picker__head h3 {
+  flex: 1;
+  margin: 0;
   font-size: 13px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.95);
-  text-decoration: underline;
-  text-decoration-color: rgba(165, 180, 252, 0.4);
-  text-underline-offset: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.92);
 }
 
-.classic-forum__row:hover .classic-forum__topic-name {
-  color: rgb(199, 210, 254);
-  text-decoration-color: rgb(199, 210, 254);
+.picker__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.4);
+  transition:
+    background 120ms,
+    color 120ms;
 }
 
-.classic-forum__topic-meta {
-  margin-top: 1px;
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.35);
-  font-family: ui-monospace, 'Lucida Console', monospace;
-  font-style: italic;
+.picker__close:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.85);
 }
 
-.classic-forum__empty {
+.picker__empty {
   padding: 24px;
   text-align: center;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.4);
   font-style: italic;
-  border: 1px dashed rgba(255, 255, 255, 0.1);
-  border-top: none;
-  border-radius: 0 0 4px 4px;
+}
+
+.picker__list {
+  list-style: none;
+  padding: 6px;
+  margin: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.picker__row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  text-align: left;
+  transition: background 120ms;
+}
+
+.picker__row:hover {
+  background: rgba(99, 102, 241, 0.18);
+}
+
+.picker__row-icon {
+  color: rgba(165, 180, 252, 0.85);
 }
 </style>
