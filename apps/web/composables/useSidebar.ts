@@ -4,88 +4,121 @@ import type { UiLayoutEntry } from '@nookapp/protocol';
 export type SidebarSide = 'left' | 'right';
 
 interface StoredState {
-  side?: SidebarSide;
-  order?: string[];
+  sectionSide?: Record<string, SidebarSide>;
+  leftKeys?: string[];
+  rightKeys?: string[];
   active?: string[];
   heights?: Record<string, number>;
+  serverHeaderSide?: SidebarSide;
+  userDockSide?: SidebarSide;
 }
 
 const STORAGE_KEY = 'sidebar:state';
 
-/**
- * Sidebar state shared across the app:
- * - which side the bar is anchored to (left/right)
- * - section order (controls icon stack + content stack)
- * - which sections are currently active (multiple at once)
- */
+function isSide(v: unknown): v is SidebarSide {
+  return v === 'left' || v === 'right';
+}
+
 export function useSidebar(allSectionKeys: string[], defaultActiveKeys: string[] = []) {
   const uiLayout = useUiLayout();
 
-  const validDefaultActiveKeys = defaultActiveKeys.filter((key) => allSectionKeys.includes(key));
-  const side = ref<SidebarSide>('left');
-  const order = ref<string[]>([...allSectionKeys]);
+  const known = new Set(allSectionKeys);
+  const validDefaultActiveKeys = defaultActiveKeys.filter((k) => known.has(k));
+
+  const sectionSide = ref<Record<string, SidebarSide>>(
+    Object.fromEntries(allSectionKeys.map((k) => [k, 'left' as SidebarSide])),
+  );
   const activeSet = ref<Set<string>>(new Set(validDefaultActiveKeys));
   const sectionHeights = ref<Record<string, number>>({});
+  const serverHeaderSide = ref<SidebarSide>('left');
+  const userDockSide = ref<SidebarSide>('left');
+
+  function loadFromSaved(saved: StoredState) {
+    const next: Record<string, SidebarSide> = {};
+    if (saved.sectionSide && typeof saved.sectionSide === 'object') {
+      for (const key of allSectionKeys) {
+        next[key] = isSide(saved.sectionSide[key]) ? saved.sectionSide[key]! : 'left';
+      }
+      sectionSide.value = next;
+    } else if (Array.isArray(saved.leftKeys) || Array.isArray(saved.rightKeys)) {
+      for (const k of allSectionKeys) next[k] = 'left';
+      for (const k of saved.leftKeys ?? []) if (known.has(k)) next[k] = 'left';
+      for (const k of saved.rightKeys ?? []) if (known.has(k)) next[k] = 'right';
+      sectionSide.value = next;
+    }
+
+    if (Array.isArray(saved.active)) {
+      activeSet.value = new Set(saved.active.filter((k) => known.has(k)));
+    }
+    if (saved.heights && typeof saved.heights === 'object') {
+      sectionHeights.value = { ...saved.heights };
+    }
+    if (isSide(saved.serverHeaderSide)) serverHeaderSide.value = saved.serverHeaderSide;
+    if (isSide(saved.userDockSide)) userDockSide.value = saved.userDockSide;
+  }
 
   onMounted(() => {
     void uiLayout.ensureLoaded().then(() => {
       const saved = uiLayout.get<StoredState & UiLayoutEntry>(STORAGE_KEY);
-      if (!saved) return;
-      if (saved.side === 'left' || saved.side === 'right') side.value = saved.side;
-      if (Array.isArray(saved.order)) {
-        // Preserve any new keys not in saved order, drop unknown keys.
-        const known = new Set(allSectionKeys);
-        const fromSaved = saved.order.filter((k) => known.has(k));
-        const missing = allSectionKeys.filter((k) => !fromSaved.includes(k));
-        order.value = [...fromSaved, ...missing];
-      }
-      if (Array.isArray(saved.active)) {
-        activeSet.value = new Set(saved.active.filter((k) => allSectionKeys.includes(k)));
-      }
-      if (saved.heights && typeof saved.heights === 'object') {
-        sectionHeights.value = { ...saved.heights };
-      }
+      if (saved) loadFromSaved(saved);
     });
   });
 
   function persist() {
-    const payload: StoredState = {
-      side: side.value,
-      order: order.value,
+    uiLayout.set(STORAGE_KEY, {
+      sectionSide: sectionSide.value,
       active: Array.from(activeSet.value),
       heights: sectionHeights.value,
-    };
-    uiLayout.set(STORAGE_KEY, payload as unknown as UiLayoutEntry);
+      serverHeaderSide: serverHeaderSide.value,
+      userDockSide: userDockSide.value,
+    } as unknown as UiLayoutEntry);
+  }
+
+  function sideHasSections(side: SidebarSide): boolean {
+    return allSectionKeys.some((k) => sectionSide.value[k] === side);
+  }
+
+  // Singletons (server header + user dock) can't sit alone on a side without
+  // sections — they auto-follow the side that hosts the sections.
+  function ensureSingletonPlacement() {
+    const left = sideHasSections('left');
+    const right = sideHasSections('right');
+    if (left === right) return;
+    const target: SidebarSide = left ? 'left' : 'right';
+    if (serverHeaderSide.value !== target) serverHeaderSide.value = target;
+    if (userDockSide.value !== target) userDockSide.value = target;
   }
 
   function toggleSection(key: string) {
+    if (!known.has(key)) return;
     if (activeSet.value.has(key)) activeSet.value.delete(key);
     else activeSet.value.add(key);
     activeSet.value = new Set(activeSet.value);
     persist();
   }
 
-  function swapSide() {
-    side.value = side.value === 'left' ? 'right' : 'left';
+  function setSectionSide(key: string, side: SidebarSide) {
+    if (!known.has(key) || !isSide(side)) return;
+    if (sectionSide.value[key] === side) return;
+    sectionSide.value = { ...sectionSide.value, [key]: side };
+    ensureSingletonPlacement();
     persist();
   }
 
-  function moveSection(key: string, toIndex: number) {
-    const current = order.value.indexOf(key);
-    if (current === -1) return;
-    const next = order.value.slice();
-    next.splice(current, 1);
-    next.splice(Math.max(0, Math.min(next.length, toIndex)), 0, key);
-    order.value = next;
+  function setSingletonSide(ref_: typeof serverHeaderSide, side: SidebarSide) {
+    if (!isSide(side) || ref_.value === side) return;
+    const other: SidebarSide = side === 'left' ? 'right' : 'left';
+    if (!sideHasSections(side) && sideHasSections(other)) return;
+    ref_.value = side;
     persist();
   }
 
-  function setOrder(newOrder: string[]) {
-    const known = new Set(allSectionKeys);
-    const sanitized = newOrder.filter((k) => known.has(k));
-    const missing = allSectionKeys.filter((k) => !sanitized.includes(k));
-    order.value = [...sanitized, ...missing];
-    persist();
+  function setServerHeaderSide(side: SidebarSide) {
+    setSingletonSide(serverHeaderSide, side);
+  }
+
+  function setUserDockSide(side: SidebarSide) {
+    setSingletonSide(userDockSide, side);
   }
 
   function setSectionHeight(key: string, px: number) {
@@ -93,20 +126,23 @@ export function useSidebar(allSectionKeys: string[], defaultActiveKeys: string[]
     persist();
   }
 
-  const activeOrderedKeys = computed(() => order.value.filter((k) => activeSet.value.has(k)));
-  const hasAnyIcon = computed(() => order.value.length > 0);
+  const leftKeys = computed(() => allSectionKeys.filter((k) => sectionSide.value[k] === 'left'));
+  const rightKeys = computed(() => allSectionKeys.filter((k) => sectionSide.value[k] === 'right'));
+  const activeOrderedKeys = computed(() => allSectionKeys.filter((k) => activeSet.value.has(k)));
 
   return {
-    side,
-    order,
+    sectionSide,
+    leftKeys,
+    rightKeys,
     activeSet,
-    sectionHeights,
     activeOrderedKeys,
-    hasAnyIcon,
+    sectionHeights,
+    serverHeaderSide,
+    userDockSide,
     toggleSection,
-    swapSide,
-    moveSection,
-    setOrder,
+    setSectionSide,
     setSectionHeight,
+    setServerHeaderSide,
+    setUserDockSide,
   };
 }

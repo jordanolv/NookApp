@@ -35,6 +35,7 @@ const currentChannel = computed(
 
 const showUserMenu = ref(false);
 const menuPos = ref<{ left: number; bottom: number } | null>(null);
+const showUserSettings = ref(false);
 
 function openUserMenu(e: MouseEvent) {
   if (!import.meta.client) return;
@@ -45,6 +46,11 @@ function openUserMenu(e: MouseEvent) {
 
 function closeUserMenu() {
   showUserMenu.value = false;
+}
+
+function openUserSettings() {
+  showUserMenu.value = false;
+  showUserSettings.value = true;
 }
 </script>
 
@@ -120,7 +126,7 @@ function closeUserMenu() {
         type="button"
         class="ctrl-btn"
         :title="t('voice.accountSettings')"
-        @click="openUserMenu"
+        @click="openUserSettings"
       >
         <Settings :size="14" />
       </button>
@@ -136,13 +142,15 @@ function closeUserMenu() {
             bottom: `${menuPos.bottom}px`,
           }"
         >
-          <button class="user-menu__item" @click="closeUserMenu">
+          <button class="user-menu__item" @click="openUserSettings">
             <Settings :size="13" />
             <span>{{ t('voice.accountSettings') }}</span>
           </button>
         </div>
       </template>
     </Teleport>
+
+    <UserSettingsModal v-if="showUserSettings" @close="showUserSettings = false" />
   </div>
 </template>
 

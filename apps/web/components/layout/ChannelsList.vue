@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import type { ChannelPublic, CategoryPublic } from '@nookapp/protocol';
 import { Hash, MessageSquare, Gamepad2, Sticker, ChevronDown, Folder } from 'lucide-vue-next';
 import { useMessagesStore } from '~/stores/messages';
@@ -10,15 +10,47 @@ const props = defineProps<{
   categories: CategoryPublic[];
   activeChannelIds: Set<string>;
   currentVoiceId: string | null;
+  canManage: boolean;
 }>();
 
 const emit = defineEmits<{
   select: [channel: ChannelPublic, event: MouseEvent];
+  'edit-channel': [channelId: string];
+  'edit-category': [categoryId: string];
 }>();
 
 const messages = useMessagesStore();
 const collapsed = ref<Set<string>>(new Set());
 const expandedForums = ref<Set<string>>(new Set());
+
+const ctxMenu = ref<{ type: 'channel' | 'category'; id: string; x: number; y: number } | null>(
+  null,
+);
+
+function onChannelCtx(ch: ChannelPublic, e: MouseEvent) {
+  if (!props.canManage) return;
+  e.preventDefault();
+  ctxMenu.value = { type: 'channel', id: ch.id, x: e.clientX, y: e.clientY };
+}
+function onCategoryCtx(cat: CategoryPublic, e: MouseEvent) {
+  if (!props.canManage) return;
+  e.preventDefault();
+  ctxMenu.value = { type: 'category', id: cat.id, x: e.clientX, y: e.clientY };
+}
+function closeCtx() {
+  ctxMenu.value = null;
+}
+
+onMounted(() => window.addEventListener('mousedown', closeCtx));
+onUnmounted(() => window.removeEventListener('mousedown', closeCtx));
+
+const { apiBase } = useRuntimeConfig().public;
+const apiOrigin = new URL(apiBase as string).origin;
+
+function resolveUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  return url.startsWith('/') ? `${apiOrigin}${url}` : url;
+}
 
 function toggleCategory(id: string) {
   if (collapsed.value.has(id)) collapsed.value.delete(id);
@@ -60,7 +92,6 @@ function iconFor(type: ChannelPublic['type']) {
   }
 }
 
-// Deterministic hue per channel id (stable colour).
 function hueFor(id: string): number {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
@@ -68,24 +99,22 @@ function hueFor(id: string): number {
 }
 
 function cardStyle(ch: ChannelPublic) {
-  const hue = hueFor(ch.id);
-  return {
-    background: `
-      linear-gradient(120deg,
-        hsla(${hue}, 65%, 32%, 0.55) 0%,
-        hsla(${hue}, 65%, 18%, 0.35) 55%,
-        hsla(${(hue + 40) % 360}, 60%, 22%, 0.45) 100%
-      ),
-      rgba(15, 15, 22, 0.65)
-    `,
-  };
+  const banner = resolveUrl(ch.bannerUrl);
+  if (banner) {
+    return {
+      backgroundImage: `url(${banner})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+    };
+  }
+  return { background: 'rgba(255, 255, 255, 0.05)' };
 }
 
 function iconBg(ch: ChannelPublic) {
-  const hue = hueFor(ch.id);
-  return {
-    background: `linear-gradient(135deg, hsl(${hue}, 70%, 55%), hsl(${(hue + 30) % 360}, 70%, 45%))`,
-  };
+  if (ch.bannerUrl) {
+    return { background: 'rgba(0, 0, 0, 0.55)' };
+  }
+  return { background: 'rgba(255, 255, 255, 0.08)' };
 }
 
 const ungrouped = computed(() =>
@@ -179,6 +208,7 @@ function formatRelativeTime(iso: string): string {
           }"
           :style="cardStyle(ch)"
           @click="handleCardClick(ch, $event)"
+          @contextmenu="onChannelCtx(ch, $event)"
         >
           <div class="card__icon" :style="iconBg(ch)">
             <component :is="iconFor(ch.type)" :size="14" stroke-width="2.4" />
@@ -208,7 +238,7 @@ function formatRelativeTime(iso: string): string {
             </span>
             <span v-else class="card__last card__last--empty">Aucun message</span>
           </div>
-          <div v-if="statOf(ch).label" class="card__stat">
+          <div v-if="ch.showStat && statOf(ch).label" class="card__stat">
             <span class="card__stat-num">{{ formatCount(statOf(ch).num) }}</span>
             <span class="card__stat-label">{{ statOf(ch).label }}</span>
           </div>
@@ -224,6 +254,7 @@ function formatRelativeTime(iso: string): string {
             :class="{ 'card--active': isActive(child) }"
             :style="cardStyle(child)"
             @click="emit('select', child, $event)"
+            @contextmenu="onChannelCtx(child, $event)"
           >
             <div class="card__icon" :style="iconBg(child)">
               <component :is="iconFor(child.type)" :size="12" stroke-width="2.4" />
@@ -245,7 +276,7 @@ function formatRelativeTime(iso: string): string {
               </span>
               <span v-else class="card__last card__last--empty">Aucun message</span>
             </div>
-            <div v-if="statOf(child).label" class="card__stat">
+            <div v-if="child.showStat && statOf(child).label" class="card__stat">
               <span class="card__stat-num">{{ formatCount(statOf(child).num) }}</span>
               <span class="card__stat-label">{{ statOf(child).label }}</span>
             </div>
@@ -261,7 +292,13 @@ function formatRelativeTime(iso: string): string {
         type="button"
         class="cat-header"
         :class="{ 'cat-header--collapsed': collapsed.has(g.category.id) }"
+        :style="
+          g.category.color
+            ? { borderLeft: `3px solid ${g.category.color}`, paddingLeft: '5px' }
+            : {}
+        "
         @click="toggleCategory(g.category.id)"
+        @contextmenu="onCategoryCtx(g.category, $event)"
       >
         <Folder :size="12" class="cat-header__icon" />
         <span class="cat-header__name">{{ g.category.name }}</span>
@@ -278,6 +315,7 @@ function formatRelativeTime(iso: string): string {
             }"
             :style="cardStyle(ch)"
             @click="handleCardClick(ch, $event)"
+            @contextmenu="onChannelCtx(ch, $event)"
           >
             <div class="card__icon" :style="iconBg(ch)">
               <component :is="iconFor(ch.type)" :size="14" stroke-width="2.4" />
@@ -307,7 +345,7 @@ function formatRelativeTime(iso: string): string {
               </span>
               <span v-else class="card__last card__last--empty">Aucun message</span>
             </div>
-            <div v-if="statOf(ch).label" class="card__stat">
+            <div v-if="ch.showStat && statOf(ch).label" class="card__stat">
               <span class="card__stat-num">{{ formatCount(statOf(ch).num) }}</span>
               <span class="card__stat-label">{{ statOf(ch).label }}</span>
             </div>
@@ -323,6 +361,7 @@ function formatRelativeTime(iso: string): string {
               :class="{ 'card--active': isActive(child) }"
               :style="cardStyle(child)"
               @click="emit('select', child, $event)"
+              @contextmenu="onChannelCtx(child, $event)"
             >
               <div class="card__icon" :style="iconBg(child)">
                 <component :is="iconFor(child.type)" :size="12" stroke-width="2.4" />
@@ -344,7 +383,7 @@ function formatRelativeTime(iso: string): string {
                 </span>
                 <span v-else class="card__last card__last--empty">Aucun message</span>
               </div>
-              <div v-if="statOf(child).label" class="card__stat">
+              <div v-if="child.showStat && statOf(child).label" class="card__stat">
                 <span class="card__stat-num">{{ formatCount(statOf(child).num) }}</span>
                 <span class="card__stat-label">{{ statOf(child).label }}</span>
               </div>
@@ -358,6 +397,27 @@ function formatRelativeTime(iso: string): string {
     <div v-if="!ungrouped.length && !grouped.length" class="channels-list__empty">
       Aucun salon texte
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="ctxMenu"
+        class="ctx-menu"
+        :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
+        @mousedown.stop
+      >
+        <button
+          class="ctx-menu__item"
+          @click="
+            ctxMenu!.type === 'channel'
+              ? emit('edit-channel', ctxMenu!.id)
+              : emit('edit-category', ctxMenu!.id);
+            closeCtx();
+          "
+        >
+          Modifier
+        </button>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -588,5 +648,33 @@ function formatRelativeTime(iso: string): string {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.3);
   font-style: italic;
+}
+
+.ctx-menu {
+  position: fixed;
+  z-index: 200;
+  min-width: 140px;
+  padding: 4px;
+  border-radius: 8px;
+  background: rgba(10, 10, 16, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+.ctx-menu__item {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  text-align: left;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 100ms;
+}
+.ctx-menu__item:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.95);
 }
 </style>

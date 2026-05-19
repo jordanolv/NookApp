@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { ChevronLeft, ChevronRight, ChevronDown } from 'lucide-vue-next';
-import { VueDraggable } from 'vue-draggable-plus';
+import { ChevronDown, Settings, MoreHorizontal, PanelTop, UserCircle2 } from 'lucide-vue-next';
 import type { Component } from 'vue';
 
 export interface SidebarSectionDef {
@@ -13,18 +12,24 @@ export interface SidebarSectionDef {
 const props = defineProps<{
   side: 'left' | 'right';
   sections: SidebarSectionDef[];
-  order: string[];
+  keys: string[];
   activeKeys: Set<string>;
   sectionHeights: Record<string, number>;
   serverName: string;
   bannerUrl?: string | null;
+  alwaysShow?: boolean;
+  showServerHeader?: boolean;
+  showUserDock?: boolean;
+  otherSideHasSections?: boolean;
 }>();
 
 const emit = defineEmits<{
   'toggle-section': [key: string];
-  'swap-side': [];
-  'set-order': [order: string[]];
+  'toggle-key': [key: string];
+  'toggle-server-header': [];
+  'toggle-user-dock': [];
   'set-section-height': [key: string, px: number];
+  'open-server-switcher': [event: MouseEvent];
   'open-server-menu': [event: MouseEvent];
 }>();
 
@@ -34,37 +39,35 @@ const sectionByKey = computed(() => {
   return m;
 });
 
-const orderedIcons = computed(
-  () => props.order.map((k) => sectionByKey.value[k]).filter(Boolean) as SidebarSectionDef[],
+const enabledIcons = computed(
+  () => props.keys.map((k) => sectionByKey.value[k]).filter(Boolean) as SidebarSectionDef[],
 );
-
-const orderedIconsModel = computed({
-  get: () => orderedIcons.value,
-  set: (next) =>
-    emit(
-      'set-order',
-      next.map((s) => s.key),
-    ),
-});
 
 const orderedActive = computed(
   () =>
-    props.order
+    props.keys
       .filter((k) => props.activeKeys.has(k))
       .map((k) => sectionByKey.value[k])
       .filter(Boolean) as SidebarSectionDef[],
 );
 
-const hasAnyIcon = computed(() => props.sections.length > 0);
-const swapIcon = computed(() => (props.side === 'left' ? ChevronRight : ChevronLeft));
+const hasAnyIcon = computed(() => props.keys.length > 0);
+const hasAnyContent = computed(
+  () => hasAnyIcon.value || !!props.showServerHeader || !!props.showUserDock,
+);
+const visible = computed(() => hasAnyContent.value || props.alwaysShow);
 
+const showPicker = ref(false);
+function togglePicker() {
+  showPicker.value = !showPicker.value;
+}
+function closePicker() {
+  showPicker.value = false;
+}
 const DEFAULT_SECTION_H = 220;
 function heightFor(key: string): number {
   return props.sectionHeights[key] ?? DEFAULT_SECTION_H;
 }
-
-// ── Section resize ──
-const panelEl = ref<HTMLElement | null>(null);
 
 function startResize(e: PointerEvent, key: string) {
   if (e.button !== 0) return;
@@ -73,8 +76,7 @@ function startResize(e: PointerEvent, key: string) {
   const startH = heightFor(key);
 
   function onMove(ev: PointerEvent) {
-    const delta = ev.clientY - startY;
-    emit('set-section-height', key, startH + delta);
+    emit('set-section-height', key, startH + (ev.clientY - startY));
   }
   function onUp() {
     window.removeEventListener('pointermove', onMove);
@@ -83,38 +85,54 @@ function startResize(e: PointerEvent, key: string) {
   window.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup', onUp);
 }
+
+const LOCK_HINT = {
+  left: 'Ajoute d’abord une section à droite',
+  right: 'Ajoute d’abord une section à gauche',
+} as const;
+const lockReason = computed(() => LOCK_HINT[props.side]);
 </script>
 
 <template>
-  <aside v-if="hasAnyIcon" class="sidebar" :class="`sidebar--${side}`">
-    <!-- Server header (top, full width) -->
-    <button
-      type="button"
-      class="server-header"
-      :title="serverName"
-      @click="emit('open-server-menu', $event)"
-    >
-      <div class="server-header__banner">
-        <img v-if="bannerUrl" :src="bannerUrl" :alt="serverName" class="server-header__img" />
-        <div v-else class="server-header__fallback">
-          {{ serverName?.[0]?.toUpperCase() ?? '?' }}
+  <aside
+    v-if="visible"
+    class="sidebar"
+    :class="[
+      `sidebar--${side}`,
+      { 'sidebar--empty': !hasAnyContent, 'sidebar--compact': hasAnyContent && !hasAnyIcon },
+    ]"
+  >
+    <div v-if="showServerHeader" class="server-header">
+      <button
+        type="button"
+        class="server-header__main"
+        :title="serverName"
+        @click="emit('open-server-switcher', $event)"
+      >
+        <div class="server-header__banner">
+          <img v-if="bannerUrl" :src="bannerUrl" :alt="serverName" class="server-header__img" />
+          <div v-else class="server-header__fallback">
+            {{ serverName?.[0]?.toUpperCase() ?? '?' }}
+          </div>
         </div>
-      </div>
-      <span class="server-header__name">{{ serverName }}</span>
-      <ChevronDown :size="14" class="server-header__chevron" />
-    </button>
+        <span class="server-header__name">{{ serverName }}</span>
+        <ChevronDown :size="14" class="server-header__chevron" />
+      </button>
+      <button
+        type="button"
+        class="server-header__gear"
+        :title="serverName"
+        @click="emit('open-server-menu', $event)"
+      >
+        <Settings :size="14" />
+      </button>
+    </div>
 
-    <!-- Middle row: icons + content panel -->
     <div class="sidebar__middle">
       <nav class="sidebar__icons">
-        <VueDraggable
-          v-model="orderedIconsModel"
-          class="sidebar__icons-list"
-          :animation="180"
-          ghost-class="icon-btn--ghost-drag"
-        >
+        <div class="sidebar__icons-list">
           <button
-            v-for="s in orderedIconsModel"
+            v-for="s in enabledIcons"
             :key="s.key"
             type="button"
             class="icon-btn"
@@ -124,18 +142,65 @@ function startResize(e: PointerEvent, key: string) {
           >
             <component :is="s.icon" :size="15" />
           </button>
-        </VueDraggable>
+        </div>
 
-        <div class="sidebar__icons-spacer" />
+        <div class="sidebar__icons-more-wrap">
+          <button
+            type="button"
+            class="icon-btn icon-btn--more"
+            :class="{ 'icon-btn--more-open': showPicker }"
+            title="Configurer cette barre"
+            @click="togglePicker"
+          >
+            <MoreHorizontal :size="15" />
+          </button>
 
-        <button
-          type="button"
-          class="icon-btn icon-btn--ghost"
-          :title="side === 'left' ? 'Passer à droite' : 'Passer à gauche'"
-          @click="emit('swap-side')"
-        >
-          <component :is="swapIcon" :size="16" />
-        </button>
+          <Teleport to="body">
+            <div v-if="showPicker" class="picker-veil" @click="closePicker" />
+            <div v-if="showPicker" class="picker" :class="`picker--${side}`" @click.stop>
+              <header class="picker__head">
+                <h3>Sections</h3>
+              </header>
+              <ul v-if="enabledIcons.length" class="picker__list">
+                <LayoutSidebarPickerRow
+                  v-for="s in enabledIcons"
+                  :key="s.key"
+                  :icon="s.icon"
+                  :label="s.label"
+                  :side="side"
+                  @toggle="emit('toggle-key', s.key)"
+                />
+              </ul>
+              <p v-else class="picker__empty">Aucune section ici.</p>
+
+              <template v-if="showServerHeader || showUserDock">
+                <header class="picker__head picker__head--secondary">
+                  <h3>Éléments</h3>
+                </header>
+                <ul class="picker__list">
+                  <LayoutSidebarPickerRow
+                    v-if="showServerHeader"
+                    :icon="PanelTop"
+                    label="En-tête serveur"
+                    :side="side"
+                    :lock-other="!otherSideHasSections"
+                    :lock-reason="lockReason"
+                    @toggle="emit('toggle-server-header')"
+                  />
+                  <LayoutSidebarPickerRow
+                    v-if="showUserDock"
+                    :icon="UserCircle2"
+                    label="Profil utilisateur"
+                    :side="side"
+                    :lock-other="!otherSideHasSections"
+                    :lock-reason="lockReason"
+                    @toggle="emit('toggle-user-dock')"
+                  />
+                </ul>
+              </template>
+            </div>
+          </Teleport>
+        </div>
       </nav>
 
       <div v-if="orderedActive.length" ref="panelEl" class="sidebar__panel">
@@ -149,14 +214,17 @@ function startResize(e: PointerEvent, key: string) {
           >
             <header class="section__header">
               <span>{{ s.label }}</span>
-              <button
-                type="button"
-                class="section__close"
-                title="Fermer"
-                @click="emit('toggle-section', s.key)"
-              >
-                ×
-              </button>
+              <div class="section__header-actions">
+                <slot :name="`${s.key}-action`" />
+                <button
+                  type="button"
+                  class="section__close"
+                  title="Fermer"
+                  @click="emit('toggle-section', s.key)"
+                >
+                  ×
+                </button>
+              </div>
             </header>
             <div class="section__body">
               <slot :name="s.key" />
@@ -173,8 +241,7 @@ function startResize(e: PointerEvent, key: string) {
       </div>
     </div>
 
-    <!-- User dock (full width bottom) -->
-    <div class="sidebar__user-dock">
+    <div v-if="showUserDock" class="sidebar__user-dock">
       <slot name="user-dock" />
     </div>
   </aside>
@@ -209,19 +276,47 @@ function startResize(e: PointerEvent, key: string) {
 /* ── Server header ── */
 .server-header {
   display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 6px 6px;
+  width: 100%;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+.server-header__main {
+  display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
-  width: 100%;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 8px;
   border: none;
   background: transparent;
   cursor: pointer;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
   transition: background 120ms;
-  flex-shrink: 0;
 }
-.server-header:hover {
+.server-header__main:hover {
   background: rgba(255, 255, 255, 0.04);
+}
+.server-header__gear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.45);
+  border-radius: 8px;
+  transition:
+    background 120ms,
+    color 120ms;
+}
+.server-header__gear:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.85);
 }
 .server-header__banner {
   width: 36px;
@@ -290,10 +385,164 @@ function startResize(e: PointerEvent, key: string) {
   flex-direction: column;
   align-items: center;
   gap: 4px;
+  width: 100%;
 }
-.sidebar__icons-spacer {
-  flex: 1 1 auto;
-  min-height: 12px;
+.sidebar__icons-more-wrap {
+  margin-top: auto;
+  padding-top: 8px;
+  display: flex;
+  justify-content: center;
+  position: relative;
+}
+.icon-btn--more {
+  color: rgba(255, 255, 255, 0.35);
+}
+.icon-btn--more:hover,
+.icon-btn--more-open {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.05);
+}
+.sidebar--empty {
+  width: 60px;
+}
+.sidebar--empty .sidebar__panel,
+.sidebar--empty .server-header,
+.sidebar--empty .sidebar__user-dock {
+  display: none;
+}
+/* Compact: only header/dock — sidebar shell goes away, each floats as its own card */
+.sidebar--compact {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: none;
+  box-shadow: none;
+  width: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.sidebar--compact > .server-header,
+.sidebar--compact > .sidebar__middle,
+.sidebar--compact > .sidebar__user-dock {
+  pointer-events: auto;
+}
+
+.sidebar--compact > .server-header,
+.sidebar--compact > .sidebar__user-dock {
+  width: 260px;
+  border-radius: 14px;
+  background: rgba(12, 12, 18, 0.78);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.sidebar--compact > .sidebar__middle {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.sidebar--compact > .sidebar__user-dock {
+  margin-top: auto;
+}
+
+.sidebar--compact .sidebar__icons {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(12, 12, 18, 0.82);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border-radius: 999px;
+  padding: 4px;
+  width: auto;
+  flex-direction: row;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+
+.sidebar--compact .sidebar__icons-list {
+  display: none;
+}
+
+.sidebar--compact .sidebar__icons-more-wrap {
+  margin: 0;
+  padding: 0;
+}
+
+/* Popover */
+.picker-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: transparent;
+}
+.picker {
+  position: fixed;
+  z-index: 91;
+  bottom: 56px;
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  background: rgba(15, 16, 24, 0.98);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  font-family: inherit;
+}
+.picker--left {
+  left: 64px;
+}
+.picker--right {
+  right: 64px;
+}
+.picker__head {
+  padding: 10px 12px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.picker__head h3 {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.55);
+}
+.picker__head--secondary {
+  margin-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 10px;
+}
+.picker__head--secondary p {
+  margin: 4px 0 0;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  font-style: italic;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.picker__list {
+  list-style: none;
+  padding: 6px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.picker__empty {
+  margin: 0;
+  padding: 8px 10px 4px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  font-style: italic;
 }
 
 .icon-btn {
@@ -360,6 +609,11 @@ function startResize(e: PointerEvent, key: string) {
   color: rgba(255, 255, 255, 0.6);
   background: rgba(0, 0, 0, 0.15);
   flex-shrink: 0;
+}
+.section__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 .section__close {
   display: flex;
