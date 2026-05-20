@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue';
 import { MessageSquare, Users, Trophy, Settings, Search, Zap, Clock, X } from 'lucide-vue-next';
+import { useQueueTimer } from '~/composables/useQueueTimer';
+import { gradientFor } from '~/utils/color-hash';
 
 const props = defineProps<{
   serverId: string;
@@ -25,50 +28,9 @@ type TabId = (typeof tabs)[number]['id'];
 
 const activeTab = ref<TabId>('discussion');
 
-// Cover gradient (deterministic by channel id)
-const COVER_GRADIENTS = [
-  ['#1e3a8a', '#7c3aed'],
-  ['#831843', '#be185d'],
-  ['#064e3b', '#10b981'],
-  ['#7c2d12', '#ea580c'],
-  ['#1e293b', '#0ea5e9'],
-  ['#581c87', '#ec4899'],
-  ['#365314', '#84cc16'],
-  ['#7f1d1d', '#f59e0b'],
-];
-function hash(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
-const banner = computed(() => {
-  const [a, b] = COVER_GRADIENTS[hash(props.channelId) % COVER_GRADIENTS.length];
-  return `linear-gradient(135deg, ${a} 0%, ${b} 100%)`;
-});
+const banner = computed(() => gradientFor(props.channelId));
 
-// Squad finder mock state
-const queueActive = ref(false);
-const queueElapsed = ref(0);
-let queueTimer: ReturnType<typeof setInterval> | null = null;
-
-function toggleQueue() {
-  queueActive.value = !queueActive.value;
-  if (queueActive.value) {
-    queueElapsed.value = 0;
-    queueTimer = setInterval(() => queueElapsed.value++, 1000);
-  } else if (queueTimer) {
-    clearInterval(queueTimer);
-    queueTimer = null;
-  }
-}
-onUnmounted(() => {
-  if (queueTimer) clearInterval(queueTimer);
-});
-function fmtTime(s: number) {
-  const m = Math.floor(s / 60);
-  const sec = (s % 60).toString().padStart(2, '0');
-  return `${m}:${sec}`;
-}
+const queue = useQueueTimer();
 
 const squadCriteria = ref({
   mode: 'ranked',
@@ -78,7 +40,6 @@ const squadCriteria = ref({
 const modes = ['casual', 'ranked', 'pro'];
 const levels = ['any', 'bronze', 'silver', 'gold', 'platinum'];
 
-// Placeholder LFG announcements
 const lfgPosts = computed(() => [
   { id: '1', author: 'Mira', text: 'LFG ranked, gold+, EU', time: 'il y a 2 min', tag: 'ranked' },
   {
@@ -114,7 +75,6 @@ const lfgPosts = computed(() => [
     @drag-end="(x, y) => emit('drag-end', x, y)"
   >
     <div class="topic">
-      <!-- Banner -->
       <div class="banner" :style="{ background: banner }">
         <div class="banner-overlay" />
         <div class="banner-content">
@@ -126,7 +86,6 @@ const lfgPosts = computed(() => [
         </div>
       </div>
 
-      <!-- Tabs -->
       <div class="tabs">
         <button
           v-for="t in tabs"
@@ -144,14 +103,11 @@ const lfgPosts = computed(() => [
         </button>
       </div>
 
-      <!-- Tab content -->
       <div class="tab-body">
-        <!-- Discussion: embed real ChatPane -->
         <div v-show="activeTab === 'discussion'" class="discussion">
           <ChatPane :channel-id="channelId" />
         </div>
 
-        <!-- Squad finder -->
         <div v-show="activeTab === 'squad'" class="squad">
           <div class="squad-cta">
             <div class="cta-left">
@@ -160,11 +116,15 @@ const lfgPosts = computed(() => [
             </div>
             <button
               class="cta-btn"
-              :class="{ 'cta-btn--active': queueActive }"
-              @click="toggleQueue"
+              :class="{ 'cta-btn--active': queue.active.value }"
+              @click="queue.toggle"
             >
-              <component :is="queueActive ? X : Zap" :size="14" />
-              {{ queueActive ? `En queue · ${fmtTime(queueElapsed)}` : 'Lancer une queue' }}
+              <component :is="queue.active.value ? X : Zap" :size="14" />
+              {{
+                queue.active.value
+                  ? `En queue · ${queue.format(queue.elapsed.value)}`
+                  : 'Lancer une queue'
+              }}
             </button>
           </div>
 
@@ -233,7 +193,6 @@ const lfgPosts = computed(() => [
           </div>
         </div>
 
-        <!-- Highlights -->
         <div v-show="activeTab === 'highlights'" class="highlights">
           <div class="hl-empty">
             <Trophy :size="36" />
@@ -254,7 +213,6 @@ const lfgPosts = computed(() => [
   background: rgba(8, 8, 12, 0.6);
 }
 
-/* Banner */
 .banner {
   position: relative;
   height: 110px;
@@ -309,7 +267,6 @@ const lfgPosts = computed(() => [
   box-shadow: 0 0 6px rgba(34, 197, 94, 0.8);
 }
 
-/* Tabs */
 .tabs {
   display: flex;
   align-items: center;
@@ -349,7 +306,6 @@ const lfgPosts = computed(() => [
   flex: 1;
 }
 
-/* Tab body */
 .tab-body {
   flex: 1;
   overflow: hidden;
@@ -361,7 +317,6 @@ const lfgPosts = computed(() => [
   flex-direction: column;
 }
 
-/* Squad */
 .squad {
   height: 100%;
   overflow-y: auto;
@@ -604,7 +559,6 @@ const lfgPosts = computed(() => [
   background: rgba(99, 102, 241, 0.3);
 }
 
-/* Highlights */
 .highlights {
   height: 100%;
 }
