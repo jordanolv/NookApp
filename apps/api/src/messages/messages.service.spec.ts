@@ -1,11 +1,21 @@
 import { ForbiddenException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { DB } from '../database/database.module';
+import { PluginsService } from '../plugins/plugins.service';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { MessagesService } from './messages.service';
 
 const mockDb = {
   select: jest.fn(),
   insert: jest.fn(),
+};
+
+const mockRealtime = {
+  emitToServer: jest.fn(),
+};
+
+const mockPlugins = {
+  handleCommand: jest.fn(),
 };
 
 describe('MessagesService', () => {
@@ -14,7 +24,12 @@ describe('MessagesService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     const module = await Test.createTestingModule({
-      providers: [MessagesService, { provide: DB, useValue: mockDb }],
+      providers: [
+        MessagesService,
+        { provide: DB, useValue: mockDb },
+        { provide: RealtimeGateway, useValue: mockRealtime },
+        { provide: PluginsService, useValue: mockPlugins },
+      ],
     }).compile();
     service = module.get(MessagesService);
   });

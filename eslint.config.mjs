@@ -155,5 +155,12 @@ export default [
       globals: nodeGlobals,
     },
   },
+  {
+    files: ['**/*.mjs'],
+    languageOptions: {
+      sourceType: 'module',
+      globals: nodeGlobals,
+    },
+  },
   prettier,
 ];
