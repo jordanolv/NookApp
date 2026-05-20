@@ -14,6 +14,7 @@ import { ServersModule } from './servers/servers.module';
 import { UsersModule } from './users/users.module';
 import { VoiceModule } from './voice/voice.module';
 import { PluginsModule } from './plugins/plugins.module';
+import { PluginGatewayModule } from './plugin-gateway/plugin-gateway.module';
 import { CollaborationModule } from './collaboration/collaboration.module';
 import { CategoriesModule } from './categories/categories.module';
 import { RolesModule } from './roles/roles.module';
@@ -39,6 +40,7 @@ import { StorageModule } from './common/storage';
     RealtimeModule,
     VoiceModule,
     PluginsModule,
+    PluginGatewayModule,
     CollaborationModule,
     CategoriesModule,
     RolesModule,

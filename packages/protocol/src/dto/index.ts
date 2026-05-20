@@ -6,3 +6,4 @@ export * from './roles';
 export * from './messages';
 export * from './maps';
 export * from './ui-layout';
+export * from './plugin-registration';
