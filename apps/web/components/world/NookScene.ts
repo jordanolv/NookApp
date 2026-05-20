@@ -112,6 +112,13 @@ export interface ObjectLabelUpdate {
   worldY: number;
 }
 
+export interface VoiceRoomLabelUpdate {
+  channelId: string;
+  name: string;
+  worldX: number;
+  worldY: number;
+}
+
 export interface RoomZone {
   channelId: string;
   name: string;
@@ -145,6 +152,12 @@ export class NookScene extends Phaser.Scene {
   private localLayers!: (Phaser.GameObjects.Sprite | null)[];
   private lastDir = 'down';
   private lastEmitTime = 0;
+  private lastEmitState = { x: 0, y: 0, dir: '', moving: false };
+  private tagsBuffer: NameTagUpdate[] = [];
+  private labelsBuffer: ObjectLabelUpdate[] = [];
+  private roomLabelsBuffer: VoiceRoomLabelUpdate[] = [];
+  private roomsInitialized = false;
+  private pendingRestorePosition: { x: number; y: number } | null = null;
   private appearance: Appearance = { ...DEFAULT_APPEARANCE };
   private builtBodyAnims = new Set<string>();
 
@@ -632,7 +645,32 @@ export class NookScene extends Phaser.Scene {
         doorLabelWorldY: pos.y + h + 8,
       };
     });
+    this.roomsInitialized = true;
     this.redrawRooms();
+    this.tryApplyPendingRestore();
+  }
+
+  setRestorePosition(x: number, y: number) {
+    this.pendingRestorePosition = { x, y };
+    this.tryApplyPendingRestore();
+  }
+
+  private tryApplyPendingRestore() {
+    if (!this.pendingRestorePosition || !this.roomsInitialized || !this.localBody) return;
+    const { x, y } = this.pendingRestorePosition;
+    this.pendingRestorePosition = null;
+
+    let final = { x, y };
+    for (const room of this.activeRooms) {
+      if (Phaser.Geom.Rectangle.Contains(room.bounds, x, y)) {
+        final = {
+          x: room.bounds.x + room.bounds.width / 2,
+          y: Math.min(room.bounds.y + room.bounds.height + 32, WORLD_H - 16),
+        };
+        break;
+      }
+    }
+    this.teleport(final.x, final.y);
   }
 
   updateRemotePlayer(payload: PlayerMovedPayload, name: string | null) {
@@ -776,9 +814,11 @@ export class NookScene extends Phaser.Scene {
       const { x, y } = room;
       const rw = room.bounds.width;
       const rh = room.bounds.height;
-      // Subtle dashed outline only — no walls, no floor tint
-      g.lineStyle(1, 0xc8bfff, 0.7);
-      this.strokeDashedRect(g, x, y, rw, rh, 5, 4);
+      const isActive = room.channelId === this.currentRoomChannelId;
+      g.fillStyle(isActive ? 0x6366f1 : 0x8b8df0, isActive ? 0.18 : 0.1);
+      g.fillRect(x, y, rw, rh);
+      g.lineStyle(2, isActive ? 0x818cf8 : 0xc8bfff, isActive ? 1 : 0.85);
+      this.strokeDashedRect(g, x, y, rw, rh, 8, 5);
     }
   }
 
@@ -1008,18 +1048,28 @@ export class NookScene extends Phaser.Scene {
     }
     this.localBody.setDepth(snappedY);
 
-    // 15 Hz position broadcast
+    // 15 Hz position broadcast — skip when nothing changed since the last emit
     if (now - this.lastEmitTime >= EMIT_INTERVAL_MS) {
-      this.lastEmitTime = now;
       const pb = this.localBody.body as Phaser.Physics.Arcade.Body;
       const moving = pb.velocity.x !== 0 || pb.velocity.y !== 0;
-      this.events.emit('player-moved', {
-        userId: this.localUserId,
-        x: this.localBody.x,
-        y: this.localBody.y,
-        dir: this.lastDir as PlayerMovedPayload['dir'],
-        moving,
-      } satisfies PlayerMovedPayload);
+      const x = this.localBody.x;
+      const y = this.localBody.y;
+      const dir = this.lastDir;
+      const last = this.lastEmitState;
+      if (last.x !== x || last.y !== y || last.dir !== dir || last.moving !== moving) {
+        this.lastEmitTime = now;
+        last.x = x;
+        last.y = y;
+        last.dir = dir;
+        last.moving = moving;
+        this.events.emit('player-moved', {
+          userId: this.localUserId,
+          x,
+          y,
+          dir: dir as PlayerMovedPayload['dir'],
+          moving,
+        } satisfies PlayerMovedPayload);
+      }
     }
 
     // Room proximity detection — check which room (if any) the local player is inside
@@ -1044,23 +1094,24 @@ export class NookScene extends Phaser.Scene {
       }
     }
 
-    // DOM name tags
-    const tags: NameTagUpdate[] = [
-      {
-        userId: this.localUserId,
-        name: this.localUserName,
-        worldX: this.localBody.x,
-        worldY: this.localBody.y,
-      },
-    ];
+    // DOM name tags — reuse buffer, mutate in place to avoid per-frame allocations
+    const tags = this.tagsBuffer;
+    tags.length = 0;
+    tags.push({
+      userId: this.localUserId,
+      name: this.localUserName,
+      worldX: this.localBody.x,
+      worldY: this.localBody.y,
+    });
     for (const [userId, remote] of this.remotePlayers) {
       const spr = remote.layers[0]!;
       tags.push({ userId, name: remote.name, worldX: spr.x, worldY: spr.y });
     }
     this.events.emit('name-tags', tags);
 
-    // DOM object labels
-    const objectLabels: ObjectLabelUpdate[] = [];
+    // DOM object labels — same buffer-reuse pattern
+    const objectLabels = this.labelsBuffer;
+    objectLabels.length = 0;
     for (const [id, spec] of this.worldObjectSpecs) {
       if (!spec.label) continue;
       const obj = this.worldObjects.get(id) as
@@ -1069,16 +1120,21 @@ export class NookScene extends Phaser.Scene {
       if (!obj) continue;
       objectLabels.push({ id, label: spec.label, worldX: obj.x, worldY: obj.y - 20 });
     }
-    // Room door labels
+    this.events.emit('object-labels', objectLabels);
+
+    // Voice-room labels — emitted separately so the Vue side can render them
+    // as rich pills with the live participant list, not just a text label.
+    const roomLabels = this.roomLabelsBuffer;
+    roomLabels.length = 0;
     for (const room of this.activeRooms) {
-      objectLabels.push({
-        id: `room:${room.channelId}`,
-        label: `🔊 ${room.name}`,
+      roomLabels.push({
+        channelId: room.channelId,
+        name: room.name,
         worldX: room.doorLabelWorldX,
         worldY: room.doorLabelWorldY,
       });
     }
-    if (objectLabels.length) this.events.emit('object-labels', objectLabels);
+    this.events.emit('voice-rooms', roomLabels);
   }
 
   static projectToScreen(
