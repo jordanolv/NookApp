@@ -211,8 +211,6 @@ const showBuildToggle = computed(() => props.canManageMap);
     />
   </ClientOnly>
 
-  <VoiceMembersWindow />
-
   <ClientOnly>
     <WorldMinimap
       :map-data="currentMap ?? null"
