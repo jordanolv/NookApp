@@ -1,3 +1,7 @@
+import { fileURLToPath } from 'node:url';
+
+const protocolSrc = fileURLToPath(new URL('../../packages/protocol/src/index.ts', import.meta.url));
+
 export default defineNuxtConfig({
   compatibilityDate: '2025-01-01',
   devtools: { enabled: true },
@@ -36,10 +40,13 @@ export default defineNuxtConfig({
     strict: true,
     typeCheck: false,
   },
-  // Pre-bundle @nookapp/protocol so Vite serves an ESM wrapper around its CJS output.
+  // @nookapp/protocol's CJS build chain confuses Rollup's static analysis; resolve to source TS instead.
+  alias: {
+    '@nookapp/protocol': protocolSrc,
+  },
   vite: {
     optimizeDeps: {
-      include: ['@nookapp/protocol', 'yjs', '@hocuspocus/provider'],
+      include: ['yjs', '@hocuspocus/provider'],
     },
   },
 });
