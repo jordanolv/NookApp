@@ -1,18 +1,28 @@
 <script setup lang="ts">
 import Phaser from 'phaser';
+import { shallowRef } from 'vue';
 import {
   NookScene,
   type NameTagUpdate,
   type WorldObjectSpec,
   type ObjectLabelUpdate,
+  type VoiceRoomLabelUpdate,
 } from './NookScene';
 import type { PlayerState } from '@nookapp/protocol';
 import { useCharacter } from '~/composables/useCharacter';
+import { useLocalActivity } from '~/composables/useLocalActivity';
+import { ICON_DEAFENED, ICON_MUTED, type NameTagStatus } from './name-tag/constants';
+import NameTag from './name-tag/NameTag.vue';
+import ActivityPicker from './name-tag/ActivityPicker.vue';
+import CamBubble from './overlay/CamBubble.vue';
+import VoiceRoomLabel from './overlay/VoiceRoomLabel.vue';
+import ObjectLabel from './overlay/ObjectLabel.vue';
 
 const serversStore = useServers().store;
 const voice = useVoice();
 const character = useCharacter();
 const presence = usePresence();
+const { localActivity } = useLocalActivity();
 
 import type { MapData } from '@nookapp/protocol';
 import type {
@@ -89,26 +99,32 @@ function onZoneMouseup(ev: MouseEvent) {
   const endX = ev.clientX - rect.left;
   const endY = ev.clientY - rect.top;
 
-  const screenX = Math.min(zoneDrag.value.startX, endX);
-  const screenY = Math.min(zoneDrag.value.startY, endY);
-  const screenW = Math.abs(endX - zoneDrag.value.startX);
-  const screenH = Math.abs(endY - zoneDrag.value.startY);
+  const startX = zoneDrag.value.startX;
+  const startY = zoneDrag.value.startY;
 
   zoneDrag.value = null;
-  if (screenW < 20 || screenH < 20) return;
+  if (Math.abs(endX - startX) < 20 || Math.abs(endY - startY) < 20) return;
 
   const scene = game.value?.scene.scenes[0] as
     | { cameras: { main: Phaser.Cameras.Scene2D.Camera } }
     | undefined;
-  if (scene) {
-    const wv = scene.cameras.main.worldView;
-    emit('zone-picked', {
-      x: Math.round(wv.x + (screenX / rect.width) * wv.width),
-      y: Math.round(wv.y + (screenY / rect.height) * wv.height),
-      w: Math.round((screenW / rect.width) * wv.width),
-      h: Math.round((screenH / rect.height) * wv.height),
-    });
-  }
+  if (!scene) return;
+
+  // Overlay covers the canvas display 1:1; screen px → world coords uses the
+  // inverse of projectToScreen: screen = (world - scroll) * zoom * DISPLAY_SCALE.
+  const cam = scene.cameras.main;
+  const k = cam.zoom * DISPLAY_SCALE;
+  const wx1 = startX / k + cam.scrollX;
+  const wy1 = startY / k + cam.scrollY;
+  const wx2 = endX / k + cam.scrollX;
+  const wy2 = endY / k + cam.scrollY;
+
+  emit('zone-picked', {
+    x: Math.round(Math.min(wx1, wx2)),
+    y: Math.round(Math.min(wy1, wy2)),
+    w: Math.round(Math.abs(wx2 - wx1)),
+    h: Math.round(Math.abs(wy2 - wy1)),
+  });
 }
 
 const zoneDragRect = computed(() => {
@@ -122,21 +138,56 @@ const zoneDragRect = computed(() => {
 });
 
 const canvasRef = ref<HTMLDivElement | null>(null);
-const nameTagsContainer = ref<HTMLDivElement | null>(null);
 const game = ref<Phaser.Game | null>(null);
 const playerPopup = ref<{ userId: string; name: string; x: number; y: number } | null>(null);
 
 const socket = useSocket();
 
-// ─── DOM overlay maps — no Vue reactivity in the 60fps render path ───
-const nameTagEls = new Map<string, HTMLDivElement>();
-const camBubbleEls = new Map<string, HTMLVideoElement>();
-// eslint-disable-next-line no-unused-vars
-const camBubbleTracks = new Map<string, { detach: (el: HTMLVideoElement) => void }>();
+type AttachableTrack = {
+  attach: (_el: HTMLVideoElement) => HTMLVideoElement;
+  detach: (_el: HTMLVideoElement) => HTMLVideoElement;
+};
+
+type NameTagOverlay = {
+  userId: string;
+  name: string;
+  status: NameTagStatus;
+  mediaIconHtml: string;
+  activity: string | null;
+  x: number;
+  y: number;
+};
+
+type CamBubbleOverlay = {
+  userId: string;
+  track: AttachableTrack;
+  mirror: boolean;
+  speaking: boolean;
+  feedKey: string;
+  x: number;
+  y: number;
+};
+
+type VoiceRoomOverlay = {
+  channelId: string;
+  name: string;
+  x: number;
+  y: number;
+  members: Array<{ userId: string; name: string }>;
+  speakingUserIds: Set<string>;
+};
+
+type ObjectLabelOverlay = { id: string; label: string; x: number; y: number };
+
+const nameTagOverlays = shallowRef<NameTagOverlay[]>([]);
+const camBubbleOverlays = shallowRef<CamBubbleOverlay[]>([]);
+const voiceRoomOverlays = shallowRef<VoiceRoomOverlay[]>([]);
+const objectLabelOverlays = shallowRef<ObjectLabelOverlay[]>([]);
+
 let cachedRect: DOMRect | null = null;
 
-// ─── Phaser-space screen share rings (behind sprites via depth sorting) ─
 let _scene: NookScene | null = null;
+let stopRoomsWatch: (() => void) | null = null;
 let pendingMapData: MapData | null = null;
 let pendingMapApplyFrame: number | null = null;
 const screenRingArcs = new Map<string, Phaser.GameObjects.Arc>();
@@ -174,83 +225,6 @@ function computeCameraOffset(
   };
 }
 
-// ─── Name tags ───────────────────────────────────────────────────────
-
-function ensureNameTag(userId: string, name: string): HTMLDivElement {
-  let el = nameTagEls.get(userId);
-  if (!el) {
-    el = document.createElement('div');
-    el.className =
-      'pointer-events-none absolute z-10 -translate-x-1/2 rounded bg-black/60 px-2 py-0.5 text-xs font-medium text-white whitespace-nowrap flex items-center gap-1';
-    const nameSpan = document.createElement('span');
-    const iconSpan = document.createElement('span');
-    el.appendChild(nameSpan);
-    el.appendChild(iconSpan);
-    nameTagsContainer.value?.appendChild(el);
-    nameTagEls.set(userId, el);
-  }
-  const nameSpan = el.childNodes[0] as HTMLSpanElement;
-  if (nameSpan.textContent !== name) nameSpan.textContent = name;
-  return el;
-}
-
-function removeNameTag(userId: string) {
-  nameTagEls.get(userId)?.remove();
-  nameTagEls.delete(userId);
-}
-
-// ─── Camera indicator (above name tag) ───────────────────────────────
-
-// Cam bubble: circular video element above the head, mirrored for local player (POC pattern)
-const CAM_BUBBLE_STYLE_BASE =
-  'position:absolute;width:72px;height:72px;border-radius:50%;object-fit:cover;' +
-  'border:3px solid rgba(255,255,255,0.2);box-shadow:0 4px 12px rgba(0,0,0,0.4);' +
-  'z-index:10;pointer-events:auto;cursor:pointer;background:#1d1b26;';
-
-type AttachableTrack = {
-  // eslint-disable-next-line no-unused-vars
-  attach: (el: HTMLVideoElement) => HTMLVideoElement;
-  // eslint-disable-next-line no-unused-vars
-  detach: (el: HTMLVideoElement) => HTMLVideoElement;
-};
-
-function ensureCamBubble(
-  userId: string,
-  track: AttachableTrack,
-  mirror: boolean,
-): HTMLVideoElement {
-  let el = camBubbleEls.get(userId);
-  const prevTrack = camBubbleTracks.get(userId);
-  if (!el) {
-    el = document.createElement('video');
-    el.autoplay = true;
-    el.playsInline = true;
-    el.muted = true;
-    el.style.cssText = CAM_BUBBLE_STYLE_BASE + (mirror ? 'transform:scaleX(-1);' : '');
-    const feedKey = mirror ? 'local-cam' : `cam-${userId}`;
-    el.addEventListener('click', () => voice.openMediaPanel(feedKey));
-    nameTagsContainer.value?.appendChild(el);
-    camBubbleEls.set(userId, el);
-  }
-  if (prevTrack !== track) {
-    if (prevTrack) prevTrack.detach(el);
-    track.attach(el);
-    camBubbleTracks.set(userId, track);
-  }
-  return el;
-}
-
-function removeCamBubble(userId: string) {
-  const el = camBubbleEls.get(userId);
-  const track = camBubbleTracks.get(userId);
-  if (el && track) track.detach(el);
-  el?.remove();
-  camBubbleEls.delete(userId);
-  camBubbleTracks.delete(userId);
-}
-
-// ─── Screen share breathing ring (Phaser Arc — renders behind sprites) ─
-
 function ensureScreenRing(userId: string): Phaser.GameObjects.Arc | null {
   if (!_scene) return null;
   let arc = screenRingArcs.get(userId);
@@ -281,118 +255,110 @@ function removeScreenRing(userId: string) {
   }
 }
 
-// ─── Object labels ────────────────────────────────────────────────────
+const NAME_TAG_Y_OFFSET = 60;
+const CAM_BUBBLE_Y_OFFSET = 50;
 
-const objectLabelEls = new Map<string, HTMLDivElement>();
-
-function ensureObjectLabel(id: string, label: string): HTMLDivElement {
-  let el = objectLabelEls.get(id);
-  if (!el) {
-    el = document.createElement('div');
-    el.className =
-      'pointer-events-none absolute z-10 -translate-x-1/2 rounded-full bg-indigo-600/90 px-2 py-0.5 text-xs font-semibold text-white whitespace-nowrap shadow-lg';
-    nameTagsContainer.value?.appendChild(el);
-    objectLabelEls.set(id, el);
-  }
-  if (el.textContent !== label) el.textContent = label;
-  return el;
-}
-
-function removeObjectLabel(id: string) {
-  objectLabelEls.get(id)?.remove();
-  objectLabelEls.delete(id);
-}
-
-function updateObjectLabels(labels: ObjectLabelUpdate[], cam: Phaser.Cameras.Scene2D.Camera) {
+function recomputeOverlays(
+  tags: NameTagUpdate[],
+  labels: ObjectLabelUpdate[],
+  rooms: VoiceRoomLabelUpdate[],
+  cam: Phaser.Cameras.Scene2D.Camera,
+) {
   if (!cachedRect) return;
-  const seen = new Set<string>();
-  for (const l of labels) {
-    seen.add(l.id);
-    const el = ensureObjectLabel(l.id, l.label);
-    const { x, y } = NookScene.projectToScreen(cam, cachedRect, l.worldX, l.worldY);
-    el.style.left = `${x}px`;
-    el.style.top = `${y}px`;
-  }
-  for (const id of objectLabelEls.keys()) {
-    if (!seen.has(id)) removeObjectLabel(id);
-  }
-}
 
-// ─── Status icons ─────────────────────────────────────────────────────
+  const worldMode = voice.mediaViewMode.value === 'world';
+  const localUserId = props.userId;
+  const isDeafened = voice.isDeafened.value;
+  const isMuted = voice.isMuted.value;
+  const localStatus: NameTagStatus = isDeafened ? 'dnd' : isMuted ? 'muted' : 'online';
+  const localMediaIcon = isDeafened ? ICON_DEAFENED : isMuted ? ICON_MUTED : '';
+  const localCam = voice.isCameraOn.value;
+  const localScreen = voice.isScreenSharing.value;
+  const localCamTrack = voice.localCameraTrack.value as AttachableTrack | null;
+  const participantMedia = voice.participantMedia.value;
+  const remoteVideoTracks = voice.remoteVideoTracks.value;
+  const activeSpeakers = voice.activeSpeakers.value;
 
-const ICON_MUTED =
-  '<svg width="10" height="10" viewBox="0 0 24 24" fill="rgb(248,113,113)" style="flex-shrink:0"><path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/></svg>';
-const ICON_DEAFENED =
-  '<svg width="10" height="10" viewBox="0 0 24 24" fill="rgb(248,113,113)" style="flex-shrink:0"><path d="M12 1c-4.97 0-9 4.03-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h3c1.66 0 3-1.34 3-3v-7c0-4.97-4.03-9-9-9zM1 12l2 2 2-2-2-2-2 2zm18 0l2 2 2-2-2-2-2 2z"/></svg>';
+  const nextNameTags: NameTagOverlay[] = [];
+  const nextBubbles: CamBubbleOverlay[] = [];
+  const seenScreens = new Set<string>();
 
-// ─── Main overlay update (runs in POST_RENDER, 60fps) ─────────────────
-
-function updateNameTags(tags: NameTagUpdate[], cam: Phaser.Cameras.Scene2D.Camera) {
-  if (!cachedRect) return;
-  const seen = new Set<string>();
   for (const t of tags) {
-    seen.add(t.userId);
-    const el = ensureNameTag(t.userId, t.name);
-    // Project 60 world-units above the body anchor so the offset scales with zoom
-    const { x, y } = NookScene.projectToScreen(cam, cachedRect, t.worldX, t.worldY - 60);
-    el.style.left = `${x}px`;
-    el.style.top = `${y}px`;
+    const isLocal = t.userId === localUserId;
+    const tag = NookScene.projectToScreen(cam, cachedRect, t.worldX, t.worldY - NAME_TAG_Y_OFFSET);
+    nextNameTags.push({
+      userId: t.userId,
+      name: t.name,
+      status: isLocal ? localStatus : 'online',
+      mediaIconHtml: isLocal ? localMediaIcon : '',
+      activity: isLocal ? localActivity.value : null,
+      x: tag.x,
+      y: tag.y,
+    });
 
-    if (t.userId === props.userId) {
-      const iconSpan = el.childNodes[1] as HTMLSpanElement;
-      const icon = voice.isDeafened.value ? ICON_DEAFENED : voice.isMuted.value ? ICON_MUTED : '';
-      if (iconSpan.innerHTML !== icon) iconSpan.innerHTML = icon;
-    }
-
-    // Local player: read state directly so indicators work without a voice channel.
-    // Remote players: state comes from LiveKit TrackSubscribed events (same channel only).
-    // Local player reads cam/screen state directly; remote players via LiveKit events
-    const isLocalPlayer = t.userId === props.userId;
-    const media = isLocalPlayer
-      ? { cam: voice.isCameraOn.value, screen: voice.isScreenSharing.value }
-      : voice.participantMedia.value.get(t.userId);
-
-    // Cam bubble — 72×72 circular video above the head (matches POC "world-cam-bubble" pattern)
-    const camTrack = isLocalPlayer
-      ? (voice.localCameraTrack.value as AttachableTrack | null)
-      : ((voice.remoteVideoTracks.value.get(t.userId) as AttachableTrack | undefined) ?? null);
-    const worldMode = voice.mediaViewMode.value === 'world';
+    const media = isLocal ? { cam: localCam, screen: localScreen } : participantMedia.get(t.userId);
+    const camTrack = isLocal
+      ? localCamTrack
+      : ((remoteVideoTracks.get(t.userId) as AttachableTrack | undefined) ?? null);
 
     if (worldMode && media?.cam && camTrack) {
-      const bubble = ensureCamBubble(t.userId, camTrack, isLocalPlayer);
-      const { x: cx, y: cy } = NookScene.projectToScreen(cam, cachedRect, t.worldX, t.worldY - 50);
-      bubble.style.left = `${cx - 36}px`;
-      bubble.style.top = `${cy - 72 - 11}px`;
-      const speaking = voice.activeSpeakers.value.has(t.userId);
-      bubble.style.border = speaking ? '3px solid #2bd47b' : '3px solid rgba(255,255,255,0.2)';
-      bubble.style.boxShadow = speaking
-        ? '0 6px 16px rgba(0,0,0,0.55),0 0 18px rgba(43,212,123,0.45)'
-        : '0 4px 12px rgba(0,0,0,0.4)';
-    } else {
-      removeCamBubble(t.userId);
+      const b = NookScene.projectToScreen(
+        cam,
+        cachedRect,
+        t.worldX,
+        t.worldY - CAM_BUBBLE_Y_OFFSET,
+      );
+      nextBubbles.push({
+        userId: t.userId,
+        track: camTrack,
+        mirror: isLocal,
+        speaking: activeSpeakers.has(t.userId),
+        feedKey: isLocal ? 'local-cam' : `cam-${t.userId}`,
+        x: b.x,
+        y: b.y,
+      });
     }
 
     if (worldMode && media?.screen) {
+      seenScreens.add(t.userId);
       const arc = ensureScreenRing(t.userId);
       if (arc) {
         arc.x = t.worldX;
         arc.y = t.worldY;
         arc.setDepth(t.worldY - 0.5);
       }
-    } else {
-      removeScreenRing(t.userId);
     }
   }
-  for (const userId of nameTagEls.keys()) {
-    if (!seen.has(userId)) {
-      removeNameTag(userId);
-      removeCamBubble(userId);
-      removeScreenRing(userId);
-    }
+  for (const userId of screenRingArcs.keys()) {
+    if (!seenScreens.has(userId)) removeScreenRing(userId);
   }
+
+  nameTagOverlays.value = nextNameTags;
+  camBubbleOverlays.value = nextBubbles;
+
+  const nextLabels: ObjectLabelOverlay[] = labels.map((l) => {
+    const { x, y } = NookScene.projectToScreen(cam, cachedRect!, l.worldX, l.worldY);
+    return { id: l.id, label: l.label, x, y };
+  });
+  objectLabelOverlays.value = nextLabels;
+
+  const presence = voice.voicePresence.value;
+  const nextRooms: VoiceRoomOverlay[] = rooms.map((r) => {
+    const { x, y } = NookScene.projectToScreen(cam, cachedRect!, r.worldX, r.worldY);
+    const presenceMembers = presence.get(r.channelId) ?? [];
+    const members = presenceMembers.map((m) => ({ userId: m.userId, name: m.name }));
+    return {
+      channelId: r.channelId,
+      name: r.name,
+      x,
+      y,
+      members,
+      speakingUserIds: new Set(activeSpeakers),
+    };
+  });
+  voiceRoomOverlays.value = nextRooms;
 }
 
-// Push prop changes into the scene whenever the parent updates them after mount.
 watch(
   () => props.mapData,
   (data) => {
@@ -463,9 +429,7 @@ watch(
 onMounted(() => {
   if (!canvasRef.value) return;
 
-  // CRITICAL: ensure the socket exists before registering listeners.
-  // Vue mounts children before parents, so we cannot rely on the parent's
-  // onMounted to have called connect() yet.
+  // Children mount before parents — connect here, not from the parent's onMounted.
   socket.connect();
 
   const ro = new ResizeObserver(() => {
@@ -494,12 +458,10 @@ onMounted(() => {
     input: { keyboard: true },
   });
 
-  // ─── Wire socket listeners FIRST, then send hello ───
-  // Order matters: snapshot/joined events that arrive between hello-send and
-  // listener-registration are silently lost.
-
+  // Register listeners before hello() — events fired between hello and listener-bind are lost.
   const offSnapshot = socket.onSnapshot(({ you, others }) => {
     scene.setLocalUserId(you.userId);
+    scene.setRestorePosition(you.x, you.y);
     for (const p of others) {
       scene.updateRemotePlayer(
         { userId: p.userId, x: p.x, y: p.y, dir: p.dir, moving: false },
@@ -528,12 +490,9 @@ onMounted(() => {
 
   const offLeft = socket.onPlayerLeft(({ userId }) => {
     scene.removeRemotePlayer(userId);
-    removeNameTag(userId);
-    removeCamBubble(userId);
     removeScreenRing(userId);
   });
 
-  // World object socket listeners
   const rawSocket = socket.raw();
   const onWorldSnapshot = (payload: { objects: WorldObjectSpec[] }) => {
     for (const spec of payload.objects) scene.spawnWorldObject(spec);
@@ -541,13 +500,11 @@ onMounted(() => {
   const onWorldSpawn = (spec: WorldObjectSpec) => scene.spawnWorldObject(spec);
   const onWorldRemove = ({ id }: { id: string }) => {
     scene.removeWorldObject(id);
-    removeObjectLabel(id);
   };
   rawSocket.on('world:object:snapshot', onWorldSnapshot);
   rawSocket.on('world:object:spawn', onWorldSpawn);
   rawSocket.on('world:object:remove', onWorldRemove);
 
-  // Scene-level wiring once the scene is fully created
   scene.onReady = () => {
     _scene = scene;
     scene.events.on('player-moved', (payload: Parameters<typeof socket.emitPlayerMoved>[0]) => {
@@ -601,11 +558,9 @@ onMounted(() => {
     const offset = computeCameraOffset(props.sidebarSide ?? null, scene, cachedRect);
     scene.setCameraOffset(offset.x, offset.y);
 
-    // Voice rooms — build zones from the server's voice channels and auto-join on proximity
-    const voiceChannels = serversStore.voiceChannels;
-    if (voiceChannels.length) {
+    const syncRooms = () =>
       scene.setRooms(
-        voiceChannels.map((ch) => ({
+        serversStore.voiceChannels.map((ch) => ({
           channelId: ch.id,
           name: ch.name,
           x: ch.mapZone?.x ?? 0,
@@ -614,7 +569,15 @@ onMounted(() => {
           h: ch.mapZone?.h,
         })),
       );
-    }
+    syncRooms();
+    stopRoomsWatch = watch(
+      () =>
+        serversStore.voiceChannels.map(
+          (c) =>
+            `${c.id}:${c.mapZone?.x ?? 0}:${c.mapZone?.y ?? 0}:${c.mapZone?.w ?? 0}:${c.mapZone?.h ?? 0}`,
+        ),
+      () => syncRooms(),
+    );
 
     scene.events.on('room:entered', ({ channelId }: { channelId: string }) => {
       void voice.join(props.serverId, channelId);
@@ -624,23 +587,22 @@ onMounted(() => {
       void voice.leave();
     });
 
-    // Store latest tag/label positions but only project them in POST_RENDER, after
-    // cameras.update() has applied the lerp — projecting in POST_UPDATE gives
-    // a 1-frame-stale worldView which makes stationary tags jitter when the camera moves.
     let latestTags: NameTagUpdate[] = [];
     let latestLabels: ObjectLabelUpdate[] = [];
+    let latestRooms: VoiceRoomLabelUpdate[] = [];
     scene.events.on('name-tags', (tags: NameTagUpdate[]) => {
       latestTags = tags;
     });
     scene.events.on('object-labels', (labels: ObjectLabelUpdate[]) => {
       latestLabels = labels;
     });
+    scene.events.on('voice-rooms', (rooms: VoiceRoomLabelUpdate[]) => {
+      latestRooms = rooms;
+    });
     game.value!.events.on(Phaser.Core.Events.POST_RENDER, () => {
-      updateNameTags(latestTags, scene.cameras.main);
-      updateObjectLabels(latestLabels, scene.cameras.main);
+      recomputeOverlays(latestTags, latestLabels, latestRooms, scene.cameras.main);
     });
 
-    // Now that everything is wired up, announce ourselves
     socket.hello({
       serverId: props.serverId,
       name: props.playerName,
@@ -661,6 +623,8 @@ onMounted(() => {
     rawSocket.off('world:object:spawn', onWorldSpawn);
     rawSocket.off('world:object:remove', onWorldRemove);
     ro.disconnect();
+    stopRoomsWatch?.();
+    stopRoomsWatch = null;
     if (pendingMapApplyFrame !== null) {
       cancelAnimationFrame(pendingMapApplyFrame);
       pendingMapApplyFrame = null;
@@ -668,11 +632,10 @@ onMounted(() => {
     pendingMapData = null;
     game.value?.destroy(true);
     game.value = null;
-    nameTagEls.clear();
-    objectLabelEls.clear();
-    for (const [uid] of camBubbleEls) removeCamBubble(uid);
-    camBubbleEls.clear();
-    camBubbleTracks.clear();
+    nameTagOverlays.value = [];
+    camBubbleOverlays.value = [];
+    voiceRoomOverlays.value = [];
+    objectLabelOverlays.value = [];
     for (const arc of screenRingArcs.values()) arc.destroy();
     screenRingArcs.clear();
     _scene = null;
@@ -707,9 +670,46 @@ defineExpose({
         imageRendering: 'pixelated',
       }"
     />
-    <div ref="nameTagsContainer" class="absolute inset-0 pointer-events-none" />
+    <div ref="nameTagsContainer" class="absolute inset-0 pointer-events-none">
+      <NameTag
+        v-for="t in nameTagOverlays"
+        :key="t.userId"
+        :name="t.name"
+        :status="t.status"
+        :media-icon-html="t.mediaIconHtml"
+        :activity="t.activity"
+        :x="t.x"
+        :y="t.y"
+      />
+      <CamBubble
+        v-for="b in camBubbleOverlays"
+        :key="b.feedKey"
+        :track="b.track"
+        :mirror="b.mirror"
+        :speaking="b.speaking"
+        :x="b.x"
+        :y="b.y"
+      />
+      <VoiceRoomLabel
+        v-for="r in voiceRoomOverlays"
+        :key="r.channelId"
+        :name="r.name"
+        :members="r.members"
+        :speaking-user-ids="r.speakingUserIds"
+        :x="r.x"
+        :y="r.y"
+      />
+      <ObjectLabel
+        v-for="l in objectLabelOverlays"
+        :key="l.id"
+        :label="l.label"
+        :x="l.x"
+        :y="l.y"
+      />
+    </div>
 
-    <!-- Player interaction popup -->
+    <ActivityPicker />
+
     <WorldPlayerPopup
       v-if="playerPopup"
       :user-id="playerPopup.userId"
@@ -719,10 +719,8 @@ defineExpose({
       @close="playerPopup = null"
     />
 
-    <!-- Media panel — camera / screen share feeds for same-channel participants -->
     <VoiceMediaPanel />
 
-    <!-- Zone picker overlay — admin draws a rect to define a voice room area -->
     <div
       v-if="zonePickerActive"
       class="absolute inset-0 z-50 cursor-crosshair select-none"
@@ -733,7 +731,6 @@ defineExpose({
       @keydown.esc="emit('zone-cancel')"
       tabindex="0"
     >
-      <!-- Instructions -->
       <div
         class="absolute top-4 left-1/2 -translate-x-1/2 rounded-xl px-4 py-2 text-xs font-medium pointer-events-none"
         style="
@@ -745,7 +742,6 @@ defineExpose({
         Glisse pour définir la zone vocale · Échap pour annuler
       </div>
 
-      <!-- Cancel button -->
       <button
         class="absolute top-4 right-4 rounded-xl px-3 py-1.5 text-xs font-medium"
         style="
@@ -758,7 +754,6 @@ defineExpose({
         Annuler
       </button>
 
-      <!-- Live selection rect -->
       <div
         v-if="zoneDragRect"
         class="absolute pointer-events-none"
