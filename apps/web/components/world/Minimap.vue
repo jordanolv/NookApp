@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
-import type { MapData, ChannelPublic, VoiceParticipant, UiLayoutEntry } from '@nookapp/protocol';
+import { computed } from 'vue';
+import type { MapData, ChannelPublic, VoiceParticipant } from '@nookapp/protocol';
 import type { PresencePlayer } from '~/composables/usePresence';
+import { useMinimapPosition } from '~/composables/useMinimapPosition';
+import { hueFor } from '~/utils/channel-format';
 
 const TILE_SIZE = 32;
 const WORLD = 70;
@@ -9,8 +11,7 @@ const DEFAULT_ZOOM = 26;
 const ZOOM_MIN = 8;
 const ZOOM_MAX = 60;
 const ZOOM_STEP = 4;
-const SIZE = 180; // diameter in px
-const STORAGE_KEY = 'world:minimap:pos';
+const SIZE = 180;
 
 const props = defineProps<{
   mapData: MapData | null;
@@ -26,94 +27,17 @@ const emit = defineEmits<{
   'teleport-to': [x: number, y: number];
 }>();
 
-const uiLayout = useUiLayout();
 const hoveredZone = ref<string | null>(null);
-const zoomTiles = ref<number>(DEFAULT_ZOOM);
 
-// ── Position (persisted) ──
-const pos = ref<{ x: number; y: number }>({ x: 0, y: 0 });
-
-function defaultPos(): { x: number; y: number } {
-  if (!import.meta.client) return { x: 16, y: 16 };
-  return { x: Math.max(16, window.innerWidth - SIZE - 16), y: 16 };
-}
-
-onMounted(() => {
-  pos.value = defaultPos();
-  void uiLayout.ensureLoaded().then(() => {
-    const saved = uiLayout.get<{ x?: number; y?: number; zoom?: number }>(STORAGE_KEY);
-    if (saved) {
-      if (typeof saved.x === 'number' && typeof saved.y === 'number') {
-        pos.value = clampToViewport(saved.x, saved.y);
-      }
-      if (typeof saved.zoom === 'number') {
-        zoomTiles.value = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, saved.zoom));
-      }
-    }
-  });
-  window.addEventListener('resize', onWindowResize);
-});
-onUnmounted(() => {
-  window.removeEventListener('resize', onWindowResize);
+const position = useMinimapPosition({
+  storageKey: 'world:minimap:pos',
+  size: SIZE,
+  defaultZoom: DEFAULT_ZOOM,
+  zoomMin: ZOOM_MIN,
+  zoomMax: ZOOM_MAX,
+  zoomStep: ZOOM_STEP,
 });
 
-function clampToViewport(x: number, y: number): { x: number; y: number } {
-  if (!import.meta.client) return { x, y };
-  return {
-    x: Math.max(0, Math.min(window.innerWidth - SIZE, x)),
-    y: Math.max(0, Math.min(window.innerHeight - SIZE, y)),
-  };
-}
-function onWindowResize() {
-  pos.value = clampToViewport(pos.value.x, pos.value.y);
-}
-
-function persistState() {
-  uiLayout.set(STORAGE_KEY, {
-    x: pos.value.x,
-    y: pos.value.y,
-    zoom: zoomTiles.value,
-  } as unknown as UiLayoutEntry);
-}
-
-function zoomIn() {
-  zoomTiles.value = Math.max(ZOOM_MIN, zoomTiles.value - ZOOM_STEP);
-  persistState();
-}
-function zoomOut() {
-  zoomTiles.value = Math.min(ZOOM_MAX, zoomTiles.value + ZOOM_STEP);
-  persistState();
-}
-
-// ── Drag ──
-const dragging = ref(false);
-let dragStart = { px: 0, py: 0, mx: 0, my: 0, moved: false };
-
-function onPointerDown(e: PointerEvent) {
-  if (e.button !== 0) return;
-  const target = e.target as HTMLElement | null;
-  // Don't start drag if the user clicked an interactive overlay (zone or zoom button).
-  if (target?.closest('.zone-hit, .minimap__zoom-btn')) return;
-  dragStart = { px: pos.value.x, py: pos.value.y, mx: e.clientX, my: e.clientY, moved: false };
-  dragging.value = true;
-  window.addEventListener('pointermove', onPointerMove);
-  window.addEventListener('pointerup', onPointerUp);
-}
-function onPointerMove(e: PointerEvent) {
-  const dx = e.clientX - dragStart.mx;
-  const dy = e.clientY - dragStart.my;
-  if (!dragStart.moved && dx * dx + dy * dy > 9) dragStart.moved = true;
-  if (!dragStart.moved) return;
-  pos.value = clampToViewport(dragStart.px + dx, dragStart.py + dy);
-}
-function onPointerUp() {
-  window.removeEventListener('pointermove', onPointerMove);
-  window.removeEventListener('pointerup', onPointerUp);
-  dragging.value = false;
-  if (dragStart.moved) persistState();
-}
-
-// ── Map data ──
 const floors = computed(() => props.mapData?.layers?.floors ?? []);
 const walls = computed(() => props.mapData?.layers?.walls ?? []);
 const zonedChannels = computed(() => props.voiceChannels.filter((c) => c.mapZone));
@@ -124,7 +48,7 @@ const wallPath = computed(() => cellsToPath(walls.value));
 
 const viewBoxStr = computed(() => {
   const me = props.currentUserId ? props.players.get(props.currentUserId) : null;
-  const z = zoomTiles.value;
+  const z = position.zoomTiles.value;
   if (!me) return `0 0 ${WORLD} ${WORLD}`;
   const cx = me.x / TILE_SIZE;
   const cy = me.y / TILE_SIZE;
@@ -150,14 +74,10 @@ const augmentedVoiceMembers = computed(() => {
   return map;
 });
 
-function hueFor(id: string): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return h % 360;
-}
 function playerColor(userId: string): string {
   return `hsl(${hueFor(userId)}, 75%, 60%)`;
 }
+
 function membersOfZone(channelId: string): VoiceParticipant[] {
   return augmentedVoiceMembers.value.get(channelId) ?? [];
 }
@@ -167,7 +87,7 @@ function cellsToPath(cells: ReadonlyArray<{ x: number; y: number }>): string {
 }
 
 function onZoneClick(ch: ChannelPublic) {
-  if (dragStart.moved) return; // ignore click that came after a drag
+  if (position.wasDragged()) return;
   if (!ch.mapZone) return;
   const cx = ch.mapZone.x + ch.mapZone.w / 2;
   const cy = ch.mapZone.y + ch.mapZone.h / 2;
@@ -178,18 +98,19 @@ function onZoneClick(ch: ChannelPublic) {
 <template>
   <div
     class="minimap"
-    :class="{ 'minimap--dragging': dragging }"
-    :style="{ left: `${pos.x}px`, top: `${pos.y}px`, width: `${SIZE}px`, height: `${SIZE}px` }"
-    @pointerdown="onPointerDown"
+    :class="{ 'minimap--dragging': position.dragging.value }"
+    :style="{
+      left: `${position.pos.value.x}px`,
+      top: `${position.pos.value.y}px`,
+      width: `${SIZE}px`,
+      height: `${SIZE}px`,
+    }"
+    @pointerdown="position.onPointerDown"
   >
     <svg class="minimap__svg" :viewBox="viewBoxStr" preserveAspectRatio="xMidYMid meet">
-      <!-- Floor tiles -->
       <path v-if="floorPath" :d="floorPath" fill="rgba(243, 234, 212, 0.5)" />
-
-      <!-- Walls -->
       <path v-if="wallPath" :d="wallPath" fill="rgba(40, 40, 50, 0.95)" />
 
-      <!-- Voice zones -->
       <g v-for="ch in zonedChannels" :key="ch.id">
         <rect
           :x="ch.mapZone!.x / TILE_SIZE"
@@ -202,7 +123,6 @@ function onZoneClick(ch: ChannelPublic) {
         />
       </g>
 
-      <!-- Other players -->
       <g v-for="p in playerList" :key="p.userId">
         <circle
           v-if="p.userId !== currentUserId"
@@ -215,7 +135,6 @@ function onZoneClick(ch: ChannelPublic) {
         />
       </g>
 
-      <!-- Local player (always on top, distinct marker) -->
       <g v-if="currentUserId && players.get(currentUserId)">
         <circle
           :cx="players.get(currentUserId)!.x / TILE_SIZE"
@@ -235,7 +154,6 @@ function onZoneClick(ch: ChannelPublic) {
         />
       </g>
 
-      <!-- Hit areas for zones (rendered last so on top) -->
       <g v-for="ch in zonedChannels" :key="`hit-${ch.id}`">
         <rect
           :x="ch.mapZone!.x / TILE_SIZE"
@@ -250,14 +168,13 @@ function onZoneClick(ch: ChannelPublic) {
       </g>
     </svg>
 
-    <!-- Zoom controls -->
     <div class="minimap__zoom">
       <button
         type="button"
         class="minimap__zoom-btn"
         title="Zoom +"
-        :disabled="zoomTiles <= ZOOM_MIN"
-        @click="zoomIn"
+        :disabled="position.zoomTiles.value <= ZOOM_MIN"
+        @click="position.zoomIn"
       >
         +
       </button>
@@ -265,8 +182,8 @@ function onZoneClick(ch: ChannelPublic) {
         type="button"
         class="minimap__zoom-btn"
         title="Zoom -"
-        :disabled="zoomTiles >= ZOOM_MAX"
-        @click="zoomOut"
+        :disabled="position.zoomTiles.value >= ZOOM_MAX"
+        @click="position.zoomOut"
       >
         −
       </button>
@@ -365,7 +282,6 @@ function onZoneClick(ch: ChannelPublic) {
   cursor: not-allowed;
 }
 
-/* Tooltip floats to the right of the circle */
 .minimap__tooltip {
   position: absolute;
   left: calc(100% + 8px);
