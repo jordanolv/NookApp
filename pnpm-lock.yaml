@@ -83,12 +83,6 @@ importers:
       '@nookapp/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@nookapp/plugin-hello-world':
-        specifier: workspace:*
-        version: link:../../plugins/hello-world
-      '@nookapp/plugin-sdk':
-        specifier: workspace:*
-        version: link:../../packages/plugin-sdk
       '@nookapp/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -285,31 +279,11 @@ importers:
         specifier: ^5.6.3
         version: 5.9.3
 
-  packages/plugin-sdk:
-    dependencies:
-      zod:
-        specifier: ^4.4.2
-        version: 4.4.2
-    devDependencies:
-      typescript:
-        specifier: ^5.6.3
-        version: 5.9.3
-
   packages/protocol:
     dependencies:
       zod:
         specifier: ^4.4.2
         version: 4.4.2
-    devDependencies:
-      typescript:
-        specifier: ^5.6.3
-        version: 5.9.3
-
-  plugins/hello-world:
-    dependencies:
-      '@nookapp/plugin-sdk':
-        specifier: workspace:*
-        version: link:../../packages/plugin-sdk
     devDependencies:
       typescript:
         specifier: ^5.6.3

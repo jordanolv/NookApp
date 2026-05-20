@@ -17,7 +17,7 @@ import type {
   VoiceSnapshotPayload,
 } from '@nookapp/protocol';
 import { AuthService } from '../auth/auth.service';
-import { PluginsService } from '../plugins/plugins.service';
+import { PluginGatewayService } from '../plugin-gateway/plugin-gateway.service';
 import { MembersService } from '../members/members.service';
 
 type RoomPlayers = Map<string, PlayerState>;
@@ -33,7 +33,8 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   constructor(
     private readonly authService: AuthService,
-    @Inject(forwardRef(() => PluginsService)) private readonly plugins: PluginsService,
+    @Inject(forwardRef(() => PluginGatewayService))
+    private readonly pluginGateway: PluginGatewayService,
     private readonly members: MembersService,
   ) {}
 
@@ -62,14 +63,18 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     this.rooms.get(serverId)?.delete(userId);
     client.to(`server:${serverId}`).emit('player:left', { userId });
-    this.plugins.emitEvent(serverId, 'player:left', { userId });
+    void this.pluginGateway.dispatchEvent(serverId, 'player:left', { serverId, userId });
 
     const vp = this.voicePresence.get(serverId);
     const channelId = vp?.get(userId);
     if (vp && channelId) {
       vp.delete(userId);
       this.server.to(`server:${serverId}`).emit('voice:left', { userId, channelId });
-      this.plugins.emitEvent(serverId, 'voice:left', { userId, channelId });
+      void this.pluginGateway.dispatchEvent(serverId, 'voice:left', {
+        serverId,
+        channelId,
+        userId,
+      });
     }
   }
 
@@ -101,13 +106,11 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     room.set(userId, me);
     client.to(`server:${serverId}`).emit('player:joined', me);
-    this.plugins.emitEvent(serverId, 'player:joined', me);
-
-    // Send world objects snapshot to the newcomer so objects spawned before they joined are visible
-    const worldObjects = this.plugins.getWorldObjects(serverId);
-    if (worldObjects.length) {
-      client.emit('world:object:snapshot', { objects: worldObjects });
-    }
+    void this.pluginGateway.dispatchEvent(serverId, 'player:joined', {
+      serverId,
+      userId,
+      userName: name,
+    });
 
     // Send current voice presence snapshot to the newcomer
     const vp = this.voicePresence.get(serverId);
@@ -171,17 +174,21 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const prevChannel = vp.get(userId);
     if (prevChannel && prevChannel !== payload.channelId) {
       this.server.to(`server:${serverId}`).emit('voice:left', { userId, channelId: prevChannel });
-      this.plugins.emitEvent(serverId, 'voice:left', { userId, channelId: prevChannel });
+      void this.pluginGateway.dispatchEvent(serverId, 'voice:left', {
+        serverId,
+        channelId: prevChannel,
+        userId,
+      });
     }
 
     vp.set(userId, payload.channelId);
     this.server
       .to(`server:${serverId}`)
       .emit('voice:joined', { userId, name, channelId: payload.channelId });
-    this.plugins.emitEvent(serverId, 'voice:joined', {
-      userId,
-      name,
+    void this.pluginGateway.dispatchEvent(serverId, 'voice:joined', {
+      serverId,
       channelId: payload.channelId,
+      userId,
     });
   }
 
@@ -197,7 +204,11 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     vp.delete(userId);
     this.server.to(`server:${serverId}`).emit('voice:left', { userId, channelId });
-    this.plugins.emitEvent(serverId, 'voice:left', { userId, channelId });
+    void this.pluginGateway.dispatchEvent(serverId, 'voice:left', {
+      serverId,
+      channelId,
+      userId,
+    });
   }
 
   @SubscribeMessage('world:object:click')
@@ -206,7 +217,11 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const userId = client.data.userId as string | undefined;
     if (!serverId || !userId) return;
 
-    this.plugins.handleWorldObjectClick(serverId, payload.objectId, userId);
+    void this.pluginGateway.dispatchEvent(serverId, 'world-object:clicked', {
+      serverId,
+      objectId: payload.objectId,
+      userId,
+    });
   }
 
   emitToServer(serverId: string, event: string, payload: unknown) {

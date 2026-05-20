@@ -1,8 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { DB } from '../database/database.module';
-import { PluginsService } from '../plugins/plugins.service';
-import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { PluginGatewayService } from '../plugin-gateway/plugin-gateway.service';
 import { MessagesService } from './messages.service';
 
 const mockDb = {
@@ -10,12 +9,9 @@ const mockDb = {
   insert: jest.fn(),
 };
 
-const mockRealtime = {
-  emitToServer: jest.fn(),
-};
-
-const mockPlugins = {
-  handleCommand: jest.fn(),
+const mockPluginGateway = {
+  dispatchEvent: jest.fn(),
+  dispatchCommand: jest.fn(),
 };
 
 describe('MessagesService', () => {
@@ -27,8 +23,7 @@ describe('MessagesService', () => {
       providers: [
         MessagesService,
         { provide: DB, useValue: mockDb },
-        { provide: RealtimeGateway, useValue: mockRealtime },
-        { provide: PluginsService, useValue: mockPlugins },
+        { provide: PluginGatewayService, useValue: mockPluginGateway },
       ],
     }).compile();
     service = module.get(MessagesService);
@@ -87,7 +82,6 @@ describe('MessagesService', () => {
         .mockReturnValueOnce(msgsChain);
 
       const result = await service.listMessages('s1', 'c1', 'u1', {});
-      // reversed: oldest first
       expect(result[0].id).toBe('m1');
       expect(result[1].id).toBe('m2');
     });

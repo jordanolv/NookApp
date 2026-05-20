@@ -7,8 +7,13 @@ import {
 } from '@nestjs/websockets';
 import type { Socket } from 'socket.io';
 import {
+  chatSendPayloadSchema,
   handshakeRequestSchema,
+  PLUGIN_ACTION_TYPES,
   PLUGIN_PROTOCOL_VERSION,
+  storageDeletePayloadSchema,
+  storageGetPayloadSchema,
+  storageSetPayloadSchema,
   type HandshakeError,
   type HandshakeErrorCode,
   type HandshakeOk,
@@ -85,6 +90,8 @@ export class PluginGatewayWs implements OnGatewayConnection, OnGatewayDisconnect
     this.service.registerConnection(
       registration.id,
       registration.ownerUserId,
+      registration.slug,
+      registration.name,
       client,
       capabilities,
     );
@@ -100,9 +107,68 @@ export class PluginGatewayWs implements OnGatewayConnection, OnGatewayDisconnect
     this.logger.log(`plugin ${registration.id} (${registration.slug}) connected`);
   }
 
+  @SubscribeMessage('action')
+  async handleAction(client: Socket, payload: unknown) {
+    const data = client.data as PluginSocketData;
+    if (!data.pluginId) return;
+    if (!isEnvelope(payload, 'action')) return;
+    const { type, payload: body } = payload as { type: string; payload: unknown };
+
+    switch (type) {
+      case PLUGIN_ACTION_TYPES.ChatSend: {
+        const parsed = chatSendPayloadSchema.safeParse(body);
+        if (parsed.success) await this.service.handleChatSend(data.pluginId, parsed.data);
+        return;
+      }
+      case PLUGIN_ACTION_TYPES.StorageSet: {
+        const parsed = storageSetPayloadSchema.safeParse(body);
+        if (parsed.success) await this.service.handleStorageSet(data.pluginId, parsed.data);
+        return;
+      }
+      case PLUGIN_ACTION_TYPES.StorageDelete: {
+        const parsed = storageDeletePayloadSchema.safeParse(body);
+        if (parsed.success) await this.service.handleStorageDelete(data.pluginId, parsed.data);
+        return;
+      }
+      default:
+        this.logger.debug(`plugin ${data.pluginId} sent unsupported action: ${type}`);
+    }
+  }
+
+  @SubscribeMessage('request')
+  async handleRequest(client: Socket, payload: unknown) {
+    const data = client.data as PluginSocketData;
+    if (!data.pluginId) return;
+    if (!isEnvelope(payload, 'request')) return;
+    const { id, type, payload: body } = payload as { id: string; type: string; payload: unknown };
+
+    try {
+      if (type === PLUGIN_ACTION_TYPES.StorageGet) {
+        const parsed = storageGetPayloadSchema.safeParse(body);
+        if (!parsed.success) throw new Error('invalid payload');
+        const result = await this.service.handleStorageGet(data.pluginId, parsed.data);
+        client.emit('response', { kind: 'response', id, ok: true, result });
+        return;
+      }
+      throw new Error(`unsupported request: ${type}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'request failed';
+      client.emit('response', { kind: 'response', id, ok: false, error: message });
+    }
+  }
+
   private reject(client: Socket, code: HandshakeErrorCode, message: string) {
     const err: HandshakeError = { ok: false, code, message };
     client.emit(HANDSHAKE_RESULT_EVENT, err);
     client.disconnect(true);
   }
+}
+
+function isEnvelope(value: unknown, kind: 'action' | 'request'): boolean {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { kind?: unknown }).kind === kind &&
+    typeof (value as { type?: unknown }).type === 'string'
+  );
 }

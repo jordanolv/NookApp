@@ -4,8 +4,7 @@ import { and, count, desc, eq, lt } from 'drizzle-orm';
 import { channel, member, message, user, type Database } from '@nookapp/db';
 import type { CreateMessageInput, MessagePublic } from '@nookapp/protocol';
 import { DB } from '../database/database.module';
-import { RealtimeGateway } from '../realtime/realtime.gateway';
-import { PluginsService } from '../plugins/plugins.service';
+import { PluginGatewayService } from '../plugin-gateway/plugin-gateway.service';
 
 function toMessagePublic(row: typeof message.$inferSelect): MessagePublic {
   return {
@@ -22,8 +21,7 @@ function toMessagePublic(row: typeof message.$inferSelect): MessagePublic {
 export class MessagesService {
   constructor(
     @Inject(DB) private readonly db: Database,
-    private readonly realtime: RealtimeGateway,
-    private readonly plugins: PluginsService,
+    private readonly pluginGateway: PluginGatewayService,
   ) {}
 
   async listMessages(
@@ -83,36 +81,26 @@ export class MessagesService {
 
     const msg = toMessagePublic(created);
 
-    // Route slash commands to plugins — emit bot response ephemerally (no DB write)
+    const [u] = await this.db
+      .select({ name: user.name })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+    const authorName = u?.name ?? userId;
+
+    void this.pluginGateway.dispatchEvent(serverId, 'message:sent', {
+      serverId,
+      channelId,
+      messageId: created.id,
+      authorId: userId,
+      authorName,
+      content: input.content,
+    });
+
     if (input.content.startsWith('/')) {
       const [cmd, ...args] = input.content.slice(1).trim().split(/\s+/);
       if (cmd) {
-        const [u] = await this.db
-          .select({ name: user.name })
-          .from(user)
-          .where(eq(user.id, userId))
-          .limit(1);
-
-        const response = await this.plugins.handleCommand(
-          serverId,
-          channelId,
-          cmd,
-          args,
-          userId,
-          u?.name ?? userId,
-        );
-
-        if (response) {
-          const botMsg: MessagePublic = {
-            id: `bot-${randomUUID()}`,
-            channelId,
-            authorId: `plugin:${cmd}`,
-            content: response,
-            createdAt: new Date().toISOString(),
-            editedAt: null,
-          };
-          this.realtime.emitToServer(serverId, 'message:sent', botMsg);
-        }
+        void this.pluginGateway.dispatchCommand(serverId, channelId, cmd, args, userId, authorName);
       }
     }
 
