@@ -31,12 +31,7 @@ const { loadMap } = useMap();
 if (!store.ready) await fetchServers();
 const server = computed(() => store.list.find((s) => s.id === serverId.value) ?? null);
 
-const { apiBase } = useRuntimeConfig().public;
-const apiOrigin = new URL(apiBase as string).origin;
-function resolveUrl(url: string | null | undefined): string | null {
-  if (!url) return null;
-  return url.startsWith('/') ? `${apiOrigin}${url}` : url;
-}
+const { resolveUrl } = useResolveUrl();
 
 // ── Sidebar config ─────────────────────────────────────────────────────
 const SIDEBAR_SECTIONS = markRaw([

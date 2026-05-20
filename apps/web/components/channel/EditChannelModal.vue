@@ -6,13 +6,7 @@ const emit = defineEmits<{ close: []; updated: [] }>();
 
 const { updateChannel, setChannelIcon, setChannelBanner } = useChannels();
 
-const { apiBase } = useRuntimeConfig().public;
-const apiOrigin = new URL(apiBase as string).origin;
-
-function resolveUrl(url: string | null | undefined): string | null {
-  if (!url) return null;
-  return url.startsWith('/') ? `${apiOrigin}${url}` : url;
-}
+const { resolveUrl } = useResolveUrl();
 
 const types: { value: ChannelType; icon: string; label: string; hint: string }[] = [
   { value: 'text', icon: '#', label: 'Texte', hint: 'Messages et discussions' },
