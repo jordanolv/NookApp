@@ -8,3 +8,4 @@ export * from './dto/servers';
 export * from './dto/ui-layout';
 export * from './permissions';
 export * from './socket-events';
+export * from './plugin-gateway';
