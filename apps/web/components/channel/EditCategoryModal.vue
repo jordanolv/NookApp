@@ -6,13 +6,7 @@ const emit = defineEmits<{ close: []; updated: [] }>();
 
 const { updateCategory, deleteCategory, setCategoryIcon, setCategoryBanner } = useCategories();
 
-const { apiBase } = useRuntimeConfig().public;
-const apiOrigin = new URL(apiBase as string).origin;
-
-function resolveUrl(url: string | null | undefined): string | null {
-  if (!url) return null;
-  return url.startsWith('/') ? `${apiOrigin}${url}` : url;
-}
+const { resolveUrl } = useResolveUrl();
 
 const name = ref(props.category.name);
 const colorEnabled = ref(props.category.color !== null);
