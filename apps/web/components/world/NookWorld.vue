@@ -21,7 +21,6 @@ import {
   type ObjectLabelOverlay,
 } from '~/composables/useWorldOverlays';
 import { useWorldCameraOffset } from '~/composables/useWorldCameraOffset';
-import ActivityPicker from './name-tag/ActivityPicker.vue';
 import WorldOverlays from './overlay/WorldOverlays.vue';
 import ZonePicker from './ZonePicker.vue';
 
@@ -375,8 +374,6 @@ defineExpose({
       :voice-rooms="voiceRoomOverlays"
       :object-labels="objectLabelOverlays"
     />
-
-    <ActivityPicker />
 
     <WorldPlayerPopup
       v-if="playerPopup"

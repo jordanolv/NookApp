@@ -12,6 +12,8 @@ import {
   MonitorUp,
   MonitorOff,
 } from 'lucide-vue-next';
+import { ACTIVITY_PRESETS } from '~/components/world/name-tag/constants';
+import { useLocalActivity } from '~/composables/useLocalActivity';
 
 const { user } = useAuth();
 const { store } = useServers();
@@ -28,6 +30,7 @@ const {
   toggleScreenShare,
 } = useVoice();
 const { t } = useI18n();
+const { localActivity, setLocalActivity } = useLocalActivity();
 
 const currentChannel = computed(
   () => store.voiceChannels.find((ch) => ch.id === currentChannelId.value) ?? null,
@@ -52,6 +55,10 @@ function openUserSettings() {
   showUserMenu.value = false;
   showUserSettings.value = true;
 }
+
+function pickActivity(icon: string | null) {
+  setLocalActivity(icon);
+}
 </script>
 
 <template>
@@ -69,7 +76,11 @@ function openUserSettings() {
       <div class="user-row__info">
         <span class="user-row__name">{{ user?.name }}</span>
         <span class="user-row__status" :style="currentChannelId ? 'color:#4ade80' : ''">
-          {{ currentChannelId ? currentChannel?.name : t('voice.status.inNook') }}
+          <template v-if="currentChannelId">{{ currentChannel?.name }}</template>
+          <template v-else>
+            <span v-if="localActivity" class="user-row__status-icon">{{ localActivity }}</span>
+            {{ t('voice.status.inNook') }}
+          </template>
         </span>
       </div>
     </button>
@@ -142,6 +153,28 @@ function openUserSettings() {
             bottom: `${menuPos.bottom}px`,
           }"
         >
+          <div class="user-menu__section-label">{{ t('voice.status.label') }}</div>
+          <div class="user-menu__activity-grid">
+            <button
+              v-for="preset in ACTIVITY_PRESETS"
+              :key="preset"
+              type="button"
+              class="user-menu__activity-btn"
+              :class="{ 'user-menu__activity-btn--active': localActivity === preset }"
+              @click="pickActivity(preset)"
+            >
+              {{ preset }}
+            </button>
+            <button
+              type="button"
+              class="user-menu__activity-btn user-menu__activity-btn--clear"
+              :title="t('voice.status.clear')"
+              @click="pickActivity(null)"
+            >
+              ✕
+            </button>
+          </div>
+          <div class="user-menu__divider" />
           <button class="user-menu__item" @click="openUserSettings">
             <Settings :size="13" />
             <span>{{ t('voice.accountSettings') }}</span>
@@ -231,6 +264,9 @@ function openUserSettings() {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.user-row__status-icon {
+  margin-right: 4px;
+}
 
 .user-row__controls {
   display: flex;
@@ -313,6 +349,52 @@ function openUserSettings() {
   transition: background 120ms;
 }
 .user-menu__item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.user-menu__section-label {
+  padding: 6px 10px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.45);
+}
+.user-menu__activity-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 2px;
+  padding: 0 4px 4px;
+}
+.user-menu__activity-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  font-size: 16px;
+  line-height: 1;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.85);
+  transition:
+    background 120ms,
+    border-color 120ms;
+}
+.user-menu__activity-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.user-menu__activity-btn--active {
+  background: rgba(99, 102, 241, 0.25);
+  border-color: rgba(165, 180, 252, 0.55);
+}
+.user-menu__activity-btn--clear {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+}
+.user-menu__divider {
+  height: 1px;
+  margin: 4px 6px;
   background: rgba(255, 255, 255, 0.06);
 }
 </style>

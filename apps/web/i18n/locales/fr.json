@@ -142,7 +142,9 @@
       "screen": "Écran"
     },
     "status": {
-      "inNook": "Dans le Nook"
+      "inNook": "Dans le Nook",
+      "label": "Statut",
+      "clear": "Aucun statut"
     },
     "members": {
       "title": "Dans le vocal",

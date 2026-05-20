@@ -142,7 +142,9 @@
       "screen": "Screen"
     },
     "status": {
-      "inNook": "In Nook"
+      "inNook": "In Nook",
+      "label": "Status",
+      "clear": "Clear status"
     },
     "members": {
       "title": "In voice",

@@ -23,16 +23,17 @@ const dotStyle = computed(() => {
     :style="{ left: x + 'px', top: y + 'px' }"
   >
     <span
+      v-if="activity"
+      class="flex items-center justify-center text-[11px] leading-none flex-shrink-0"
+    >
+      {{ activity }}
+    </span>
+    <span
+      v-else
       class="w-[7px] h-[7px] rounded-full flex-shrink-0 transition-colors duration-150"
       :style="dotStyle"
     />
     <span class="tracking-wide">{{ name }}</span>
     <span v-if="mediaIconHtml" class="flex items-center gap-0.5" v-html="mediaIconHtml" />
-    <span
-      v-if="activity"
-      class="flex items-center justify-center w-[14px] h-[14px] rounded-[3px] bg-indigo-500/30 ring-1 ring-indigo-300/40 text-[10px] leading-none"
-    >
-      {{ activity }}
-    </span>
   </div>
 </template>
