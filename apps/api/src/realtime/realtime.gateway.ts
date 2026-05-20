@@ -18,6 +18,7 @@ import type {
 } from '@nookapp/protocol';
 import { AuthService } from '../auth/auth.service';
 import { PluginsService } from '../plugins/plugins.service';
+import { MembersService } from '../members/members.service';
 
 type RoomPlayers = Map<string, PlayerState>;
 
@@ -33,6 +34,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   constructor(
     private readonly authService: AuthService,
     @Inject(forwardRef(() => PluginsService)) private readonly plugins: PluginsService,
+    private readonly members: MembersService,
   ) {}
 
   async handleConnection(client: Socket) {
@@ -53,6 +55,11 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const userId = client.data.userId as string | undefined;
     if (!serverId || !userId) return;
 
+    const last = this.rooms.get(serverId)?.get(userId);
+    if (last) {
+      void this.members.updateLastPosition(serverId, userId, last.x, last.y).catch(() => undefined);
+    }
+
     this.rooms.get(serverId)?.delete(userId);
     client.to(`server:${serverId}`).emit('player:left', { userId });
     this.plugins.emitEvent(serverId, 'player:left', { userId });
@@ -67,13 +74,20 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   @SubscribeMessage('player:hello')
-  handlePlayerHello(client: Socket, payload: PlayerHelloPayload) {
-    const { serverId, name, x, y, dir, appearance } = payload;
+  async handlePlayerHello(client: Socket, payload: PlayerHelloPayload) {
+    const { serverId, name, dir, appearance } = payload;
+    let { x, y } = payload;
     const userId = client.data.userId as string;
 
     client.join(`server:${serverId}`);
     client.data.serverId = serverId;
     client.data.name = name;
+
+    const saved = await this.members.getLastPosition(serverId, userId).catch(() => null);
+    if (saved) {
+      x = saved.x;
+      y = saved.y;
+    }
 
     if (!this.rooms.has(serverId)) this.rooms.set(serverId, new Map());
     const room = this.rooms.get(serverId)!;

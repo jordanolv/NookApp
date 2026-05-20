@@ -99,6 +99,13 @@
       "when": 1778718730999,
       "tag": "0013_busy_mockingbird",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1779665400000,
+      "tag": "0014_member_last_position",
+      "breakpoints": true
     }
   ]
 }

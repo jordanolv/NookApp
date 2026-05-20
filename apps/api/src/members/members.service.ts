@@ -62,6 +62,26 @@ export class MembersService {
     };
   }
 
+  async getLastPosition(
+    serverId: string,
+    userId: string,
+  ): Promise<{ x: number; y: number } | null> {
+    const [row] = await this.db
+      .select({ lastX: member.lastX, lastY: member.lastY })
+      .from(member)
+      .where(and(eq(member.serverId, serverId), eq(member.userId, userId)))
+      .limit(1);
+    if (!row || row.lastX === null || row.lastY === null) return null;
+    return { x: row.lastX, y: row.lastY };
+  }
+
+  async updateLastPosition(serverId: string, userId: string, x: number, y: number): Promise<void> {
+    await this.db
+      .update(member)
+      .set({ lastX: Math.round(x), lastY: Math.round(y) })
+      .where(and(eq(member.serverId, serverId), eq(member.userId, userId)));
+  }
+
   async kickMember(serverId: string, targetUserId: string, requesterId: string): Promise<void> {
     if (targetUserId === requesterId) {
       throw new ForbiddenException('Cannot kick yourself');
