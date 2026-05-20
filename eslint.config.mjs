@@ -126,10 +126,15 @@ export default [
       },
       globals: browserGlobals,
     },
-    plugins: { vue: vueplugin },
+    plugins: { vue: vueplugin, '@typescript-eslint': tseslint },
     rules: {
       ...vueplugin.configs['flat/recommended'].rules,
       'vue/multi-word-component-names': 'off',
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
     },
   },
   {
