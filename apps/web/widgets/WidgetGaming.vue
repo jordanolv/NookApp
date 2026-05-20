@@ -1,7 +1,11 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue';
 import type { ChannelPublic } from '@nookapp/protocol';
 import { Plus, Search, Users, MessageSquare, Pin, PinOff } from 'lucide-vue-next';
 import { useHomePins } from '~/composables/useHomePins';
+import { useGameTopicWindows } from '~/composables/useGameTopicWindows';
+import { gradientFor, hashString } from '~/utils/color-hash';
+import GameComposer from './GameComposer.vue';
 import WidgetGamingTopic from './WidgetGamingTopic.vue';
 
 const props = defineProps<{
@@ -10,10 +14,9 @@ const props = defineProps<{
   channelName: string;
 }>();
 
-const { store, createChannel, setChannelIcon } = useChannels();
+const { store } = useChannels();
 const homePins = useHomePins(computed(() => props.serverId));
-const { apiBase } = useRuntimeConfig().public;
-const apiOrigin = new URL(apiBase as string).origin;
+const { resolveUrl } = useResolveUrl();
 
 const games = computed(() => store.channels.filter((c) => c.parentId === props.channelId));
 
@@ -24,79 +27,8 @@ const filtered = computed(() => {
   return games.value.filter((g) => g.name.toLowerCase().includes(q));
 });
 
-const newName = ref('');
-const creating = ref(false);
 const showNew = ref(false);
-const pendingFile = ref<File | null>(null);
-const previewSrc = ref<string | null>(null);
-const fileInput = ref<HTMLInputElement | null>(null);
 
-function coverImageUrl(iconUrl: string | null) {
-  return iconUrl && iconUrl.startsWith('/') ? `${apiOrigin}${iconUrl}` : null;
-}
-
-function pickFile() {
-  fileInput.value?.click();
-}
-
-function onFileChange(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0];
-  if (!file) return;
-  if (previewSrc.value) URL.revokeObjectURL(previewSrc.value);
-  pendingFile.value = file;
-  previewSrc.value = URL.createObjectURL(file);
-}
-
-function resetComposer() {
-  if (previewSrc.value) URL.revokeObjectURL(previewSrc.value);
-  pendingFile.value = null;
-  previewSrc.value = null;
-  newName.value = '';
-  showNew.value = false;
-  if (fileInput.value) fileInput.value.value = '';
-}
-
-async function submitGame() {
-  const name = newName.value.trim();
-  if (!name) return;
-  creating.value = true;
-  try {
-    const game = await createChannel(props.serverId, {
-      name,
-      type: 'text',
-      parentId: props.channelId,
-      showStat: true,
-    });
-    if (pendingFile.value) {
-      await setChannelIcon(props.serverId, game.id, pendingFile.value);
-    }
-    resetComposer();
-    openGame(game.id, name);
-  } finally {
-    creating.value = false;
-  }
-}
-
-const COVER_GRADIENTS = [
-  ['#1e3a8a', '#7c3aed'],
-  ['#831843', '#be185d'],
-  ['#064e3b', '#10b981'],
-  ['#7c2d12', '#ea580c'],
-  ['#1e293b', '#0ea5e9'],
-  ['#581c87', '#ec4899'],
-  ['#365314', '#84cc16'],
-  ['#7f1d1d', '#f59e0b'],
-];
-
-function hash(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
-function gradientFor(id: string) {
-  const [a, b] = COVER_GRADIENTS[hash(id) % COVER_GRADIENTS.length];
-  return `linear-gradient(135deg, ${a} 0%, ${b} 100%)`;
-}
 function initialFor(name: string) {
   const trimmed = name.trim();
   if (!trimmed) return '?';
@@ -109,41 +41,16 @@ function toggleGamePin(game: ChannelPublic) {
   homePins.toggleChannel(game, 'game', props.channelName);
 }
 
-// Topic windows opened from this widget
-interface GameWin {
-  channelId: string;
-  channelName: string;
-  x: number;
-  y: number;
-}
-const openTopics = ref<GameWin[]>([]);
-let topicCounter = 0;
+const topics = useGameTopicWindows();
 
-function openGame(channelId: string, channelName: string) {
-  const existing = openTopics.value.find((t) => t.channelId === channelId);
-  if (existing) {
-    focusTopic(channelId);
-    return;
-  }
-  const stagger = (topicCounter % 6) * 28;
-  const x = import.meta.client ? Math.round(window.innerWidth / 2 - 380) + stagger : 200;
-  const y = import.meta.client ? Math.round(window.innerHeight / 2 - 300) + stagger : 100;
-  topicCounter++;
-  openTopics.value = [...openTopics.value, { channelId, channelName, x, y }];
-}
-function closeTopic(channelId: string) {
-  openTopics.value = openTopics.value.filter((t) => t.channelId !== channelId);
-}
-function focusTopic(channelId: string) {
-  const t = openTopics.value.find((x) => x.channelId === channelId);
-  if (!t) return;
-  openTopics.value = [...openTopics.value.filter((x) => x.channelId !== channelId), t];
+function onGameCreated(game: ChannelPublic) {
+  showNew.value = false;
+  topics.open(game.id, game.name);
 }
 </script>
 
 <template>
   <div class="gaming-widget">
-    <!-- Toolbar -->
     <div class="toolbar">
       <div class="search-box">
         <Search :size="13" class="search-icon" />
@@ -155,38 +62,14 @@ function focusTopic(channelId: string) {
       </button>
     </div>
 
-    <!-- Library -->
     <div class="library">
-      <!-- New game composer -->
-      <div v-if="showNew" class="composer">
-        <button type="button" class="composer-cover" title="Ajouter une image" @click="pickFile">
-          <img v-if="previewSrc" :src="previewSrc" class="composer-cover-img" />
-          <Plus v-else :size="22" />
-        </button>
-        <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onFileChange" />
-        <div class="composer-body">
-          <input
-            v-model="newName"
-            type="text"
-            class="composer-input"
-            placeholder="Nom du jeu (ex: Valorant, Rocket League…)"
-            maxlength="80"
-            autofocus
-            @keydown.enter="submitGame"
-            @keydown.esc="resetComposer"
-          />
-          <div class="composer-actions">
-            <button
-              class="composer-btn solid"
-              :class="{ disabled: creating || !newName.trim() }"
-              @click="submitGame"
-            >
-              {{ creating ? '…' : 'Ajouter' }}
-            </button>
-            <button class="composer-btn ghost" @click="resetComposer">Annuler</button>
-          </div>
-        </div>
-      </div>
+      <GameComposer
+        v-if="showNew"
+        :server-id="serverId"
+        :parent-channel-id="channelId"
+        @created="onGameCreated"
+        @cancel="showNew = false"
+      />
 
       <div v-if="!filtered.length && !showNew" class="empty">
         <p v-if="!games.length" class="empty-title">Aucun jeu pour l'instant.</p>
@@ -203,9 +86,9 @@ function focusTopic(channelId: string) {
           class="game-card"
           role="button"
           tabindex="0"
-          @click="openGame(game.id, game.name)"
-          @keydown.enter.prevent="openGame(game.id, game.name)"
-          @keydown.space.prevent="openGame(game.id, game.name)"
+          @click="topics.open(game.id, game.name)"
+          @keydown.enter.prevent="topics.open(game.id, game.name)"
+          @keydown.space.prevent="topics.open(game.id, game.name)"
         >
           <button
             class="pin-btn"
@@ -222,34 +105,33 @@ function focusTopic(channelId: string) {
           <div
             class="cover"
             :style="
-              coverImageUrl(game.iconUrl)
-                ? { backgroundImage: `url(${coverImageUrl(game.iconUrl)})` }
+              resolveUrl(game.iconUrl)
+                ? { backgroundImage: `url(${resolveUrl(game.iconUrl)})` }
                 : { background: gradientFor(game.id) }
             "
           >
-            <div v-if="!coverImageUrl(game.iconUrl)" class="initial">
+            <div v-if="!resolveUrl(game.iconUrl)" class="initial">
               {{ initialFor(game.name) }}
             </div>
             <div class="cover-overlay" />
             <div class="online-badge">
               <span class="online-dot" />
-              {{ hash(game.id) % 7 }} en ligne
+              {{ hashString(game.id) % 7 }} en ligne
             </div>
           </div>
           <div class="meta">
             <p class="name">{{ game.name }}</p>
             <div class="stats">
-              <span class="stat"><MessageSquare :size="10" />{{ hash(game.id) % 80 }}</span>
-              <span class="stat"><Users :size="10" />{{ hash(game.id) % 12 }}</span>
+              <span class="stat"> <MessageSquare :size="10" />{{ hashString(game.id) % 80 }} </span>
+              <span class="stat"><Users :size="10" />{{ hashString(game.id) % 12 }}</span>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Topic windows (one per opened game) -->
     <WidgetGamingTopic
-      v-for="(t, i) in openTopics"
+      v-for="(t, i) in topics.openTopics.value"
       :key="t.channelId"
       :server-id="serverId"
       :channel-id="t.channelId"
@@ -257,14 +139,9 @@ function focusTopic(channelId: string) {
       :initial-x="t.x"
       :initial-y="t.y"
       :z-index="80 + i"
-      @close="closeTopic(t.channelId)"
-      @focus="focusTopic(t.channelId)"
-      @drag-end="
-        (x, y) => {
-          t.x = x;
-          t.y = y;
-        }
-      "
+      @close="topics.close(t.channelId)"
+      @focus="topics.focus(t.channelId)"
+      @drag-end="(x, y) => topics.updatePosition(t.channelId, x, y)"
     />
   </div>
 </template>
@@ -338,88 +215,6 @@ function focusTopic(channelId: string) {
   flex: 1;
   overflow-y: auto;
   padding: 14px;
-}
-
-.composer {
-  display: flex;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 12px;
-  background: rgba(99, 102, 241, 0.08);
-  border: 1px dashed rgba(99, 102, 241, 0.4);
-  margin-bottom: 14px;
-}
-.composer-cover {
-  width: 80px;
-  height: 96px;
-  flex-shrink: 0;
-  border-radius: 8px;
-  border: 1px dashed rgba(99, 102, 241, 0.4);
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2));
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(255, 255, 255, 0.5);
-  cursor: pointer;
-  overflow: hidden;
-  transition:
-    border-color 140ms,
-    background 140ms,
-    color 140ms;
-}
-.composer-cover:hover {
-  border-color: rgba(99, 102, 241, 0.7);
-  color: rgba(255, 255, 255, 0.85);
-}
-.composer-cover-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.composer-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.composer-input {
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  padding: 8px 10px;
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 13px;
-  font-weight: 600;
-  outline: none;
-}
-.composer-input:focus {
-  border-color: rgba(99, 102, 241, 0.6);
-}
-.composer-actions {
-  display: flex;
-  gap: 6px;
-}
-.composer-btn {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 6px 12px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  transition: all 120ms;
-}
-.composer-btn.solid {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: white;
-}
-.composer-btn.ghost {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.6);
-}
-.composer-btn.disabled {
-  opacity: 0.4;
-  pointer-events: none;
 }
 
 .empty {
