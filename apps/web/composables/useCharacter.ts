@@ -120,7 +120,9 @@ export const DEFAULT_APPEARANCE: Appearance = {
   accessory: null,
 };
 
-const STORAGE_KEY = 'nookapp:character';
+// Stored as a single entry in user.ui_layout (server-side, per-identity), so the
+// character follows the user across devices and is wiped on account deletion.
+const UI_LAYOUT_KEY = 'character';
 
 export function variantUrl(layer: CgLayer, variant: string): string {
   return `/assets/cg/${layer}/${variant}.png`;
@@ -145,27 +147,23 @@ function sanitize(raw: unknown): Appearance {
   return out;
 }
 
-function loadInitial(): Appearance {
-  if (typeof window === 'undefined') return { ...DEFAULT_APPEARANCE };
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_APPEARANCE };
-    return sanitize(JSON.parse(raw));
-  } catch {
-    return { ...DEFAULT_APPEARANCE };
-  }
-}
-
 export function useCharacter() {
-  const appearance = useState<Appearance>('character.appearance', loadInitial);
+  const uiLayout = useUiLayout();
+  const appearance = useState<Appearance>('character.appearance', () => ({
+    ...DEFAULT_APPEARANCE,
+  }));
+
+  // Hydrate from the server once the layout is loaded. ensureLoaded() is
+  // idempotent and instant when the layout is already cached.
+  if (import.meta.client) {
+    void uiLayout.ensureLoaded().then(() => {
+      const stored = uiLayout.get(UI_LAYOUT_KEY);
+      if (stored) appearance.value = sanitize(stored);
+    });
+  }
 
   function persist() {
-    if (typeof window === 'undefined') return;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(appearance.value));
-    } catch {
-      /* quota / private mode — fail silent */
-    }
+    uiLayout.set(UI_LAYOUT_KEY, { ...appearance.value });
   }
 
   function setLayer(layer: CgLayer, value: string | null) {
