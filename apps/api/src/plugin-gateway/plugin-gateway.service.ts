@@ -217,6 +217,26 @@ export class PluginGatewayService {
     });
   }
 
+  async notifyPanelOpened(payload: {
+    pluginId: string;
+    sidebarItemId: string;
+    serverId: string;
+    userId: string;
+  }) {
+    if (!(await this.isEnabledForServer(payload.pluginId, payload.serverId))) return;
+    const conn = this.connections.get(payload.pluginId);
+    if (!conn) return;
+    conn.socket.emit('event', {
+      kind: 'event',
+      type: 'panel:opened',
+      payload: {
+        serverId: payload.serverId,
+        sidebarItemId: payload.sidebarItemId,
+        userId: payload.userId,
+      },
+    });
+  }
+
   async dispatchInteraction(payload: InteractionDispatchPayload) {
     const owner = this.surfaceOwners.get(payload.surfaceId);
     if (!owner) return;

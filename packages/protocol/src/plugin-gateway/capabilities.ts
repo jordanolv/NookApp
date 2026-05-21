@@ -38,6 +38,7 @@ export const sidebarItemDefSchema = z.object({
   id: z.string().regex(idPattern).max(32),
   label: z.string().max(48),
   icon: z.string().max(64),
+  placement: z.enum(['sidebar', 'menu']).optional(),
 });
 
 export const platformEventNameSchema = z.enum([

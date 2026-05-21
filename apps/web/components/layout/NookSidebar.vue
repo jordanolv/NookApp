@@ -107,5 +107,13 @@ const visible = computed(
     <template #pinned>
       <HomePinsList :server-id="serverId" @open="(ch, kind) => emit('open-pinned', ch, kind)" />
     </template>
+
+    <template #plugins>
+      <PluginSidebarList :server-id="serverId" />
+    </template>
+
+    <template #extra-icons>
+      <PluginIconStrip :server-id="serverId" />
+    </template>
   </LayoutSideBar>
 </template>

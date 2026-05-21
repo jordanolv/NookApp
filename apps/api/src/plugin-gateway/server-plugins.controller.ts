@@ -17,6 +17,11 @@ export class ServerPluginsController {
     return this.service.listForServer(serverId, user.id);
   }
 
+  @Get('active')
+  listActive(@Param('serverId') serverId: string) {
+    return this.service.listActive(serverId);
+  }
+
   @Post(':pluginId/install')
   async install(
     @CurrentUser() user: AuthSession['user'],

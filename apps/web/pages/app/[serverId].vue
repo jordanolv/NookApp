@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, markRaw, onMounted, onUnmounted, ref, watch } from 'vue';
-import { Hash, Pin, Users } from 'lucide-vue-next';
+import { Hash, Pin, Puzzle, Users } from 'lucide-vue-next';
 import type { CategoryPublic, ChannelPublic } from '@nookapp/protocol';
 import { type HomePinKind } from '~/composables/useHomePins';
 import { useInterfacePreferences } from '~/composables/useInterfacePreferences';
@@ -38,6 +38,7 @@ const SIDEBAR_SECTIONS = markRaw([
   { key: 'channels', label: 'Salons', icon: Hash },
   { key: 'members', label: 'Membres', icon: Users },
   { key: 'pinned', label: 'Épinglés', icon: Pin },
+  { key: 'plugins', label: 'Plugins', icon: Puzzle },
 ]);
 const sidebar = useSidebar(
   SIDEBAR_SECTIONS.map((s) => s.key),
@@ -234,6 +235,7 @@ const serverBannerUrl = computed(() => resolveUrl(server.value?.bannerUrl) ?? nu
     />
 
     <PluginModalsHost />
+    <PluginPanelsHost />
   </div>
 </template>
 

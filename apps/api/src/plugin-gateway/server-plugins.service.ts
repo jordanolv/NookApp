@@ -40,6 +40,29 @@ export class ServerPluginsService {
     }));
   }
 
+  async listActive(serverId: string) {
+    const rows = await this.db
+      .select({
+        id: pluginRegistration.id,
+        slug: pluginRegistration.slug,
+        name: pluginRegistration.name,
+        iconUrl: pluginRegistration.iconUrl,
+        capabilities: pluginRegistration.capabilities,
+      })
+      .from(serverPlugin)
+      .innerJoin(pluginRegistration, eq(pluginRegistration.id, serverPlugin.pluginId))
+      .where(and(eq(serverPlugin.serverId, serverId), eq(serverPlugin.enabled, true)));
+
+    return rows.map((p) => ({
+      id: p.id,
+      slug: p.slug,
+      name: p.name,
+      iconUrl: p.iconUrl,
+      capabilities: p.capabilities,
+      connected: this.gateway.isConnected(p.id),
+    }));
+  }
+
   async install(serverId: string, pluginId: string, userId: string) {
     await this.requireServerOwner(serverId, userId);
     await this.requirePluginOwner(pluginId, userId);
