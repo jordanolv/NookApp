@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { UserCircle, PersonStanding, Mic, Palette, RotateCcw, Languages } from 'lucide-vue-next';
+import {
+  UserCircle,
+  PersonStanding,
+  Mic,
+  Palette,
+  Puzzle,
+  RotateCcw,
+  Languages,
+} from 'lucide-vue-next';
 import type { Component } from 'vue';
 import {
   CG_LAYER_ORDER,
@@ -44,13 +52,14 @@ function previewForLayer(layer: CgLayer, variant: string) {
   };
 }
 
-type TabId = 'profile' | 'character' | 'audio' | 'appearance';
+type TabId = 'profile' | 'character' | 'audio' | 'appearance' | 'developer';
 
 const tabs: { id: TabId; labelKey: string; icon: Component }[] = [
   { id: 'profile', labelKey: 'settings.user.tabs.profile', icon: UserCircle },
   { id: 'character', labelKey: 'settings.user.tabs.character', icon: PersonStanding },
   { id: 'audio', labelKey: 'settings.user.tabs.audio', icon: Mic },
   { id: 'appearance', labelKey: 'settings.user.tabs.appearance', icon: Palette },
+  { id: 'developer', labelKey: 'settings.user.tabs.developer', icon: Puzzle },
 ];
 
 const activeTab = ref<TabId>('profile');
@@ -430,6 +439,8 @@ async function saveProfile() {
             </button>
           </div>
         </section>
+
+        <UserDeveloperPluginsTab v-else-if="activeTab === 'developer'" />
       </div>
     </div>
   </UiFloatingWindow>
