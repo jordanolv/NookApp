@@ -256,9 +256,19 @@
     "tabs": {
       "general": "General",
       "roles": "Roles",
-      "members": "Members"
+      "members": "Members",
+      "plugins": "Plugins"
     },
     "generalSoon": "(Soon) — name, banner, deletion…",
+    "plugins": {
+      "heading": "Installed plugins",
+      "description": "Enable your plugins (created in Account settings → Developer) on this Nook.",
+      "install": "Install",
+      "uninstall": "Uninstall",
+      "empty": "You haven't created any plugins yet. Go to Account settings → Developer.",
+      "commandsCount": "no commands | {n} command | {n} commands",
+      "eventsCount": "no events | {n} event | {n} events"
+    },
     "members": {
       "loading": "Loading…",
       "loadError": "Could not load members",

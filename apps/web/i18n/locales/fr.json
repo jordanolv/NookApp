@@ -256,9 +256,19 @@
     "tabs": {
       "general": "Général",
       "roles": "Rôles",
-      "members": "Membres"
+      "members": "Membres",
+      "plugins": "Plugins"
     },
     "generalSoon": "(Bientôt) — nom, bannière, suppression…",
+    "plugins": {
+      "heading": "Plugins installés",
+      "description": "Active tes plugins (créés dans Paramètres du compte → Développeur) sur ce Nook.",
+      "install": "Installer",
+      "uninstall": "Désinstaller",
+      "empty": "Tu n'as pas encore créé de plugin. Va dans Paramètres du compte → Développeur.",
+      "commandsCount": "aucune commande | {n} commande | {n} commandes",
+      "eventsCount": "aucun event | {n} event | {n} events"
+    },
     "members": {
       "loading": "Chargement…",
       "loadError": "Erreur de chargement",
