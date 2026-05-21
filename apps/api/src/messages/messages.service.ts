@@ -1,10 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { and, count, desc, eq, lt } from 'drizzle-orm';
-import { channel, member, message, user, type Database } from '@nookapp/db';
+import { channel, member, message, type Database } from '@nookapp/db';
 import type { CreateMessageInput, MessagePublic } from '@nookapp/protocol';
 import { DB } from '../database/database.module';
-import { PluginGatewayService } from '../plugin-gateway/plugin-gateway.service';
 
 function toMessagePublic(row: typeof message.$inferSelect): MessagePublic {
   return {
@@ -19,10 +18,7 @@ function toMessagePublic(row: typeof message.$inferSelect): MessagePublic {
 
 @Injectable()
 export class MessagesService {
-  constructor(
-    @Inject(DB) private readonly db: Database,
-    private readonly pluginGateway: PluginGatewayService,
-  ) {}
+  constructor(@Inject(DB) private readonly db: Database) {}
 
   async listMessages(
     serverId: string,
@@ -79,32 +75,7 @@ export class MessagesService {
       })
       .returning();
 
-    const msg = toMessagePublic(created);
-
-    const [u] = await this.db
-      .select({ name: user.name })
-      .from(user)
-      .where(eq(user.id, userId))
-      .limit(1);
-    const authorName = u?.name ?? userId;
-
-    void this.pluginGateway.dispatchEvent(serverId, 'message:sent', {
-      serverId,
-      channelId,
-      messageId: created.id,
-      authorId: userId,
-      authorName,
-      content: input.content,
-    });
-
-    if (input.content.startsWith('/')) {
-      const [cmd, ...args] = input.content.slice(1).trim().split(/\s+/);
-      if (cmd) {
-        void this.pluginGateway.dispatchCommand(serverId, channelId, cmd, args, userId, authorName);
-      }
-    }
-
-    return msg;
+    return toMessagePublic(created);
   }
 
   private async requireChannelMember(serverId: string, channelId: string, userId: string) {

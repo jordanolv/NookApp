@@ -20,13 +20,12 @@
   "home": {
     "title": "NookApp — your virtual office",
     "headline": "NookApp",
-    "description": "A pixel-art virtual office for small teams. Build your map, hop on voice, run plugins.",
+    "description": "A pixel-art virtual office for small teams. Build your map, hop on voice, chat in real time.",
     "getStarted": "Get started"
   },
   "serverPicker": {
     "switchNook": "Switch Nook",
     "invite": "Invite people",
-    "plugins": "Plugins",
     "settings": "Server settings",
     "appHome": "Home"
   },
@@ -66,29 +65,7 @@
         "profile": "Profile",
         "character": "Character",
         "audio": "Audio & video",
-        "appearance": "Appearance",
-        "developer": "Developer"
-      },
-      "developer": {
-        "heading": "My plugins",
-        "description": "Create external plugins that connect to NookApp over WebSocket.",
-        "create": "Create plugin",
-        "empty": "No plugins yet.",
-        "form": {
-          "name": "Name",
-          "namePlaceholder": "My awesome plugin",
-          "description": "Description (optional)",
-          "descriptionPlaceholder": "What your plugin does…",
-          "submit": "Create"
-        },
-        "keyReveal": {
-          "title": "API key for {name}",
-          "warning": "Copy it now — you won't be able to see it after this banner closes."
-        },
-        "status": {
-          "connected": "Connected",
-          "lastConnected": "Last connected: {date}"
-        }
+        "appearance": "Appearance"
       },
       "profile": {
         "heading": "Profile",
@@ -256,19 +233,9 @@
     "tabs": {
       "general": "General",
       "roles": "Roles",
-      "members": "Members",
-      "plugins": "Plugins"
+      "members": "Members"
     },
     "generalSoon": "(Soon) — name, banner, deletion…",
-    "plugins": {
-      "heading": "Installed plugins",
-      "description": "Enable your plugins (created in Account settings → Developer) on this Nook.",
-      "install": "Install",
-      "uninstall": "Uninstall",
-      "empty": "You haven't created any plugins yet. Go to Account settings → Developer.",
-      "commandsCount": "no commands | {n} command | {n} commands",
-      "eventsCount": "no events | {n} event | {n} events"
-    },
     "members": {
       "loading": "Loading…",
       "loadError": "Could not load members",
@@ -334,10 +301,6 @@
     "ManageMap": {
       "label": "Edit map",
       "description": "Use the map editing mode."
-    },
-    "ManagePlugins": {
-      "label": "Manage plugins",
-      "description": "Enable, disable and configure plugins."
     },
     "ManageServer": {
       "label": "Manage server",

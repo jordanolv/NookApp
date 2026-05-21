@@ -21,7 +21,6 @@ const props = defineProps<{
   showServerHeader?: boolean;
   showUserDock?: boolean;
   otherSideHasSections?: boolean;
-  hasExtraIcons?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -52,7 +51,7 @@ const orderedActive = computed(
       .filter(Boolean) as SidebarSectionDef[],
 );
 
-const hasAnyIcon = computed(() => props.keys.length > 0 || !!props.hasExtraIcons);
+const hasAnyIcon = computed(() => props.keys.length > 0);
 const hasAnyContent = computed(
   () => hasAnyIcon.value || !!props.showServerHeader || !!props.showUserDock,
 );
@@ -143,7 +142,6 @@ const lockReason = computed(() => LOCK_HINT[props.side]);
           >
             <component :is="s.icon" :size="15" />
           </button>
-          <slot name="extra-icons" />
         </div>
 
         <div class="sidebar__icons-more-wrap">
@@ -174,15 +172,6 @@ const lockReason = computed(() => LOCK_HINT[props.side]);
                 />
               </ul>
               <p v-else class="picker__empty">Aucune section ici.</p>
-
-              <template v-if="$slots['extra-picker-rows']">
-                <header class="picker__head picker__head--secondary">
-                  <h3>Plugins épinglés</h3>
-                </header>
-                <ul class="picker__list">
-                  <slot name="extra-picker-rows" :side="side" />
-                </ul>
-              </template>
 
               <template v-if="showServerHeader || showUserDock">
                 <header class="picker__head picker__head--secondary">

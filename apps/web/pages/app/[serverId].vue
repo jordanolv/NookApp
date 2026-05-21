@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, markRaw, onMounted, onUnmounted, ref, watch } from 'vue';
-import { Hash, Pin, Puzzle, Users } from 'lucide-vue-next';
+import { Hash, Pin, Users } from 'lucide-vue-next';
 import type { CategoryPublic, ChannelPublic } from '@nookapp/protocol';
 import { type HomePinKind } from '~/composables/useHomePins';
 import { useInterfacePreferences } from '~/composables/useInterfacePreferences';
@@ -38,7 +38,6 @@ const SIDEBAR_SECTIONS = markRaw([
   { key: 'channels', label: 'Salons', icon: Hash },
   { key: 'members', label: 'Membres', icon: Users },
   { key: 'pinned', label: 'Épinglés', icon: Pin },
-  { key: 'plugins', label: 'Plugins', icon: Puzzle },
 ]);
 const sidebar = useSidebar(
   SIDEBAR_SECTIONS.map((s) => s.key),
@@ -133,7 +132,6 @@ onMounted(() => {
   socket.connect();
   teardownVoiceListeners = voice.setupListeners();
   teardownMessageCounter = socket.onMessage((msg) => {
-    if (msg.authorId.startsWith('plugin:')) return;
     messagesStore.incrementCount(msg.channelId);
   });
 });
@@ -233,9 +231,6 @@ const serverBannerUrl = computed(() => resolveUrl(server.value?.bannerUrl) ?? nu
       v-model:editing-category="editingCategory"
       @channel-created="onChannelCreated"
     />
-
-    <PluginModalsHost />
-    <PluginPanelsHost />
   </div>
 </template>
 

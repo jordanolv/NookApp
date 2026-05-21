@@ -20,13 +20,12 @@
   "home": {
     "title": "NookApp — votre bureau virtuel",
     "headline": "NookApp",
-    "description": "Un bureau virtuel pixel-art pour les petites équipes. Construisez votre carte, rejoignez un salon vocal et lancez des plugins.",
+    "description": "Un bureau virtuel pixel-art pour les petites équipes. Construisez votre carte, rejoignez un salon vocal et discutez en direct.",
     "getStarted": "Commencer"
   },
   "serverPicker": {
     "switchNook": "Changer de Nook",
     "invite": "Inviter des gens",
-    "plugins": "Plugins",
     "settings": "Paramètres du serveur",
     "appHome": "Accueil"
   },
@@ -66,29 +65,7 @@
         "profile": "Profil",
         "character": "Personnage",
         "audio": "Audio & vidéo",
-        "appearance": "Apparence",
-        "developer": "Développeur"
-      },
-      "developer": {
-        "heading": "Mes plugins",
-        "description": "Crée des plugins externes qui se connectent à NookApp via WebSocket.",
-        "create": "Créer un plugin",
-        "empty": "Aucun plugin pour l'instant.",
-        "form": {
-          "name": "Nom",
-          "namePlaceholder": "Mon super plugin",
-          "description": "Description (optionnel)",
-          "descriptionPlaceholder": "Ce que fait ton plugin…",
-          "submit": "Créer"
-        },
-        "keyReveal": {
-          "title": "Clé API pour {name}",
-          "warning": "Copie-la maintenant — tu ne pourras plus la voir après cette fenêtre."
-        },
-        "status": {
-          "connected": "Connecté",
-          "lastConnected": "Dernière connexion : {date}"
-        }
+        "appearance": "Apparence"
       },
       "profile": {
         "heading": "Profil",
@@ -256,19 +233,9 @@
     "tabs": {
       "general": "Général",
       "roles": "Rôles",
-      "members": "Membres",
-      "plugins": "Plugins"
+      "members": "Membres"
     },
     "generalSoon": "(Bientôt) — nom, bannière, suppression…",
-    "plugins": {
-      "heading": "Plugins installés",
-      "description": "Active tes plugins (créés dans Paramètres du compte → Développeur) sur ce Nook.",
-      "install": "Installer",
-      "uninstall": "Désinstaller",
-      "empty": "Tu n'as pas encore créé de plugin. Va dans Paramètres du compte → Développeur.",
-      "commandsCount": "aucune commande | {n} commande | {n} commandes",
-      "eventsCount": "aucun event | {n} event | {n} events"
-    },
     "members": {
       "loading": "Chargement…",
       "loadError": "Erreur de chargement",
@@ -334,10 +301,6 @@
     "ManageMap": {
       "label": "Modifier la carte",
       "description": "Utiliser le mode édition de la carte."
-    },
-    "ManagePlugins": {
-      "label": "Gérer les plugins",
-      "description": "Activer, désactiver et configurer les plugins."
     },
     "ManageServer": {
       "label": "Gérer le serveur",
