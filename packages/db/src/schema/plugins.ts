@@ -1,4 +1,4 @@
-import { boolean, index, json, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, index, json, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
 import { server } from './servers';
 
 export const serverPlugin = pgTable(
@@ -13,7 +13,7 @@ export const serverPlugin = pgTable(
     enabledAt: timestamp('enabled_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
-    pk: { columns: [t.serverId, t.pluginId] },
+    pk: primaryKey({ columns: [t.serverId, t.pluginId] }),
     serverIdx: index('server_plugin_server_idx').on(t.serverId),
   }),
 );
