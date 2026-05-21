@@ -4,6 +4,7 @@ import type { Component } from 'vue';
 import type { CategoryPublic, ChannelPublic } from '@nookapp/protocol';
 import type { useSidebar } from '~/composables/useSidebar';
 import type { HomePinKind } from '~/composables/useHomePins';
+import { usePluginPins } from '~/composables/usePluginPins';
 
 type Sidebar = ReturnType<typeof useSidebar>;
 
@@ -45,9 +46,13 @@ const keys = computed(() =>
 const otherKeys = computed(() =>
   props.side === 'left' ? props.sidebar.rightKeys.value : props.sidebar.leftKeys.value,
 );
+const pluginPins = usePluginPins(() => props.serverId);
+const hasExtraIcons = computed(() => pluginPins.pinsForSide(props.side).length > 0);
+
 const visible = computed(
   () =>
     keys.value.length > 0 ||
+    hasExtraIcons.value ||
     props.sidebar.serverHeaderSide.value === props.side ||
     props.sidebar.userDockSide.value === props.side ||
     !!props.alwaysShow,
@@ -68,6 +73,7 @@ const visible = computed(
     :show-server-header="sidebar.serverHeaderSide.value === side"
     :show-user-dock="sidebar.userDockSide.value === side"
     :other-side-has-sections="otherKeys.length > 0"
+    :has-extra-icons="hasExtraIcons"
     @toggle-section="sidebar.toggleSection"
     @toggle-key="(key) => sidebar.setSectionSide(key, otherSide)"
     @toggle-server-header="sidebar.setServerHeaderSide(otherSide)"
@@ -113,7 +119,11 @@ const visible = computed(
     </template>
 
     <template #extra-icons>
-      <PluginIconStrip :server-id="serverId" />
+      <PluginIconStrip :server-id="serverId" :side="side" />
+    </template>
+
+    <template #extra-picker-rows="{ side: pickerSide }">
+      <PluginPinPickerRows :server-id="serverId" :side="pickerSide" />
     </template>
   </LayoutSideBar>
 </template>

@@ -8,16 +8,17 @@ const socket = useSocket();
 
 const activeChildren = computed<ComponentTree | null>(() => {
   if (!panels.active) return null;
-  return panels.contentFor(panels.active.pluginId, panels.active.sidebarItemId);
+  return panels.contentFor(panels.active.pluginId, panels.active.featureId, panels.active.menuId);
 });
 
 function onPanelUpdate(payload: {
   pluginId: string;
-  sidebarItemId: string;
+  featureId: string;
+  menuId: string;
   serverId: string;
   children: ComponentTree;
 }) {
-  panels.setContent(payload.pluginId, payload.sidebarItemId, payload.children);
+  panels.setContent(payload.pluginId, payload.featureId, payload.menuId, payload.children);
 }
 
 function emitInteraction(actionId: string) {
@@ -25,7 +26,8 @@ function emitInteraction(actionId: string) {
   if (!p) return;
   raw?.emit('plugin:interaction', {
     surface: 'panel',
-    surfaceId: `panel:${p.pluginId}:${p.sidebarItemId}`,
+    surfaceId: `panel:${p.pluginId}:${p.featureId}:${p.menuId}`,
+    featureId: p.featureId,
     actionId,
     serverId: p.serverId,
   });
@@ -43,7 +45,8 @@ watch(
     if (!p || !raw) return;
     raw.emit('plugin:panel:open', {
       pluginId: p.pluginId,
-      sidebarItemId: p.sidebarItemId,
+      featureId: p.featureId,
+      menuId: p.menuId,
       serverId: p.serverId,
     });
   },

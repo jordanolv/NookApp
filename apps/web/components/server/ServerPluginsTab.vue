@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Circle, CircleCheck, Slash, Zap } from 'lucide-vue-next';
+import { Circle, CircleCheck, Slash } from 'lucide-vue-next';
 import { useServerPlugins, type ServerPluginItem } from '~/composables/useServerPlugins';
 
 const props = defineProps<{ serverId: string }>();
@@ -97,29 +97,18 @@ onMounted(load);
             </p>
 
             <div
-              v-if="plugin.capabilities"
+              v-if="plugin.capabilities && plugin.capabilities.features.length"
               class="flex flex-wrap gap-1.5 text-[11px]"
               style="color: rgba(255, 255, 255, 0.45)"
             >
               <span
-                v-if="plugin.capabilities.slashCommands.length"
+                v-for="feature in plugin.capabilities.features"
+                :key="feature.id"
                 class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded"
                 style="background: rgba(99, 102, 241, 0.12)"
               >
-                <Zap :size="10" :stroke-width="2.5" />
-                {{
-                  t(
-                    'serverSettings.plugins.commandsCount',
-                    plugin.capabilities.slashCommands.length,
-                  )
-                }}
-              </span>
-              <span
-                v-if="plugin.capabilities.events.length"
-                class="px-1.5 py-0.5 rounded"
-                style="background: rgba(255, 255, 255, 0.06)"
-              >
-                {{ t('serverSettings.plugins.eventsCount', plugin.capabilities.events.length) }}
+                <span>{{ feature.icon }}</span>
+                {{ feature.name }}
               </span>
             </div>
           </div>

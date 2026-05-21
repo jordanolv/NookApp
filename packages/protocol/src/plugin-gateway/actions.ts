@@ -29,6 +29,7 @@ export const modalOpenPayloadSchema = z.object({
   serverId: z.string(),
   userId: z.string(),
   channelId: z.string().optional(),
+  featureId: z.string(),
   modalId: z.string(),
   title: z.string().max(120),
   children: componentTreeSchema,
@@ -42,10 +43,11 @@ export const modalClosePayloadSchema = z.object({
   modalId: z.string(),
 });
 
-// Push an update to a sidebar panel. If userId is set the panel is per-user; otherwise broadcast.
+// Push an update to a feature menu panel. If userId is set the panel is per-user; otherwise broadcast.
 export const panelUpdatePayloadSchema = z.object({
   serverId: z.string(),
-  sidebarItemId: z.string(),
+  featureId: z.string(),
+  menuId: z.string(),
   userId: z.string().optional(),
   children: componentTreeSchema,
 });

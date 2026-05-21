@@ -34,11 +34,11 @@ export const channelTypeDefSchema = z.object({
   icon: z.string().max(64),
 });
 
-export const sidebarItemDefSchema = z.object({
+export const menuDefSchema = z.object({
   id: z.string().regex(idPattern).max(32),
   label: z.string().max(48),
   icon: z.string().max(64),
-  placement: z.enum(['sidebar', 'menu']).optional(),
+  display: z.enum(['popup', 'inline']).optional(),
 });
 
 export const platformEventNameSchema = z.enum([
@@ -50,17 +50,26 @@ export const platformEventNameSchema = z.enum([
   'world-object:clicked',
 ]);
 
-export const capabilitiesSchema = z.object({
+export const featureDefSchema = z.object({
+  id: z.string().regex(idPattern).max(32),
+  name: z.string().max(48),
+  icon: z.string().max(64),
+  description: z.string().max(280).optional(),
   slashCommands: z.array(slashCommandDefSchema).max(50).default([]),
-  channelTypes: z.array(channelTypeDefSchema).max(10).default([]),
-  sidebarItems: z.array(sidebarItemDefSchema).max(10).default([]),
+  menus: z.array(menuDefSchema).max(20).default([]),
   events: z.array(platformEventNameSchema).default([]),
+  channelTypes: z.array(channelTypeDefSchema).max(10).default([]),
+});
+
+export const capabilitiesSchema = z.object({
+  features: z.array(featureDefSchema).max(20).default([]),
 });
 
 export type SlashCommandOptionType = z.infer<typeof slashCommandOptionTypeSchema>;
 export type SlashCommandOption = z.infer<typeof slashCommandOptionSchema>;
 export type SlashCommandDef = z.infer<typeof slashCommandDefSchema>;
 export type ChannelTypeDef = z.infer<typeof channelTypeDefSchema>;
-export type SidebarItemDef = z.infer<typeof sidebarItemDefSchema>;
+export type MenuDef = z.infer<typeof menuDefSchema>;
 export type PlatformEventName = z.infer<typeof platformEventNameSchema>;
+export type FeatureDef = z.infer<typeof featureDefSchema>;
 export type PluginCapabilities = z.infer<typeof capabilitiesSchema>;
