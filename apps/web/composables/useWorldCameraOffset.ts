@@ -12,7 +12,6 @@ function computeOffset(
   if (!rect) return { x: 0, y: 0 };
   const insetLeft = side === 'left' ? SIDEBAR_INSET_PX : 0;
   const insetRight = side === 'right' ? SIDEBAR_INSET_PX : 0;
-  // Visible center in canvas coords = screen center / DISPLAY_SCALE
   const visibleCenterScreenX = (insetLeft + (rect.width - insetRight)) / 2;
   const visibleCenterScreenY = rect.height / 2;
   const cam = scene.cameras.main;
