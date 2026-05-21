@@ -28,6 +28,7 @@ export const chatSendPayloadSchema = z.object({
 export const modalOpenPayloadSchema = z.object({
   serverId: z.string(),
   userId: z.string(),
+  channelId: z.string().optional(),
   modalId: z.string(),
   title: z.string().max(120),
   children: componentTreeSchema,
