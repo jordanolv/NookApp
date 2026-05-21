@@ -18,6 +18,7 @@ export const PLUGIN_EVENT_TYPES = {
 export type PluginEventType = (typeof PLUGIN_EVENT_TYPES)[keyof typeof PLUGIN_EVENT_TYPES];
 
 export const commandInvokePayloadSchema = z.object({
+  featureId: z.string(),
   commandName: z.string(),
   args: z.record(z.string(), z.unknown()),
   serverId: z.string(),
@@ -32,6 +33,7 @@ export const interactionSurfaceSchema = z.enum(['modal', 'panel', 'channel-view'
 export const interactionDispatchPayloadSchema = z.object({
   surface: interactionSurfaceSchema,
   surfaceId: z.string(),
+  featureId: z.string().optional(),
   actionId: z.string(),
   values: z.record(z.string(), z.unknown()).optional(),
   serverId: z.string(),
@@ -81,7 +83,8 @@ export const channelViewOpenedPayloadSchema = z.object({
 
 export const panelOpenedPayloadSchema = z.object({
   serverId: z.string(),
-  sidebarItemId: z.string(),
+  featureId: z.string(),
+  menuId: z.string(),
   userId: z.string(),
 });
 

@@ -5,6 +5,7 @@ import type { Socket } from 'socket.io';
 import type {
   ChannelViewUpdatePayload,
   ChatSendPayload,
+  FeatureDef,
   InteractionDispatchPayload,
   ModalClosePayload,
   ModalOpenPayload,
@@ -34,6 +35,7 @@ interface ConnectedPlugin {
 
 interface SurfaceOwner {
   pluginId: string;
+  featureId?: string;
   serverId: string;
   channelId?: string;
 }
@@ -120,7 +122,8 @@ export class PluginGatewayService {
   async dispatchEvent(serverId: string, eventType: PlatformEventName, payload: unknown) {
     const targets = await this.enabledConnections(serverId);
     for (const conn of targets) {
-      if (!conn.capabilities.events.includes(eventType)) continue;
+      const hasSubscriber = conn.capabilities.features.some((f) => f.events.includes(eventType));
+      if (!hasSubscriber) continue;
       conn.socket.emit('event', { kind: 'event', type: eventType, payload });
     }
   }
@@ -135,13 +138,14 @@ export class PluginGatewayService {
   ): Promise<boolean> {
     const targets = await this.enabledConnections(serverId);
     for (const conn of targets) {
-      const def = conn.capabilities.slashCommands.find((c) => c.name === commandName);
-      if (!def) continue;
-      const args = parseSlashArgs(def, rawArgs);
+      const match = findCommandInFeatures(conn.capabilities.features, commandName);
+      if (!match) continue;
+      const args = parseSlashArgs(match.def, rawArgs);
       conn.socket.emit('event', {
         kind: 'event',
         type: 'command:invoke',
         payload: {
+          featureId: match.featureId,
           commandName,
           args,
           serverId,
@@ -160,11 +164,13 @@ export class PluginGatewayService {
     if (!(await this.isEnabledForServer(pluginId, payload.serverId))) return;
     this.surfaceOwners.set(payload.modalId, {
       pluginId,
+      featureId: payload.featureId,
       serverId: payload.serverId,
       channelId: payload.channelId,
     });
     this.realtime.emitToUser(payload.userId, 'plugin:modal:open', {
       pluginId,
+      featureId: payload.featureId,
       modalId: payload.modalId,
       serverId: payload.serverId,
       title: payload.title,
@@ -183,11 +189,16 @@ export class PluginGatewayService {
 
   async handlePanelUpdate(pluginId: string, payload: PanelUpdatePayload) {
     if (!(await this.isEnabledForServer(pluginId, payload.serverId))) return;
-    const surfaceId = `panel:${pluginId}:${payload.sidebarItemId}`;
-    this.surfaceOwners.set(surfaceId, { pluginId, serverId: payload.serverId });
+    const surfaceId = `panel:${pluginId}:${payload.featureId}:${payload.menuId}`;
+    this.surfaceOwners.set(surfaceId, {
+      pluginId,
+      featureId: payload.featureId,
+      serverId: payload.serverId,
+    });
     const event = {
       pluginId,
-      sidebarItemId: payload.sidebarItemId,
+      featureId: payload.featureId,
+      menuId: payload.menuId,
       serverId: payload.serverId,
       children: payload.children,
     };
@@ -219,7 +230,8 @@ export class PluginGatewayService {
 
   async notifyPanelOpened(payload: {
     pluginId: string;
-    sidebarItemId: string;
+    featureId: string;
+    menuId: string;
     serverId: string;
     userId: string;
   }) {
@@ -231,7 +243,8 @@ export class PluginGatewayService {
       type: 'panel:opened',
       payload: {
         serverId: payload.serverId,
-        sidebarItemId: payload.sidebarItemId,
+        featureId: payload.featureId,
+        menuId: payload.menuId,
         userId: payload.userId,
       },
     });
@@ -247,7 +260,11 @@ export class PluginGatewayService {
     conn.socket.emit('event', {
       kind: 'event',
       type: 'interaction:dispatch',
-      payload: { ...payload, channelId: payload.channelId ?? owner.channelId },
+      payload: {
+        ...payload,
+        featureId: payload.featureId ?? owner.featureId,
+        channelId: payload.channelId ?? owner.channelId,
+      },
     });
   }
 
@@ -337,6 +354,17 @@ export class PluginGatewayService {
     }
     return out;
   }
+}
+
+function findCommandInFeatures(
+  features: FeatureDef[],
+  commandName: string,
+): { featureId: string; def: SlashCommandDef } | null {
+  for (const f of features) {
+    const def = f.slashCommands.find((c) => c.name === commandName);
+    if (def) return { featureId: f.id, def };
+  }
+  return null;
 }
 
 function parseSlashArgs(def: SlashCommandDef, raw: string[]): Record<string, unknown> {

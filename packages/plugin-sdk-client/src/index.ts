@@ -3,12 +3,15 @@ import {
   PLUGIN_ACTION_TYPES,
   PLUGIN_EVENT_TYPES,
   PLUGIN_PROTOCOL_VERSION,
+  type ChannelTypeDef,
   type ChannelViewUpdatePayload,
   type ChatSendPayload,
   type CommandInvokePayload,
   type ComponentTree,
+  type FeatureDef,
   type HandshakeResponse,
   type InteractionDispatchPayload,
+  type MenuDef,
   type ModalClosePayload,
   type ModalOpenPayload,
   type NotifyPayload,
@@ -32,7 +35,14 @@ export interface PluginClientOptions {
   description?: string;
 }
 
+export interface FeatureInfo {
+  name: string;
+  icon: string;
+  description?: string;
+}
+
 export interface CommandContext {
+  featureId: string;
   serverId: string;
   channelId: string;
   userId: string;
@@ -44,6 +54,15 @@ export type CommandHandler = (
   args: Record<string, unknown>,
   ctx: CommandContext,
 ) => void | Promise<void>;
+
+export interface MenuOpenContext {
+  featureId: string;
+  menuId: string;
+  serverId: string;
+  userId: string;
+}
+
+export type MenuOpenHandler = (ctx: MenuOpenContext) => void | Promise<void>;
 
 export type PlatformEventPayloadMap = {
   'player:joined': PlayerJoinedPayload;
@@ -60,8 +79,6 @@ export type EventHandler<E extends PlatformEventName> = (
 
 export type InteractionHandler = (payload: InteractionDispatchPayload) => void | Promise<void>;
 
-export type PanelOpenHandler = (payload: PanelOpenedPayload) => void | Promise<void>;
-
 type PendingResponse = {
   resolve: (value: unknown) => void;
   reject: (err: Error) => void;
@@ -71,30 +88,46 @@ type PendingResponse = {
 const DEFAULT_URL = 'http://localhost:3000/plugin-gateway';
 const REQUEST_TIMEOUT_MS = 5_000;
 
-export class PluginClient {
-  private socket: Socket | null = null;
-  private pluginId: string | null = null;
-  private enabledServerIds: string[] = [];
+class FeatureBuilder {
+  readonly id: string;
+  readonly info: FeatureInfo;
+  readonly commands = new Map<string, { def: SlashCommandDef; handler: CommandHandler }>();
+  readonly menus: MenuDef[] = [];
+  readonly menuHandlers = new Map<string, MenuOpenHandler>();
+  readonly events = new Map<PlatformEventName, Array<(payload: unknown) => void>>();
+  readonly channelTypes: ChannelTypeDef[] = [];
+  interactionHandler: InteractionHandler | null = null;
 
-  private readonly commands = new Map<string, { def: SlashCommandDef; handler: CommandHandler }>();
-  private readonly eventHandlers = new Map<PlatformEventName, Array<(payload: unknown) => void>>();
-  private readonly sidebarItems: PluginCapabilities['sidebarItems'] = [];
-  private interactionHandler: InteractionHandler | null = null;
-  private panelOpenHandler: PanelOpenHandler | null = null;
-  private readonly pending = new Map<string, PendingResponse>();
-  private nextRequestId = 1;
+  constructor(id: string, info: FeatureInfo) {
+    this.id = id;
+    this.info = info;
+  }
 
-  constructor(private readonly options: PluginClientOptions) {}
-
-  onCommand(def: SlashCommandDef, handler: CommandHandler): this {
+  addCommand(def: SlashCommandDef, handler: CommandHandler): this {
     this.commands.set(def.name, { def, handler });
     return this;
   }
 
+  addMenu(def: MenuDef, handler?: MenuOpenHandler): this {
+    this.menus.push(def);
+    if (handler) this.menuHandlers.set(def.id, handler);
+    return this;
+  }
+
+  onMenuOpen(menuId: string, handler: MenuOpenHandler): this {
+    this.menuHandlers.set(menuId, handler);
+    return this;
+  }
+
+  addChannelType(def: ChannelTypeDef): this {
+    this.channelTypes.push(def);
+    return this;
+  }
+
   onEvent<E extends PlatformEventName>(event: E, handler: EventHandler<E>): this {
-    const list = this.eventHandlers.get(event) ?? [];
+    const list = this.events.get(event) ?? [];
     list.push(handler as (payload: unknown) => void);
-    this.eventHandlers.set(event, list);
+    this.events.set(event, list);
     return this;
   }
 
@@ -103,14 +136,38 @@ export class PluginClient {
     return this;
   }
 
-  onPanelOpen(handler: PanelOpenHandler): this {
-    this.panelOpenHandler = handler;
-    return this;
+  toDef(): FeatureDef {
+    return {
+      id: this.id,
+      name: this.info.name,
+      icon: this.info.icon,
+      description: this.info.description,
+      slashCommands: Array.from(this.commands.values()).map((c) => c.def),
+      menus: [...this.menus],
+      events: Array.from(this.events.keys()),
+      channelTypes: [...this.channelTypes],
+    };
   }
+}
 
-  addSidebarItem(def: PluginCapabilities['sidebarItems'][number]): this {
-    this.sidebarItems.push(def);
-    return this;
+export class PluginClient {
+  private socket: Socket | null = null;
+  private pluginId: string | null = null;
+  private enabledServerIds: string[] = [];
+
+  private readonly features = new Map<string, FeatureBuilder>();
+  private readonly pending = new Map<string, PendingResponse>();
+  private nextRequestId = 1;
+
+  constructor(private readonly options: PluginClientOptions) {}
+
+  feature(id: string, info: FeatureInfo): FeatureBuilder {
+    let f = this.features.get(id);
+    if (!f) {
+      f = new FeatureBuilder(id, info);
+      this.features.set(id, f);
+    }
+    return f;
   }
 
   async connect(): Promise<{ pluginId: string; enabledServerIds: string[] }> {
@@ -147,10 +204,7 @@ export class PluginClient {
 
       socket.once('connect', () => {
         const capabilities: PluginCapabilities = {
-          slashCommands: Array.from(this.commands.values()).map((c) => c.def),
-          channelTypes: [],
-          sidebarItems: [...this.sidebarItems],
-          events: Array.from(this.eventHandlers.keys()) as PlatformEventName[],
+          features: Array.from(this.features.values()).map((f) => f.toDef()),
         };
         socket.emit('handshake', {
           protocolVersion: PLUGIN_PROTOCOL_VERSION,
@@ -246,9 +300,11 @@ export class PluginClient {
 
     if (type === PLUGIN_EVENT_TYPES.CommandInvoke) {
       const p = payload as CommandInvokePayload;
-      const cmd = this.commands.get(p.commandName);
+      const feature = this.features.get(p.featureId);
+      const cmd = feature?.commands.get(p.commandName);
       if (!cmd) return;
       void cmd.handler(p.args, {
+        featureId: p.featureId,
         serverId: p.serverId,
         channelId: p.channelId,
         userId: p.userId,
@@ -258,21 +314,36 @@ export class PluginClient {
       return;
     }
 
-    if (type === PLUGIN_EVENT_TYPES.Interaction) {
-      const p = payload as InteractionDispatchPayload;
-      void this.interactionHandler?.(p);
-      return;
-    }
-
     if (type === PLUGIN_EVENT_TYPES.PanelOpened) {
       const p = payload as PanelOpenedPayload;
-      void this.panelOpenHandler?.(p);
+      const feature = this.features.get(p.featureId);
+      const handler = feature?.menuHandlers.get(p.menuId);
+      if (!handler) return;
+      void handler({
+        featureId: p.featureId,
+        menuId: p.menuId,
+        serverId: p.serverId,
+        userId: p.userId,
+      });
       return;
     }
 
-    const handlers = this.eventHandlers.get(type as PlatformEventName);
-    if (!handlers) return;
-    for (const h of handlers) h(payload);
+    if (type === PLUGIN_EVENT_TYPES.Interaction) {
+      const p = payload as InteractionDispatchPayload;
+      if (p.featureId) {
+        const feature = this.features.get(p.featureId);
+        void feature?.interactionHandler?.(p);
+      } else {
+        for (const f of this.features.values()) void f.interactionHandler?.(p);
+      }
+      return;
+    }
+
+    for (const feature of this.features.values()) {
+      const handlers = feature.events.get(type as PlatformEventName);
+      if (!handlers) continue;
+      for (const h of handlers) h(payload);
+    }
   }
 
   private handleResponse(envelope: unknown) {

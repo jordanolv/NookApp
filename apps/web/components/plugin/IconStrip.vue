@@ -2,36 +2,46 @@
 import { computed, onMounted, ref } from 'vue';
 import { useServerPlugins, type ActivePluginItem } from '~/composables/useServerPlugins';
 import { usePluginPanelsStore } from '~/stores/pluginPanels';
+import { usePluginPins, type PinSide } from '~/composables/usePluginPins';
 
-const props = defineProps<{ serverId: string }>();
+const props = defineProps<{ serverId: string; side: PinSide }>();
 
 const { listActive } = useServerPlugins();
 const panels = usePluginPanelsStore();
+const pins = usePluginPins(() => props.serverId);
 const plugins = ref<ActivePluginItem[]>([]);
 
 interface IconEntry {
   pluginId: string;
-  sidebarItemId: string;
+  featureId: string;
+  menuId: string;
   label: string;
   icon: string;
   connected: boolean;
   pluginName: string;
 }
 
-const sidebarItems = computed<IconEntry[]>(() =>
-  plugins.value.flatMap((p) =>
-    (p.capabilities?.sidebarItems ?? [])
-      .filter((item) => (item.placement ?? 'menu') === 'sidebar')
-      .map((item) => ({
-        pluginId: p.id,
-        sidebarItemId: item.id,
-        label: item.label,
-        icon: item.icon,
-        connected: p.connected,
-        pluginName: p.name,
-      })),
-  ),
-);
+const pinnedIcons = computed<IconEntry[]>(() => {
+  const out: IconEntry[] = [];
+  for (const pin of pins.pinsForSide(props.side)) {
+    const plugin = plugins.value.find((p) => p.id === pin.pluginId);
+    if (!plugin) continue;
+    const feature = plugin.capabilities?.features.find((f) => f.id === pin.featureId);
+    if (!feature) continue;
+    const menu = feature.menus.find((m) => m.id === pin.menuId);
+    if (!menu) continue;
+    out.push({
+      pluginId: plugin.id,
+      featureId: feature.id,
+      menuId: menu.id,
+      label: menu.label,
+      icon: menu.icon,
+      connected: plugin.connected,
+      pluginName: plugin.name,
+    });
+  }
+  return out;
+});
 
 async function load() {
   try {
@@ -45,7 +55,8 @@ function open(item: IconEntry) {
   if (!item.connected) return;
   panels.open({
     pluginId: item.pluginId,
-    sidebarItemId: item.sidebarItemId,
+    featureId: item.featureId,
+    menuId: item.menuId,
     serverId: props.serverId,
     label: item.label,
     icon: item.icon,
@@ -57,8 +68,8 @@ onMounted(load);
 
 <template>
   <button
-    v-for="item in sidebarItems"
-    :key="`${item.pluginId}:${item.sidebarItemId}`"
+    v-for="item in pinnedIcons"
+    :key="`${item.pluginId}:${item.featureId}:${item.menuId}`"
     type="button"
     class="plugin-icon-btn"
     :class="{ 'plugin-icon-btn--offline': !item.connected }"
