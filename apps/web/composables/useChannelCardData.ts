@@ -1,6 +1,5 @@
 import { type InjectionKey } from 'vue';
 import type { ChannelPublic } from '@nookapp/protocol';
-import { getChannelStat } from '~/plugins-runtime';
 import { useMessagesStore } from '~/stores/messages';
 
 export type ChannelStat = { num: number; label: string };
@@ -20,24 +19,19 @@ export type ChannelCardData = {
 
 export const CHANNEL_CARD_DATA: InjectionKey<ChannelCardData> = Symbol('channel-card-data');
 
-export function useChannelCardData(opts: {
+export function useChannelCardData(_opts: {
   childrenCount: (channelId: string) => number;
 }): ChannelCardData {
   const messages = useMessagesStore();
   const { resolveUrl } = useResolveUrl();
-
-  const statCtx = {
-    messageCount: (id: string) => messages.counts[id] ?? 0,
-    childrenCount: opts.childrenCount,
-  };
 
   function lastMessageOf(channelId: string): ChannelLastMessage | null {
     const list = messages.byChannel[channelId];
     return list && list.length ? (list[list.length - 1] as ChannelLastMessage) : null;
   }
 
-  function statOf(ch: ChannelPublic): ChannelStat {
-    return getChannelStat(ch, statCtx) ?? { num: 0, label: '' };
+  function statOf(_ch: ChannelPublic): ChannelStat {
+    return { num: 0, label: '' };
   }
 
   function cardStyle(ch: ChannelPublic): Record<string, string> {

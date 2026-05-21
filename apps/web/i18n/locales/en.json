@@ -2,6 +2,9 @@
   "common": {
     "brand": "NookApp",
     "cancel": "Cancel",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "creating": "Creating…",
     "email": "Email",
     "language": "Language",
     "password": "Password",
@@ -63,7 +66,29 @@
         "profile": "Profile",
         "character": "Character",
         "audio": "Audio & video",
-        "appearance": "Appearance"
+        "appearance": "Appearance",
+        "developer": "Developer"
+      },
+      "developer": {
+        "heading": "My plugins",
+        "description": "Create external plugins that connect to NookApp over WebSocket.",
+        "create": "Create plugin",
+        "empty": "No plugins yet.",
+        "form": {
+          "name": "Name",
+          "namePlaceholder": "My awesome plugin",
+          "description": "Description (optional)",
+          "descriptionPlaceholder": "What your plugin does…",
+          "submit": "Create"
+        },
+        "keyReveal": {
+          "title": "API key for {name}",
+          "warning": "Copy it now — you won't be able to see it after this banner closes."
+        },
+        "status": {
+          "connected": "Connected",
+          "lastConnected": "Last connected: {date}"
+        }
       },
       "profile": {
         "heading": "Profile",

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Home, Mail, Puzzle, Settings, Check } from 'lucide-vue-next';
+import { Home, Mail, Settings, Check } from 'lucide-vue-next';
 import type { ServerPublic } from '@nookapp/protocol';
 
 defineProps<{
@@ -68,15 +68,6 @@ const { t } = useI18n();
         <span class="picker__icon"><Mail :size="13" :stroke-width="2" /></span>
         <span class="picker__label">{{ t('serverPicker.invite') }}</span>
       </button>
-
-      <NuxtLink
-        :to="`/app/${currentServerId}/plugins`"
-        class="picker__row picker__row--ghost"
-        @click="$emit('close')"
-      >
-        <span class="picker__icon"><Puzzle :size="13" :stroke-width="2" /></span>
-        <span class="picker__label">{{ t('serverPicker.plugins') }}</span>
-      </NuxtLink>
 
       <button
         v-if="isAdmin"
