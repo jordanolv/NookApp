@@ -79,7 +79,8 @@ export class PluginGatewayWs implements OnGatewayConnection, OnGatewayDisconnect
     }
 
     if (this.service.isConnected(registration.id)) {
-      return this.reject(client, 'already_connected', 'another instance is already connected');
+      this.logger.log(`plugin ${registration.id} reconnecting — kicking previous socket`);
+      this.service.kickExisting(registration.id);
     }
 
     const data = client.data as PluginSocketData;

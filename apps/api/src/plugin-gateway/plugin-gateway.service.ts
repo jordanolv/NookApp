@@ -60,6 +60,13 @@ export class PluginGatewayService {
     return this.connections.has(pluginId);
   }
 
+  kickExisting(pluginId: string) {
+    const existing = this.connections.get(pluginId);
+    if (!existing) return;
+    existing.socket.disconnect(true);
+    this.connections.delete(pluginId);
+  }
+
   registerConnection(
     pluginId: string,
     ownerUserId: string,
