@@ -233,6 +233,21 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     this.server.to(`user:${userId}`).emit(event, payload);
   }
 
+  @SubscribeMessage('plugin:panel:open')
+  handlePluginPanelOpen(
+    client: Socket,
+    payload: { pluginId: string; sidebarItemId: string; serverId: string },
+  ) {
+    const userId = client.data.userId as string | undefined;
+    if (!userId) return;
+    void this.pluginGateway.notifyPanelOpened({
+      pluginId: payload.pluginId,
+      sidebarItemId: payload.sidebarItemId,
+      serverId: payload.serverId,
+      userId,
+    });
+  }
+
   @SubscribeMessage('plugin:interaction')
   handlePluginInteraction(
     client: Socket,

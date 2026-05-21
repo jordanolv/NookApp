@@ -142,6 +142,7 @@ const lockReason = computed(() => LOCK_HINT[props.side]);
           >
             <component :is="s.icon" :size="15" />
           </button>
+          <slot name="extra-icons" />
         </div>
 
         <div class="sidebar__icons-more-wrap">

@@ -13,11 +13,24 @@ export interface ServerPluginItem {
   connected: boolean;
 }
 
+export interface ActivePluginItem {
+  id: string;
+  slug: string;
+  name: string;
+  iconUrl: string | null;
+  capabilities: PluginCapabilities | null;
+  connected: boolean;
+}
+
 export function useServerPlugins() {
   const api = useApi();
 
   async function list(serverId: string): Promise<ServerPluginItem[]> {
     return api.get<ServerPluginItem[]>(`/servers/${serverId}/plugins`);
+  }
+
+  async function listActive(serverId: string): Promise<ActivePluginItem[]> {
+    return api.get<ActivePluginItem[]>(`/servers/${serverId}/plugins/active`);
   }
 
   async function install(serverId: string, pluginId: string) {
@@ -28,5 +41,5 @@ export function useServerPlugins() {
     return api.del(`/servers/${serverId}/plugins/${pluginId}`);
   }
 
-  return { list, install, uninstall };
+  return { list, listActive, install, uninstall };
 }

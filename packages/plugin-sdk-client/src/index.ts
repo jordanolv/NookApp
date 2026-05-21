@@ -12,6 +12,7 @@ import {
   type ModalClosePayload,
   type ModalOpenPayload,
   type NotifyPayload,
+  type PanelOpenedPayload,
   type PanelUpdatePayload,
   type PlatformEventName,
   type PluginCapabilities,
@@ -59,6 +60,8 @@ export type EventHandler<E extends PlatformEventName> = (
 
 export type InteractionHandler = (payload: InteractionDispatchPayload) => void | Promise<void>;
 
+export type PanelOpenHandler = (payload: PanelOpenedPayload) => void | Promise<void>;
+
 type PendingResponse = {
   resolve: (value: unknown) => void;
   reject: (err: Error) => void;
@@ -75,7 +78,9 @@ export class PluginClient {
 
   private readonly commands = new Map<string, { def: SlashCommandDef; handler: CommandHandler }>();
   private readonly eventHandlers = new Map<PlatformEventName, Array<(payload: unknown) => void>>();
+  private readonly sidebarItems: PluginCapabilities['sidebarItems'] = [];
   private interactionHandler: InteractionHandler | null = null;
+  private panelOpenHandler: PanelOpenHandler | null = null;
   private readonly pending = new Map<string, PendingResponse>();
   private nextRequestId = 1;
 
@@ -95,6 +100,16 @@ export class PluginClient {
 
   onInteraction(handler: InteractionHandler): this {
     this.interactionHandler = handler;
+    return this;
+  }
+
+  onPanelOpen(handler: PanelOpenHandler): this {
+    this.panelOpenHandler = handler;
+    return this;
+  }
+
+  addSidebarItem(def: PluginCapabilities['sidebarItems'][number]): this {
+    this.sidebarItems.push(def);
     return this;
   }
 
@@ -134,7 +149,7 @@ export class PluginClient {
         const capabilities: PluginCapabilities = {
           slashCommands: Array.from(this.commands.values()).map((c) => c.def),
           channelTypes: [],
-          sidebarItems: [],
+          sidebarItems: [...this.sidebarItems],
           events: Array.from(this.eventHandlers.keys()) as PlatformEventName[],
         };
         socket.emit('handshake', {
@@ -246,6 +261,12 @@ export class PluginClient {
     if (type === PLUGIN_EVENT_TYPES.Interaction) {
       const p = payload as InteractionDispatchPayload;
       void this.interactionHandler?.(p);
+      return;
+    }
+
+    if (type === PLUGIN_EVENT_TYPES.PanelOpened) {
+      const p = payload as PanelOpenedPayload;
+      void this.panelOpenHandler?.(p);
       return;
     }
 
