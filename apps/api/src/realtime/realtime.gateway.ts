@@ -49,6 +49,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
     client.data.userId = session.user.id;
     client.data.name = session.user.name;
+    client.join(`user:${session.user.id}`);
   }
 
   handleDisconnect(client: Socket) {
@@ -226,5 +227,35 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   emitToServer(serverId: string, event: string, payload: unknown) {
     this.server.to(`server:${serverId}`).emit(event, payload);
+  }
+
+  emitToUser(userId: string, event: string, payload: unknown) {
+    this.server.to(`user:${userId}`).emit(event, payload);
+  }
+
+  @SubscribeMessage('plugin:interaction')
+  handlePluginInteraction(
+    client: Socket,
+    payload: {
+      surface: 'modal' | 'panel' | 'channel-view' | 'message';
+      surfaceId: string;
+      actionId: string;
+      values?: Record<string, unknown>;
+      serverId: string;
+      channelId?: string;
+    },
+  ) {
+    const userId = client.data.userId as string | undefined;
+    if (!userId) return;
+    void this.pluginGateway.dispatchInteraction({
+      surface: payload.surface,
+      surfaceId: payload.surfaceId,
+      actionId: payload.actionId,
+      values: payload.values,
+      serverId: payload.serverId,
+      channelId: payload.channelId,
+      userId,
+      interactionId: `int-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    });
   }
 }

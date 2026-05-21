@@ -232,6 +232,8 @@ const serverBannerUrl = computed(() => resolveUrl(server.value?.bannerUrl) ?? nu
       v-model:editing-category="editingCategory"
       @channel-created="onChannelCreated"
     />
+
+    <PluginModalsHost />
   </div>
 </template>
 

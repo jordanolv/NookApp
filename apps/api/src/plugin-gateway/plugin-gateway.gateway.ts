@@ -7,8 +7,13 @@ import {
 } from '@nestjs/websockets';
 import type { Socket } from 'socket.io';
 import {
+  channelViewUpdatePayloadSchema,
   chatSendPayloadSchema,
   handshakeRequestSchema,
+  modalClosePayloadSchema,
+  modalOpenPayloadSchema,
+  notifyPayloadSchema,
+  panelUpdatePayloadSchema,
   PLUGIN_ACTION_TYPES,
   PLUGIN_PROTOCOL_VERSION,
   storageDeletePayloadSchema,
@@ -119,6 +124,31 @@ export class PluginGatewayWs implements OnGatewayConnection, OnGatewayDisconnect
       case PLUGIN_ACTION_TYPES.ChatSend: {
         const parsed = chatSendPayloadSchema.safeParse(body);
         if (parsed.success) await this.service.handleChatSend(data.pluginId, parsed.data);
+        return;
+      }
+      case PLUGIN_ACTION_TYPES.ModalOpen: {
+        const parsed = modalOpenPayloadSchema.safeParse(body);
+        if (parsed.success) await this.service.handleModalOpen(data.pluginId, parsed.data);
+        return;
+      }
+      case PLUGIN_ACTION_TYPES.ModalClose: {
+        const parsed = modalClosePayloadSchema.safeParse(body);
+        if (parsed.success) await this.service.handleModalClose(data.pluginId, parsed.data);
+        return;
+      }
+      case PLUGIN_ACTION_TYPES.PanelUpdate: {
+        const parsed = panelUpdatePayloadSchema.safeParse(body);
+        if (parsed.success) await this.service.handlePanelUpdate(data.pluginId, parsed.data);
+        return;
+      }
+      case PLUGIN_ACTION_TYPES.ChannelViewUpdate: {
+        const parsed = channelViewUpdatePayloadSchema.safeParse(body);
+        if (parsed.success) await this.service.handleChannelViewUpdate(data.pluginId, parsed.data);
+        return;
+      }
+      case PLUGIN_ACTION_TYPES.Notify: {
+        const parsed = notifyPayloadSchema.safeParse(body);
+        if (parsed.success) await this.service.handleNotify(data.pluginId, parsed.data);
         return;
       }
       case PLUGIN_ACTION_TYPES.StorageSet: {

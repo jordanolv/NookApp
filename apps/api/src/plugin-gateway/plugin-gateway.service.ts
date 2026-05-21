@@ -3,7 +3,13 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import type { Socket } from 'socket.io';
 import type {
+  ChannelViewUpdatePayload,
   ChatSendPayload,
+  InteractionDispatchPayload,
+  ModalClosePayload,
+  ModalOpenPayload,
+  NotifyPayload,
+  PanelUpdatePayload,
   PlatformEventName,
   PluginCapabilities,
   SlashCommandDef,
@@ -26,10 +32,17 @@ interface ConnectedPlugin {
   capabilities: PluginCapabilities;
 }
 
+interface SurfaceOwner {
+  pluginId: string;
+  serverId: string;
+  channelId?: string;
+}
+
 @Injectable()
 export class PluginGatewayService {
   private readonly logger = new Logger(PluginGatewayService.name);
   private readonly connections = new Map<string, ConnectedPlugin>();
+  private readonly surfaceOwners = new Map<string, SurfaceOwner>();
 
   constructor(
     @Inject(DB) private readonly db: Database,
@@ -80,6 +93,9 @@ export class PluginGatewayService {
 
   unregisterConnection(pluginId: string) {
     this.connections.delete(pluginId);
+    for (const [surfaceId, owner] of this.surfaceOwners) {
+      if (owner.pluginId === pluginId) this.surfaceOwners.delete(surfaceId);
+    }
   }
 
   async getEnabledServerIds(pluginId: string): Promise<string[]> {
@@ -138,6 +154,81 @@ export class PluginGatewayService {
       return true;
     }
     return false;
+  }
+
+  async handleModalOpen(pluginId: string, payload: ModalOpenPayload) {
+    if (!(await this.isEnabledForServer(pluginId, payload.serverId))) return;
+    this.surfaceOwners.set(payload.modalId, {
+      pluginId,
+      serverId: payload.serverId,
+      channelId: payload.channelId,
+    });
+    this.realtime.emitToUser(payload.userId, 'plugin:modal:open', {
+      pluginId,
+      modalId: payload.modalId,
+      serverId: payload.serverId,
+      title: payload.title,
+      children: payload.children,
+      submitLabel: payload.submitLabel,
+      cancelLabel: payload.cancelLabel,
+    });
+  }
+
+  async handleModalClose(pluginId: string, payload: ModalClosePayload) {
+    const owner = this.surfaceOwners.get(payload.modalId);
+    if (!owner || owner.pluginId !== pluginId) return;
+    this.surfaceOwners.delete(payload.modalId);
+    this.realtime.emitToUser(payload.userId, 'plugin:modal:close', { modalId: payload.modalId });
+  }
+
+  async handlePanelUpdate(pluginId: string, payload: PanelUpdatePayload) {
+    if (!(await this.isEnabledForServer(pluginId, payload.serverId))) return;
+    const surfaceId = `panel:${pluginId}:${payload.sidebarItemId}`;
+    this.surfaceOwners.set(surfaceId, { pluginId, serverId: payload.serverId });
+    const event = {
+      pluginId,
+      sidebarItemId: payload.sidebarItemId,
+      serverId: payload.serverId,
+      children: payload.children,
+    };
+    if (payload.userId) {
+      this.realtime.emitToUser(payload.userId, 'plugin:panel:update', event);
+    } else {
+      this.realtime.emitToServer(payload.serverId, 'plugin:panel:update', event);
+    }
+  }
+
+  async handleChannelViewUpdate(pluginId: string, payload: ChannelViewUpdatePayload) {
+    if (!(await this.isEnabledForServer(pluginId, payload.serverId))) return;
+    const surfaceId = `channel-view:${payload.channelId}`;
+    this.surfaceOwners.set(surfaceId, { pluginId, serverId: payload.serverId });
+    this.realtime.emitToServer(payload.serverId, 'plugin:channel-view:update', {
+      pluginId,
+      channelId: payload.channelId,
+      children: payload.children,
+    });
+  }
+
+  async handleNotify(pluginId: string, payload: NotifyPayload) {
+    if (!(await this.isEnabledForServer(pluginId, payload.serverId))) return;
+    this.realtime.emitToUser(payload.userId, 'plugin:notify', {
+      pluginId,
+      content: payload.content,
+    });
+  }
+
+  async dispatchInteraction(payload: InteractionDispatchPayload) {
+    const owner = this.surfaceOwners.get(payload.surfaceId);
+    if (!owner) return;
+    if (owner.serverId !== payload.serverId) return;
+    if (!(await this.isEnabledForServer(owner.pluginId, payload.serverId))) return;
+    const conn = this.connections.get(owner.pluginId);
+    if (!conn) return;
+    conn.socket.emit('event', {
+      kind: 'event',
+      type: 'interaction:dispatch',
+      payload: { ...payload, channelId: payload.channelId ?? owner.channelId },
+    });
   }
 
   async handleChatSend(pluginId: string, payload: ChatSendPayload) {
