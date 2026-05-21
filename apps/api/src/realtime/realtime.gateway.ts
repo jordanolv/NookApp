@@ -5,7 +5,6 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { forwardRef, Inject } from '@nestjs/common';
 import type { Server, Socket } from 'socket.io';
 import type {
   PlayerAppearancePayload,
@@ -17,7 +16,6 @@ import type {
   VoiceSnapshotPayload,
 } from '@nookapp/protocol';
 import { AuthService } from '../auth/auth.service';
-import { PluginGatewayService } from '../plugin-gateway/plugin-gateway.service';
 import { MembersService } from '../members/members.service';
 
 type RoomPlayers = Map<string, PlayerState>;
@@ -33,8 +31,6 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   constructor(
     private readonly authService: AuthService,
-    @Inject(forwardRef(() => PluginGatewayService))
-    private readonly pluginGateway: PluginGatewayService,
     private readonly members: MembersService,
   ) {}
 
@@ -64,18 +60,12 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     this.rooms.get(serverId)?.delete(userId);
     client.to(`server:${serverId}`).emit('player:left', { userId });
-    void this.pluginGateway.dispatchEvent(serverId, 'player:left', { serverId, userId });
 
     const vp = this.voicePresence.get(serverId);
     const channelId = vp?.get(userId);
     if (vp && channelId) {
       vp.delete(userId);
       this.server.to(`server:${serverId}`).emit('voice:left', { userId, channelId });
-      void this.pluginGateway.dispatchEvent(serverId, 'voice:left', {
-        serverId,
-        channelId,
-        userId,
-      });
     }
   }
 
@@ -107,11 +97,6 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     room.set(userId, me);
     client.to(`server:${serverId}`).emit('player:joined', me);
-    void this.pluginGateway.dispatchEvent(serverId, 'player:joined', {
-      serverId,
-      userId,
-      userName: name,
-    });
 
     // Send current voice presence snapshot to the newcomer
     const vp = this.voicePresence.get(serverId);
@@ -175,22 +160,12 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const prevChannel = vp.get(userId);
     if (prevChannel && prevChannel !== payload.channelId) {
       this.server.to(`server:${serverId}`).emit('voice:left', { userId, channelId: prevChannel });
-      void this.pluginGateway.dispatchEvent(serverId, 'voice:left', {
-        serverId,
-        channelId: prevChannel,
-        userId,
-      });
     }
 
     vp.set(userId, payload.channelId);
     this.server
       .to(`server:${serverId}`)
       .emit('voice:joined', { userId, name, channelId: payload.channelId });
-    void this.pluginGateway.dispatchEvent(serverId, 'voice:joined', {
-      serverId,
-      channelId: payload.channelId,
-      userId,
-    });
   }
 
   @SubscribeMessage('voice:leave')
@@ -205,24 +180,6 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     vp.delete(userId);
     this.server.to(`server:${serverId}`).emit('voice:left', { userId, channelId });
-    void this.pluginGateway.dispatchEvent(serverId, 'voice:left', {
-      serverId,
-      channelId,
-      userId,
-    });
-  }
-
-  @SubscribeMessage('world:object:click')
-  handleWorldObjectClick(client: Socket, payload: { objectId: string }) {
-    const serverId = client.data.serverId as string | undefined;
-    const userId = client.data.userId as string | undefined;
-    if (!serverId || !userId) return;
-
-    void this.pluginGateway.dispatchEvent(serverId, 'world-object:clicked', {
-      serverId,
-      objectId: payload.objectId,
-      userId,
-    });
   }
 
   emitToServer(serverId: string, event: string, payload: unknown) {
@@ -231,47 +188,5 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   emitToUser(userId: string, event: string, payload: unknown) {
     this.server.to(`user:${userId}`).emit(event, payload);
-  }
-
-  @SubscribeMessage('plugin:panel:open')
-  handlePluginPanelOpen(
-    client: Socket,
-    payload: { pluginId: string; featureId: string; menuId: string; serverId: string },
-  ) {
-    const userId = client.data.userId as string | undefined;
-    if (!userId) return;
-    void this.pluginGateway.notifyPanelOpened({
-      pluginId: payload.pluginId,
-      featureId: payload.featureId,
-      menuId: payload.menuId,
-      serverId: payload.serverId,
-      userId,
-    });
-  }
-
-  @SubscribeMessage('plugin:interaction')
-  handlePluginInteraction(
-    client: Socket,
-    payload: {
-      surface: 'modal' | 'panel' | 'channel-view' | 'message';
-      surfaceId: string;
-      actionId: string;
-      values?: Record<string, unknown>;
-      serverId: string;
-      channelId?: string;
-    },
-  ) {
-    const userId = client.data.userId as string | undefined;
-    if (!userId) return;
-    void this.pluginGateway.dispatchInteraction({
-      surface: payload.surface,
-      surfaceId: payload.surfaceId,
-      actionId: payload.actionId,
-      values: payload.values,
-      serverId: payload.serverId,
-      channelId: payload.channelId,
-      userId,
-      interactionId: `int-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    });
   }
 }

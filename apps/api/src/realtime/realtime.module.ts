@@ -1,11 +1,10 @@
-import { forwardRef, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { RealtimeGateway } from './realtime.gateway';
-import { PluginGatewayModule } from '../plugin-gateway/plugin-gateway.module';
 import { MembersModule } from '../members/members.module';
 
 @Module({
-  imports: [AuthModule, forwardRef(() => PluginGatewayModule), MembersModule],
+  imports: [AuthModule, MembersModule],
   providers: [RealtimeGateway],
   exports: [RealtimeGateway],
 })

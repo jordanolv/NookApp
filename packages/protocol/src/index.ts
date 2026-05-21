@@ -6,7 +6,5 @@ export * from './dto/messages';
 export * from './dto/roles';
 export * from './dto/servers';
 export * from './dto/ui-layout';
-export * from './dto/plugin-registration';
 export * from './permissions';
 export * from './socket-events';
-export * from './plugin-gateway';

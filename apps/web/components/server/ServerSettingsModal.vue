@@ -3,13 +3,12 @@ const props = defineProps<{ serverId: string; serverName?: string | null }>();
 const emit = defineEmits<{ close: [] }>();
 const { t } = useI18n();
 
-type TabKey = 'general' | 'roles' | 'members' | 'plugins';
+type TabKey = 'general' | 'roles' | 'members';
 
 const tabs: Array<{ key: TabKey; labelKey: string }> = [
   { key: 'general', labelKey: 'serverSettings.tabs.general' },
   { key: 'roles', labelKey: 'serverSettings.tabs.roles' },
   { key: 'members', labelKey: 'serverSettings.tabs.members' },
-  { key: 'plugins', labelKey: 'serverSettings.tabs.plugins' },
 ];
 
 const activeTab = ref<TabKey>('roles');
@@ -53,7 +52,6 @@ const activeTab = ref<TabKey>('roles');
       <div class="flex-1 min-w-0">
         <ServerRolesTab v-if="activeTab === 'roles'" :server-id="props.serverId" />
         <ServerMembersTab v-else-if="activeTab === 'members'" :server-id="props.serverId" />
-        <ServerPluginsTab v-else-if="activeTab === 'plugins'" :server-id="props.serverId" />
         <div
           v-else-if="activeTab === 'general'"
           class="h-full flex items-center justify-center p-8 text-center text-xs"
