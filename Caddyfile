@@ -3,11 +3,11 @@
 #   127.0.0.1 nookapp.localhost api.nookapp.localhost mail.nookapp.localhost
 
 nookapp.localhost {
-	reverse_proxy localhost:3001
+	reverse_proxy localhost:4001
 }
 
 api.nookapp.localhost {
-	reverse_proxy localhost:3000
+	reverse_proxy localhost:4000
 }
 
 mail.nookapp.localhost {
