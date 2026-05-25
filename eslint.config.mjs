@@ -105,6 +105,7 @@ export default [
         useUiLayout: 'readonly',
         useHiddenPanels: 'readonly',
         useFloatingPanels: 'readonly',
+        useInterfacePreferences: 'readonly',
         useSidebar: 'readonly',
         usePresence: 'readonly',
         useI18n: 'readonly',

@@ -1,0 +1,87 @@
+# Dependabot config — automated dependency updates.
+# Covers RNCP competency C4.1.1 (gestion des mises à jour des dépendances).
+# See docs/bloc4/dependances.md for the full process.
+
+version: 2
+updates:
+  # Root + workspaces (pnpm monorepo) — single ecosystem entry covers all package.json
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '08:00'
+      timezone: Europe/Paris
+    open-pull-requests-limit: 10
+    target-branch: dev
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+      include: scope
+    labels:
+      - dependencies
+      - javascript
+    groups:
+      # Group all minor/patch bumps to limit PR noise — review weekly.
+      production-minor-patch:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+      development-minor-patch:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+      # Major bumps stay separate so each is reviewed individually (breaking changes).
+    ignore:
+      # Pin Node to major 22 via engines, ignore @types/node majors that don't match.
+      - dependency-name: '@types/node'
+        update-types:
+          - version-update:semver-major
+
+  # GitHub Actions versions in .github/workflows/*.yml
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+      day: monday
+      time: '08:00'
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    target-branch: dev
+    commit-message:
+      prefix: ci
+      include: scope
+    labels:
+      - dependencies
+      - github-actions
+    groups:
+      actions:
+        patterns:
+          - '*'
+
+  # Docker base images — enabled once Dockerfiles land (phase 2 of DEPLOY-PLAN).
+  # Uncomment when apps/api/Dockerfile and apps/web/Dockerfile exist.
+  # - package-ecosystem: docker
+  #   directory: /apps/api
+  #   schedule:
+  #     interval: monthly
+  #   target-branch: dev
+  #   commit-message:
+  #     prefix: chore
+  #     include: scope
+  #   labels:
+  #     - dependencies
+  #     - docker
+  # - package-ecosystem: docker
+  #   directory: /apps/web
+  #   schedule:
+  #     interval: monthly
+  #   target-branch: dev
+  #   commit-message:
+  #     prefix: chore
+  #     include: scope
+  #   labels:
+  #     - dependencies
+  #     - docker
