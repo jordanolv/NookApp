@@ -9,7 +9,7 @@
     "assets:import-office": "node scripts/import-new-office-assets.mjs",
     "assets:manifest": "node scripts/generate-world-assets-manifest.mjs",
     "predev": "pnpm run assets:manifest",
-    "dev": "nuxt dev --port 3001",
+    "dev": "nuxt dev --port 4001",
     "prebuild": "pnpm run assets:manifest",
     "build": "nuxt build",
     "pregenerate": "pnpm run assets:manifest",

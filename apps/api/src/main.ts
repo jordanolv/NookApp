@@ -21,7 +21,7 @@ async function bootstrap() {
 
   const auth = app.get<AuthInstance>(AUTH);
   const httpAdapter = app.getHttpAdapter().getInstance();
-  const webOrigin = process.env.NUXT_PUBLIC_WEB_URL ?? 'http://localhost:3001';
+  const webOrigin = process.env.NUXT_PUBLIC_WEB_URL ?? 'http://localhost:4001';
 
   // CORS applied on the raw Express app so it covers /api/auth/* (which bypasses
   // NestJS middleware) as well as all NestJS-managed routes.
@@ -59,7 +59,7 @@ async function bootstrap() {
   const doc = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, doc);
 
-  const port = Number(process.env.API_PORT ?? 3000);
+  const port = Number(process.env.API_PORT ?? 4000);
   await app.listen(port);
   console.log(`api listening on http://localhost:${port}`);
 

@@ -35,7 +35,7 @@ export class CollaborationService implements OnApplicationShutdown {
     this.secret = process.env.JWT_SECRET ?? 'dev-collab-secret';
 
     this.server = new Server({
-      port: Number(process.env.COLLAB_PORT ?? 1234),
+      port: Number(process.env.COLLAB_PORT ?? 4234),
       onAuthenticate: (data) => this.onAuthenticate(data),
       onLoadDocument: (data) => this.onLoadDocument(data),
       onChange: (data) => this.onChange(data),
@@ -44,7 +44,7 @@ export class CollaborationService implements OnApplicationShutdown {
 
   async listen() {
     await this.server.listen();
-    this.logger.log(`Hocuspocus listening on port ${process.env.COLLAB_PORT ?? 1234}`);
+    this.logger.log(`Hocuspocus listening on port ${process.env.COLLAB_PORT ?? 4234}`);
   }
 
   async onApplicationShutdown() {

@@ -1,0 +1,29 @@
+{$DOMAIN} {
+	encode gzip zstd
+
+	@livekit path /livekit /livekit/*
+	handle @livekit {
+		uri strip_prefix /livekit
+		reverse_proxy livekit:7880
+	}
+
+	@collab path /collab /collab/*
+	handle @collab {
+		uri strip_prefix /collab
+		reverse_proxy api:4234
+	}
+
+	@api path /api/* /uploads/*
+	handle @api {
+		reverse_proxy api:4000
+	}
+
+	@socketio path /socket.io/*
+	handle @socketio {
+		reverse_proxy api:4000
+	}
+
+	handle {
+		reverse_proxy web:4001
+	}
+}
