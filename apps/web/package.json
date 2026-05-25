@@ -25,7 +25,7 @@
     "@nookapp/protocol": "workspace:*",
     "@nuxtjs/i18n": "^10.3.0",
     "@pinia/nuxt": "^0.7.0",
-    "@vueuse/core": "^11.1.0",
+    "@vueuse/core": "^14.3.0",
     "livekit-client": "^2.18.8",
     "lucide-vue-next": "^1.0.0",
     "marked": "^18.0.3",
