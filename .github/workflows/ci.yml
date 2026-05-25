@@ -24,8 +24,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
-      # `pnpm format:check` to be re-enabled after a one-shot
-      # `pnpm format` cleanup PR (existing backlog of ~50 files).
 
   typecheck:
     name: Typecheck
