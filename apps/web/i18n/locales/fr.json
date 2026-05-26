@@ -2,6 +2,7 @@
   "common": {
     "brand": "NookApp",
     "cancel": "Annuler",
+    "close": "Fermer",
     "copy": "Copier",
     "copied": "Copié !",
     "creating": "Création…",
@@ -19,15 +20,64 @@
   },
   "home": {
     "title": "NookApp — votre bureau virtuel",
-    "headline": "NookApp",
-    "description": "Un bureau virtuel pixel-art pour les petites équipes. Construisez votre carte, rejoignez un salon vocal et discutez en direct.",
-    "getStarted": "Commencer"
+    "tagline": "Bureau virtuel pixel-art",
+    "headline": "Votre équipe, mais en pixel-art.",
+    "description": "Construisez votre carte, croisez-vous dans les couloirs, sautez en vocal d'un clic. Un petit monde rien que pour votre Nook.",
+    "getStarted": "Créer mon Nook",
+    "alreadyHaveAccount": "J'ai déjà un compte",
+    "myNooks": "Mes Nooks",
+    "features": {
+      "world": {
+        "title": "Un monde à dessiner",
+        "body": "Posez les sols, levez des pièces, déposez vos meubles. Votre bureau, à votre image."
+      },
+      "voice": {
+        "title": "Vocal de proximité",
+        "body": "Marchez vers vos collègues pour parler, éloignez-vous pour passer en réunion. Comme dans la vraie vie."
+      },
+      "plugins": {
+        "title": "Plugins maison",
+        "body": "Mini-jeux, bots musique, cartes à collectionner — activez ce qui vous plaît, par Nook."
+      }
+    },
+    "footer": "Construit pour les petites équipes."
+  },
+  "nooks": {
+    "title": "Mes Nooks",
+    "subtitle": "Vos bureaux, vos équipes, votre monde.",
+    "newNook": "Nouveau Nook",
+    "loading": "Chargement…",
+    "empty": {
+      "title": "Aucun Nook pour l'instant",
+      "body": "Créez votre premier Nook pour commencer à bâtir votre bureau virtuel.",
+      "cta": "Créer mon premier Nook"
+    },
+    "signOut": "Se déconnecter",
+    "create": {
+      "title": "Créer un Nook",
+      "nameLabel": "Nom du serveur",
+      "namePlaceholder": "Ma super équipe",
+      "nameTooShort": "Le nom doit faire au moins 2 caractères",
+      "failed": "Impossible de créer le Nook",
+      "cancel": "Annuler",
+      "submit": "Créer",
+      "submitLoading": "Création…"
+    }
   },
   "serverPicker": {
     "switchNook": "Changer de Nook",
     "invite": "Inviter des gens",
+    "plugins": "Plugins",
     "settings": "Paramètres du serveur",
     "appHome": "Accueil"
+  },
+  "plugins": {
+    "title": "Plugins",
+    "titleWithName": "Plugins — {name}",
+    "subtitle": "Active des fonctionnalités sur ce Nook.",
+    "empty": "Aucun plugin disponible pour le moment.",
+    "install": "Installer",
+    "installed": "Installé"
   },
   "auth": {
     "login": {
@@ -36,7 +86,31 @@
       "noAccount": "Pas encore de compte ?",
       "createOne": "Créer un compte",
       "submitLoading": "Connexion…",
-      "invalidCredentials": "Identifiants invalides"
+      "invalidCredentials": "Identifiants invalides",
+      "forgotPassword": "Mot de passe oublié ?"
+    },
+    "forgotPassword": {
+      "title": "Mot de passe oublié — NookApp",
+      "heading": "Mot de passe oublié",
+      "description": "Entrez votre adresse email et nous vous enverrons un lien pour le réinitialiser.",
+      "submit": "Envoyer le lien",
+      "submitLoading": "Envoi…",
+      "sent": "Si un compte existe pour cette adresse, un email vient de partir.",
+      "backToLogin": "Retour à la connexion",
+      "failed": "L'envoi a échoué"
+    },
+    "resetPassword": {
+      "title": "Nouveau mot de passe — NookApp",
+      "heading": "Choisir un nouveau mot de passe",
+      "newPassword": "Nouveau mot de passe",
+      "confirmPassword": "Confirmer le mot de passe",
+      "submit": "Mettre à jour",
+      "submitLoading": "Mise à jour…",
+      "success": "Mot de passe modifié. Vous pouvez vous connecter.",
+      "goToLogin": "Aller à la connexion",
+      "missingToken": "Lien invalide ou expiré.",
+      "mismatch": "Les mots de passe ne correspondent pas.",
+      "failed": "La réinitialisation a échoué"
     },
     "register": {
       "title": "Inscription — NookApp",
@@ -98,9 +172,19 @@
       "appearance": {
         "heading": "Apparence",
         "description": "Choisis la façon dont tu veux explorer ton Nook.",
+        "theme": {
+          "title": "Thème",
+          "hint": "Bascule entre le mode clair (cozy paper) et le mode sombre (cozy night).",
+          "light": "Clair",
+          "dark": "Sombre"
+        },
         "classicLayout": {
           "title": "Utiliser l'interface classique",
           "hint": "Remplace le monde 2D Phaser par un lobby BBS rétro : feed des derniers threads, messages récents, et vocal toujours visible à droite. Idéal pour suivre les conversations sans bouger ton avatar."
+        },
+        "swapSidebars": {
+          "title": "Inverser les barres latérales",
+          "hint": "Place la liste des canaux à droite et la barre d'outils à gauche."
         }
       }
     }
@@ -151,7 +235,13 @@
     "members": {
       "title": "Dans le vocal",
       "you": "toi",
-      "empty": "Personne pour l'instant"
+      "empty": "Personne pour l'instant",
+      "viewCompact": "Mode avatars seuls",
+      "viewDetailed": "Mode liste détaillée",
+      "hereTitle": "Membres ici",
+      "hereEmpty": "Tu es seul ici pour l'instant.",
+      "hide": "Masquer",
+      "drag": "Glisser pour déplacer"
     },
     "accountSettings": "Paramètres du compte",
     "signOut": "Se déconnecter"
@@ -162,7 +252,6 @@
       "channelType": "TYPE DE CANAL",
       "widgetType": "TYPE DE WIDGET",
       "name": "NOM DU CANAL",
-      "voiceZoneHint": "Après la création, tu pourras définir la zone sur la map.",
       "error": "Erreur lors de la création.",
       "creating": "Création…",
       "createAndPlace": "Créer et placer →",

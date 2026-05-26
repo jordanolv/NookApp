@@ -2,6 +2,7 @@
   "common": {
     "brand": "NookApp",
     "cancel": "Cancel",
+    "close": "Close",
     "copy": "Copy",
     "copied": "Copied!",
     "creating": "Creating…",
@@ -19,15 +20,64 @@
   },
   "home": {
     "title": "NookApp — your virtual office",
-    "headline": "NookApp",
-    "description": "A pixel-art virtual office for small teams. Build your map, hop on voice, chat in real time.",
-    "getStarted": "Get started"
+    "tagline": "Pixel-art virtual office",
+    "headline": "Your team, but make it pixel-art.",
+    "description": "Build your map, bump into people in the hallway, hop on voice in one click. A tiny world just for your Nook.",
+    "getStarted": "Create my Nook",
+    "alreadyHaveAccount": "I already have an account",
+    "myNooks": "My Nooks",
+    "features": {
+      "world": {
+        "title": "A world you draw",
+        "body": "Paint the floors, raise the walls, drop the furniture. Your office, your way."
+      },
+      "voice": {
+        "title": "Proximity voice",
+        "body": "Walk up to talk, walk away to step out. Just like the real office."
+      },
+      "plugins": {
+        "title": "Homegrown plugins",
+        "body": "Mini-games, music bots, collectible cards — toggle what you want, per Nook."
+      }
+    },
+    "footer": "Built for small teams."
+  },
+  "nooks": {
+    "title": "Your Nooks",
+    "subtitle": "Your offices, your teams, your world.",
+    "newNook": "New Nook",
+    "loading": "Loading…",
+    "empty": {
+      "title": "No Nook yet",
+      "body": "Create your first Nook to start building your virtual office.",
+      "cta": "Create my first Nook"
+    },
+    "signOut": "Sign out",
+    "create": {
+      "title": "Create a Nook",
+      "nameLabel": "Server name",
+      "namePlaceholder": "My awesome team",
+      "nameTooShort": "Name must be at least 2 characters",
+      "failed": "Failed to create the Nook",
+      "cancel": "Cancel",
+      "submit": "Create",
+      "submitLoading": "Creating…"
+    }
   },
   "serverPicker": {
     "switchNook": "Switch Nook",
     "invite": "Invite people",
+    "plugins": "Plugins",
     "settings": "Server settings",
     "appHome": "Home"
+  },
+  "plugins": {
+    "title": "Plugins",
+    "titleWithName": "Plugins — {name}",
+    "subtitle": "Enable features on this Nook.",
+    "empty": "No plugins available yet.",
+    "install": "Install",
+    "installed": "Installed"
   },
   "auth": {
     "login": {
@@ -36,7 +86,31 @@
       "noAccount": "No account?",
       "createOne": "Create one",
       "submitLoading": "Signing in…",
-      "invalidCredentials": "Invalid credentials"
+      "invalidCredentials": "Invalid credentials",
+      "forgotPassword": "Forgot your password?"
+    },
+    "forgotPassword": {
+      "title": "Forgot password — NookApp",
+      "heading": "Forgot your password",
+      "description": "Enter your email and we'll send you a reset link.",
+      "submit": "Send the link",
+      "submitLoading": "Sending…",
+      "sent": "If an account exists for that address, a reset email just went out.",
+      "backToLogin": "Back to sign in",
+      "failed": "Failed to send the reset email"
+    },
+    "resetPassword": {
+      "title": "Set a new password — NookApp",
+      "heading": "Set a new password",
+      "newPassword": "New password",
+      "confirmPassword": "Confirm password",
+      "submit": "Update password",
+      "submitLoading": "Updating…",
+      "success": "Password updated. You can sign in now.",
+      "goToLogin": "Go to sign in",
+      "missingToken": "Invalid or expired link.",
+      "mismatch": "Passwords don't match.",
+      "failed": "Password reset failed"
     },
     "register": {
       "title": "Register — NookApp",
@@ -98,9 +172,19 @@
       "appearance": {
         "heading": "Appearance",
         "description": "Choose how you want to explore your Nook.",
+        "theme": {
+          "title": "Theme",
+          "hint": "Switch between light mode (cozy paper) and dark mode (cozy night).",
+          "light": "Light",
+          "dark": "Dark"
+        },
         "classicLayout": {
           "title": "Use the classic interface",
           "hint": "Swap the 2D Phaser world for a retro BBS lobby: feed of latest threads, recent messages, and voice always pinned on the right. Perfect to follow conversations without moving your avatar."
+        },
+        "swapSidebars": {
+          "title": "Swap sidebars",
+          "hint": "Move the channels list to the right and the tools rail to the left."
         }
       }
     }
@@ -151,7 +235,13 @@
     "members": {
       "title": "In voice",
       "you": "you",
-      "empty": "No one here yet"
+      "empty": "No one here yet",
+      "viewCompact": "Avatars-only view",
+      "viewDetailed": "Detailed list view",
+      "hereTitle": "Members here",
+      "hereEmpty": "You're alone here for now.",
+      "hide": "Hide",
+      "drag": "Drag to move"
     },
     "accountSettings": "Account settings",
     "signOut": "Sign out"
@@ -162,7 +252,6 @@
       "channelType": "CHANNEL TYPE",
       "widgetType": "WIDGET TYPE",
       "name": "CHANNEL NAME",
-      "voiceZoneHint": "After creation, you can define its zone on the map.",
       "error": "Could not create the channel.",
       "creating": "Creating…",
       "createAndPlace": "Create and place →",
