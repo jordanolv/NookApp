@@ -18,7 +18,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  'select-channel': [channel: ChannelPublic, e: MouseEvent];
+  'select-channel': [channel: ChannelPublic, e: MouseEvent | KeyboardEvent];
   'edit-channel': [channelId: string];
   'edit-category': [categoryId: string];
   'create-channel': [opts: { type: 'text' | 'voice'; categoryId: string | null }];
