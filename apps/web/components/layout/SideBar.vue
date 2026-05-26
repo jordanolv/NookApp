@@ -1,69 +1,56 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { ChevronDown, Settings, MoreHorizontal, PanelTop, UserCircle2 } from 'lucide-vue-next';
 import type { Component } from 'vue';
+import { ChevronLeft, ChevronRight } from 'lucide-vue-next';
 
 export interface SidebarSectionDef {
   key: string;
   label: string;
   icon: Component;
+  mode?: 'panel' | 'toggle';
+  active?: boolean;
 }
 
 const props = defineProps<{
-  side: 'left' | 'right';
   sections: SidebarSectionDef[];
-  keys: string[];
   activeKeys: Set<string>;
+  detachedKeys?: Set<string>;
   sectionHeights: Record<string, number>;
-  serverName: string;
-  bannerUrl?: string | null;
-  alwaysShow?: boolean;
-  showServerHeader?: boolean;
-  showUserDock?: boolean;
-  otherSideHasSections?: boolean;
 }>();
 
 const emit = defineEmits<{
   'toggle-section': [key: string];
-  'toggle-key': [key: string];
-  'toggle-server-header': [];
-  'toggle-user-dock': [];
   'set-section-height': [key: string, px: number];
-  'open-server-switcher': [event: MouseEvent];
-  'open-server-menu': [event: MouseEvent];
+  'detach-section': [key: string, x: number, y: number];
+  'reorder-sections': [fromKey: string, toKey: string];
 }>();
 
-const sectionByKey = computed(() => {
-  const m: Record<string, SidebarSectionDef> = {};
-  for (const s of props.sections) m[s.key] = s;
-  return m;
-});
+const interfacePrefs = useInterfacePreferences();
 
-const enabledIcons = computed(
-  () => props.keys.map((k) => sectionByKey.value[k]).filter(Boolean) as SidebarSectionDef[],
+const isDetached = (k: string) => !!props.detachedKeys?.has(k);
+const isToggle = (s: SidebarSectionDef) => s.mode === 'toggle';
+const isIconActive = (s: SidebarSectionDef) =>
+  isToggle(s) ? !!s.active : props.activeKeys.has(s.key);
+
+const orderedActive = computed(() =>
+  props.sections.filter((s) => !isToggle(s) && props.activeKeys.has(s.key) && !isDetached(s.key)),
 );
 
-const orderedActive = computed(
-  () =>
-    props.keys
-      .filter((k) => props.activeKeys.has(k))
-      .map((k) => sectionByKey.value[k])
-      .filter(Boolean) as SidebarSectionDef[],
-);
+const collapsed = ref(false);
+const expanded = computed(() => !collapsed.value && orderedActive.value.length > 0);
 
-const hasAnyIcon = computed(() => props.keys.length > 0);
-const hasAnyContent = computed(
-  () => hasAnyIcon.value || !!props.showServerHeader || !!props.showUserDock,
-);
-const visible = computed(() => hasAnyContent.value || props.alwaysShow);
-
-const showPicker = ref(false);
-function togglePicker() {
-  showPicker.value = !showPicker.value;
+function toggleCollapse() {
+  if (orderedActive.value.length === 0) {
+    // Nothing active — open the first section if collapsed
+    if (props.sections.length > 0 && !props.activeKeys.has(props.sections[0]!.key)) {
+      emit('toggle-section', props.sections[0]!.key);
+    }
+    collapsed.value = false;
+    return;
+  }
+  collapsed.value = !collapsed.value;
 }
-function closePicker() {
-  showPicker.value = false;
-}
+
 const DEFAULT_SECTION_H = 220;
 function heightFor(key: string): number {
   return props.sectionHeights[key] ?? DEFAULT_SECTION_H;
@@ -86,504 +73,414 @@ function startResize(e: PointerEvent, key: string) {
   window.addEventListener('pointerup', onUp);
 }
 
-const LOCK_HINT = {
-  left: 'Ajoute d’abord une section à droite',
-  right: 'Ajoute d’abord une section à gauche',
-} as const;
-const lockReason = computed(() => LOCK_HINT[props.side]);
+// ── Drag-to-detach on icons ─────────────────────────────────────────────────
+
+interface DragState {
+  key: string;
+  icon: SidebarSectionDef['icon'];
+  label: string;
+  x: number;
+  y: number;
+  outside: boolean;
+}
+
+const drag = ref<DragState | null>(null);
+const MOVE_THRESHOLD = 4;
+
+const hoverKey = ref<string | null>(null);
+
+function findIconUnderCursor(ev: PointerEvent, originKey: string): string | null {
+  const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
+  if (!el) return null;
+  const btn = el.closest<HTMLElement>('.icon-btn[data-section-key]');
+  if (!btn) return null;
+  const key = btn.dataset.sectionKey;
+  if (!key || key === originKey) return null;
+  return key;
+}
+
+function startIconPointer(e: PointerEvent, def: SidebarSectionDef) {
+  if (e.button !== 0) return;
+  if (isToggle(def)) {
+    emit('toggle-section', def.key);
+    return;
+  }
+  const sidebarEl = (e.currentTarget as HTMLElement).closest<HTMLElement>('.sidebar');
+  const rect = sidebarEl?.getBoundingClientRect();
+  const startX = e.clientX;
+  const startY = e.clientY;
+  let started = false;
+
+  function isOutside(ev: PointerEvent): boolean {
+    if (!rect) return true;
+    return (
+      ev.clientX < rect.left ||
+      ev.clientX > rect.right ||
+      ev.clientY < rect.top ||
+      ev.clientY > rect.bottom
+    );
+  }
+
+  function onMove(ev: PointerEvent) {
+    if (!started) {
+      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < MOVE_THRESHOLD) return;
+      started = true;
+      drag.value = {
+        key: def.key,
+        icon: def.icon,
+        label: def.label,
+        x: ev.clientX,
+        y: ev.clientY,
+        outside: false,
+      };
+    }
+    if (!drag.value) return;
+    drag.value.x = ev.clientX;
+    drag.value.y = ev.clientY;
+    drag.value.outside = isOutside(ev);
+    hoverKey.value = drag.value.outside ? null : findIconUnderCursor(ev, def.key);
+  }
+
+  function onUp(ev: PointerEvent) {
+    cleanup();
+    if (!started) {
+      emit('toggle-section', def.key);
+      return;
+    }
+    if (isOutside(ev)) {
+      emit('detach-section', def.key, ev.clientX - 160, ev.clientY - 18);
+    } else {
+      const target = findIconUnderCursor(ev, def.key);
+      if (target) emit('reorder-sections', def.key, target);
+    }
+    drag.value = null;
+    hoverKey.value = null;
+    ev.stopPropagation();
+  }
+
+  function cleanup() {
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onCancel);
+  }
+  function onCancel() {
+    cleanup();
+    drag.value = null;
+  }
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onCancel);
+}
 </script>
 
 <template>
   <aside
-    v-if="visible"
-    class="sidebar"
-    :class="[
-      `sidebar--${side}`,
-      { 'sidebar--empty': !hasAnyContent, 'sidebar--compact': hasAnyContent && !hasAnyIcon },
-    ]"
+    class="sidebar sidebar--right"
+    :class="{
+      'sidebar--expanded': expanded,
+      'sidebar--swapped': interfacePrefs.prefs.value.swapSidebars,
+    }"
   >
-    <div v-if="showServerHeader" class="server-header">
+    <nav class="sidebar__icons" aria-label="Outils & plugins">
+      <button
+        v-for="s in sections"
+        :key="s.key"
+        type="button"
+        class="icon-btn"
+        :class="{
+          'icon-btn--active': isIconActive(s),
+          'icon-btn--dragging': drag?.key === s.key,
+          'icon-btn--detached': detachedKeys?.has(s.key),
+          'icon-btn--drop-target': hoverKey === s.key && !!drag,
+        }"
+        :data-section-key="s.key"
+        @pointerdown="startIconPointer($event, s)"
+      >
+        <component :is="s.icon" :size="16" />
+        <span class="icon-btn__tip">{{ s.label }}</span>
+      </button>
+
       <button
         type="button"
-        class="server-header__main"
-        :title="serverName"
-        @click="emit('open-server-switcher', $event)"
+        class="icon-btn icon-btn--fold"
+        :title="expanded ? 'Replier' : 'Déplier'"
+        @click="toggleCollapse"
       >
-        <div class="server-header__banner">
-          <img v-if="bannerUrl" :src="bannerUrl" :alt="serverName" class="server-header__img" />
-          <div v-else class="server-header__fallback">
-            {{ serverName?.[0]?.toUpperCase() ?? '?' }}
+        <component
+          :is="
+            interfacePrefs.prefs.value.swapSidebars
+              ? expanded
+                ? ChevronRight
+                : ChevronLeft
+              : expanded
+                ? ChevronLeft
+                : ChevronRight
+          "
+          :size="14"
+        />
+      </button>
+    </nav>
+
+    <div v-if="expanded" class="sidebar__panel">
+      <template v-for="(s, idx) in orderedActive" :key="s.key">
+        <section
+          class="section"
+          :class="{ 'section--last': idx === orderedActive.length - 1 }"
+          :style="
+            idx === orderedActive.length - 1 ? undefined : { flex: `0 0 ${heightFor(s.key)}px` }
+          "
+        >
+          <header class="section__header">
+            <span>{{ s.label }}</span>
+            <button
+              type="button"
+              class="section__close"
+              title="Fermer"
+              @click="emit('toggle-section', s.key)"
+            >
+              ×
+            </button>
+          </header>
+          <div class="section__body">
+            <slot :name="s.key" />
           </div>
-        </div>
-        <span class="server-header__name">{{ serverName }}</span>
-        <ChevronDown :size="14" class="server-header__chevron" />
-      </button>
-      <button
-        type="button"
-        class="server-header__gear"
-        :title="serverName"
-        @click="emit('open-server-menu', $event)"
-      >
-        <Settings :size="14" />
-      </button>
-    </div>
+        </section>
 
-    <div class="sidebar__middle">
-      <nav class="sidebar__icons">
-        <div class="sidebar__icons-list">
-          <button
-            v-for="s in enabledIcons"
-            :key="s.key"
-            type="button"
-            class="icon-btn"
-            :class="{ 'icon-btn--active': activeKeys.has(s.key) }"
-            :title="s.label"
-            @click="emit('toggle-section', s.key)"
-          >
-            <component :is="s.icon" :size="15" />
-          </button>
-        </div>
-
-        <div class="sidebar__icons-more-wrap">
-          <button
-            type="button"
-            class="icon-btn icon-btn--more"
-            :class="{ 'icon-btn--more-open': showPicker }"
-            title="Configurer cette barre"
-            @click="togglePicker"
-          >
-            <MoreHorizontal :size="15" />
-          </button>
-
-          <Teleport to="body">
-            <div v-if="showPicker" class="picker-veil" @click="closePicker" />
-            <div v-if="showPicker" class="picker" :class="`picker--${side}`" @click.stop>
-              <header class="picker__head">
-                <h3>Sections</h3>
-              </header>
-              <ul v-if="enabledIcons.length" class="picker__list">
-                <LayoutSidebarPickerRow
-                  v-for="s in enabledIcons"
-                  :key="s.key"
-                  :icon="s.icon"
-                  :label="s.label"
-                  :side="side"
-                  @toggle="emit('toggle-key', s.key)"
-                />
-              </ul>
-              <p v-else class="picker__empty">Aucune section ici.</p>
-
-              <template v-if="showServerHeader || showUserDock">
-                <header class="picker__head picker__head--secondary">
-                  <h3>Éléments</h3>
-                </header>
-                <ul class="picker__list">
-                  <LayoutSidebarPickerRow
-                    v-if="showServerHeader"
-                    :icon="PanelTop"
-                    label="En-tête serveur"
-                    :side="side"
-                    :lock-other="!otherSideHasSections"
-                    :lock-reason="lockReason"
-                    @toggle="emit('toggle-server-header')"
-                  />
-                  <LayoutSidebarPickerRow
-                    v-if="showUserDock"
-                    :icon="UserCircle2"
-                    label="Profil utilisateur"
-                    :side="side"
-                    :lock-other="!otherSideHasSections"
-                    :lock-reason="lockReason"
-                    @toggle="emit('toggle-user-dock')"
-                  />
-                </ul>
-              </template>
-            </div>
-          </Teleport>
-        </div>
-      </nav>
-
-      <div v-if="orderedActive.length" ref="panelEl" class="sidebar__panel">
-        <template v-for="(s, idx) in orderedActive" :key="s.key">
-          <section
-            class="section"
-            :class="{ 'section--last': idx === orderedActive.length - 1 }"
-            :style="
-              idx === orderedActive.length - 1 ? undefined : { flex: `0 0 ${heightFor(s.key)}px` }
-            "
-          >
-            <header class="section__header">
-              <span>{{ s.label }}</span>
-              <div class="section__header-actions">
-                <slot :name="`${s.key}-action`" />
-                <button
-                  type="button"
-                  class="section__close"
-                  title="Fermer"
-                  @click="emit('toggle-section', s.key)"
-                >
-                  ×
-                </button>
-              </div>
-            </header>
-            <div class="section__body">
-              <slot :name="s.key" />
-            </div>
-          </section>
-
-          <div
-            v-if="idx < orderedActive.length - 1"
-            class="section__resizer"
-            :title="'Redimensionner ' + s.label"
-            @pointerdown="startResize($event, s.key)"
-          />
-        </template>
-      </div>
-    </div>
-
-    <div v-if="showUserDock" class="sidebar__user-dock">
-      <slot name="user-dock" />
+        <div
+          v-if="idx < orderedActive.length - 1"
+          class="section__resizer"
+          :title="'Redimensionner ' + s.label"
+          @pointerdown="startResize($event, s.key)"
+        />
+      </template>
     </div>
   </aside>
+
+  <Teleport to="body">
+    <div
+      v-if="drag"
+      class="drag-ghost"
+      :class="{ 'drag-ghost--outside': drag.outside }"
+      :style="{ left: drag.x + 'px', top: drag.y + 'px' }"
+    >
+      <component :is="drag.icon" :size="15" />
+      <span class="drag-ghost__label">{{ drag.label }}</span>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
 .sidebar {
   display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  position: fixed;
+  top: 20px;
+  bottom: 20px;
+  right: 20px;
+  left: auto;
+  z-index: 30;
+  color: var(--ink);
+  width: auto;
+}
+
+.sidebar--swapped {
+  right: auto;
+  left: 20px;
+  flex-direction: row-reverse;
+}
+/* When a panel is open, the rail is hidden by default and revealed only
+   when the user hovers anywhere on the sidebar (typically the panel itself,
+   then drags onto the now-visible rail to switch tabs). */
+.sidebar.sidebar--expanded .sidebar__icons {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(20px);
+  transition:
+    opacity 200ms ease,
+    transform 240ms cubic-bezier(0.4, 1.4, 0.6, 1);
+}
+.sidebar.sidebar--expanded:hover .sidebar__icons {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+.sidebar.sidebar--swapped.sidebar--expanded .sidebar__icons {
+  transform: translateX(-20px);
+}
+.sidebar.sidebar--swapped.sidebar--expanded:hover .sidebar__icons {
+  transform: translateX(0);
+}
+
+.sidebar__panel {
+  flex: 0 0 auto;
+  width: 256px;
+  height: 100%;
+  display: flex;
   flex-direction: column;
   overflow: hidden;
-  position: fixed;
-  top: 10px;
-  bottom: 10px;
-  width: 380px;
-  z-index: 30;
-  border-radius: 14px;
-  background: rgba(12, 12, 18, 0.78);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  box-shadow:
-    0 12px 36px rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-.sidebar--left {
-  left: 10px;
-}
-.sidebar--right {
-  right: 10px;
-}
-
-/* ── Server header ── */
-.server-header {
-  display: flex;
-  align-items: stretch;
-  gap: 2px;
-  padding: 6px 6px;
-  width: 100%;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  flex-shrink: 0;
-}
-.server-header__main {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 6px 8px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  border-radius: 8px;
-  transition: background 120ms;
-}
-.server-header__main:hover {
-  background: rgba(255, 255, 255, 0.04);
-}
-.server-header__gear {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  flex-shrink: 0;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  color: rgba(255, 255, 255, 0.45);
-  border-radius: 8px;
-  transition:
-    background 120ms,
-    color 120ms;
-}
-.server-header__gear:hover {
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(255, 255, 255, 0.85);
-}
-.server-header__banner {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  overflow: hidden;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #6366f1, #4338ca);
-}
-.server-header__img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.server-header__fallback {
-  font-size: 14px;
-  font-weight: 700;
-  color: white;
-}
-.server-header__name {
-  flex: 1 1 0;
-  min-width: 0;
-  text-align: left;
-  font-size: 13px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.85);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.server-header__chevron {
-  color: rgba(255, 255, 255, 0.4);
-  flex-shrink: 0;
-}
-
-/* ── Middle ── */
-.sidebar__middle {
-  display: flex;
-  flex-direction: row;
-  flex: 1 1 0;
-  min-height: 0;
-}
-.sidebar--right .sidebar__middle {
-  flex-direction: row-reverse;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(28px) saturate(1.6);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
 }
 
 .sidebar__icons {
+  flex-shrink: 0;
+  width: 56px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 6px 4px;
-  width: 44px;
-  flex-shrink: 0;
-  overflow-y: auto;
-  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 8px;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(28px) saturate(1.6);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
 }
-.sidebar--right .sidebar__icons {
-  border-right: none;
-  border-left: 1px solid rgba(255, 255, 255, 0.05);
-}
-.sidebar__icons-list {
+.sidebar__section {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  width: 100%;
 }
-.sidebar__icons-more-wrap {
-  margin-top: auto;
-  padding-top: 8px;
-  display: flex;
-  justify-content: center;
-  position: relative;
-}
-.icon-btn--more {
-  color: rgba(255, 255, 255, 0.35);
-}
-.icon-btn--more:hover,
-.icon-btn--more-open {
-  color: rgba(255, 255, 255, 0.85);
-  background: rgba(255, 255, 255, 0.05);
-}
-.sidebar--empty {
-  width: 60px;
-}
-.sidebar--empty .sidebar__panel,
-.sidebar--empty .server-header,
-.sidebar--empty .sidebar__user-dock {
-  display: none;
-}
-/* Compact: only header/dock — sidebar shell goes away, each floats as its own card */
-.sidebar--compact {
-  background: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border: none;
-  box-shadow: none;
-  width: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 0;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.sidebar--compact > .server-header,
-.sidebar--compact > .sidebar__middle,
-.sidebar--compact > .sidebar__user-dock {
-  pointer-events: auto;
-}
-
-.sidebar--compact > .server-header,
-.sidebar--compact > .sidebar__user-dock {
-  width: 260px;
-  border-radius: 14px;
-  background: rgba(12, 12, 18, 0.78);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  box-shadow:
-    0 12px 36px rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
-.sidebar--compact > .sidebar__middle {
-  flex: 0 0 auto;
-  align-self: center;
-}
-
-.sidebar--compact > .sidebar__user-dock {
-  margin-top: auto;
-}
-
-.sidebar--compact .sidebar__icons {
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  background: rgba(12, 12, 18, 0.82);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border-radius: 999px;
-  padding: 4px;
-  width: auto;
-  flex-direction: row;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
-}
-
-.sidebar--compact .sidebar__icons-list {
-  display: none;
-}
-
-.sidebar--compact .sidebar__icons-more-wrap {
-  margin: 0;
-  padding: 0;
-}
-
-/* Popover */
-.picker-veil {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  background: transparent;
-}
-.picker {
-  position: fixed;
-  z-index: 91;
-  bottom: 56px;
-  width: 220px;
-  display: flex;
-  flex-direction: column;
-  border-radius: 12px;
-  background: rgba(15, 16, 24, 0.98);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
-  overflow: hidden;
-  font-family: inherit;
-}
-.picker--left {
-  left: 64px;
-}
-.picker--right {
-  right: 64px;
-}
-.picker__head {
-  padding: 10px 12px 6px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-.picker__head h3 {
-  margin: 0;
-  font-size: 10px;
+.sidebar__section-label {
+  font-size: 9px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--ink-muted);
+  opacity: 0.55;
+  padding: 2px 0;
+  line-height: 1;
 }
-.picker__head--secondary {
-  margin-top: 4px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-  padding-top: 10px;
-}
-.picker__head--secondary p {
-  margin: 4px 0 0;
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.4);
-  font-style: italic;
-  text-transform: none;
-  letter-spacing: 0;
-}
-.picker__list {
-  list-style: none;
-  padding: 6px;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.picker__empty {
-  margin: 0;
-  padding: 8px 10px 4px;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.35);
-  font-style: italic;
+.sidebar__divider {
+  height: 1px;
+  width: 32px;
+  background: var(--surface-divider);
+  margin: 2px 0;
+  align-self: center;
 }
 
 .icon-btn {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 7px;
-  background: transparent;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   border: none;
-  color: rgba(255, 255, 255, 0.45);
+  background: transparent;
+  color: var(--ink-muted);
   cursor: pointer;
   flex-shrink: 0;
-  transition: color 120ms;
+  transition:
+    background 150ms,
+    color 150ms,
+    opacity 150ms,
+    transform 150ms;
 }
 .icon-btn:hover {
-  color: rgba(255, 255, 255, 0.85);
+  background: var(--surface-tinted);
+  color: var(--ink);
+  transform: translateY(-1px);
 }
 .icon-btn--active {
-  color: rgb(165, 180, 252);
+  background: var(--ink);
+  color: var(--ink-inverse);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
 }
-.icon-btn--ghost {
+.icon-btn--active:hover {
+  background: var(--ink);
+  color: var(--ink-inverse);
+  transform: translateY(-1px);
+}
+.icon-btn--dragging {
+  opacity: 0.35;
+}
+.icon-btn--drop-target {
+  background: var(--accent-leaf-soft);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 2px var(--accent-leaf);
+}
+.icon-btn--detached::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-leaf);
+  box-shadow: 0 0 0 2px var(--surface-strong);
+}
+.icon-btn--add {
+  border: 1px dashed var(--surface-divider);
+  opacity: 0.55;
+  font-size: 20px;
+  font-weight: 300;
+  line-height: 1;
+}
+.icon-btn--add:hover {
+  opacity: 1;
+  border-style: solid;
+}
+.icon-btn--add:disabled {
+  cursor: not-allowed;
+}
+.icon-btn--add:disabled:hover {
+  transform: none;
+  background: transparent;
+  border-style: dashed;
   opacity: 0.55;
 }
-.icon-btn--ghost:hover {
-  opacity: 1;
+.icon-btn--fold {
+  margin-top: 4px;
+  color: var(--ink-faint);
+  width: 36px;
+  height: 28px;
+  border-radius: 999px;
 }
-.icon-btn--ghost-drag {
-  opacity: 0.4;
-  background: rgba(99, 102, 241, 0.1);
+.icon-btn--fold:hover {
+  color: var(--ink);
+  background: var(--surface-tinted);
 }
 
-/* ── Panel + sections ── */
-.sidebar__panel {
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
+.icon-btn__tip {
+  position: absolute;
+  right: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%) translateX(4px);
+  background: var(--tooltip-bg);
+  color: var(--tooltip-ink);
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 150ms,
+    transform 150ms;
+  z-index: 1;
+}
+.sidebar--swapped .icon-btn__tip {
+  right: auto;
+  left: calc(100% + 12px);
+  transform: translateY(-50%) translateX(-4px);
+}
+.sidebar--swapped .icon-btn:hover .icon-btn__tip {
+  transform: translateY(-50%) translateX(0);
+}
+.icon-btn:hover .icon-btn__tip {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
 }
 
 .section {
@@ -596,35 +493,29 @@ const lockReason = computed(() => LOCK_HINT[props.side]);
 .section--last {
   flex: 1 0 120px;
 }
-
 .section__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 10px;
+  padding: 10px 14px 6px;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.6);
-  background: rgba(0, 0, 0, 0.15);
+  color: var(--ink-muted);
+  background: transparent;
   flex-shrink: 0;
-}
-.section__header-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
 }
 .section__close {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  font-size: 12px;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  font-size: 14px;
   line-height: 1;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--ink-faint);
   background: transparent;
   border: none;
   cursor: pointer;
@@ -633,8 +524,8 @@ const lockReason = computed(() => LOCK_HINT[props.side]);
     color 120ms;
 }
 .section__close:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.9);
+  background: var(--surface-tinted-strong);
+  color: var(--ink);
 }
 
 .section__body {
@@ -662,13 +553,38 @@ const lockReason = computed(() => LOCK_HINT[props.side]);
   transition: background 120ms;
 }
 .section__resizer:hover::before {
-  background: rgba(99, 102, 241, 0.4);
+  background: var(--accent-violet);
+  opacity: 0.5;
 }
+</style>
 
-/* ── User dock ── */
-.sidebar__user-dock {
-  flex-shrink: 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(0, 0, 0, 0.18);
+<style>
+.drag-ghost {
+  position: fixed;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--surface-strong);
+  color: var(--ink);
+  backdrop-filter: blur(28px) saturate(1.6);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-lift);
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  transition:
+    background 120ms,
+    border-color 120ms;
+}
+.drag-ghost__label {
+  white-space: nowrap;
+}
+.drag-ghost--outside {
+  border-color: var(--accent-violet);
 }
 </style>

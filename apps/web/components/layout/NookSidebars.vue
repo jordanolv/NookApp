@@ -8,8 +8,16 @@ type Sidebar = ReturnType<typeof useSidebar>;
 
 defineProps<{
   sidebar: Sidebar;
-  sections: { key: string; label: string; icon: Component }[];
+  rightSections: {
+    key: string;
+    label: string;
+    icon: Component;
+    mode?: 'panel' | 'toggle';
+    active?: boolean;
+    onToggle?: () => void;
+  }[];
   channels: ChannelPublic[];
+  voiceChannels: ChannelPublic[];
   categories: CategoryPublic[];
   activeChannelIds: Set<string>;
   currentVoiceId: string | null;
@@ -25,19 +33,18 @@ defineEmits<{
   'edit-category': [categoryId: string];
   'open-server-switcher': [e: MouseEvent];
   'open-server-menu': [e: MouseEvent];
-  'create-channel': [];
+  'create-channel': [opts: { type: 'text' | 'voice'; categoryId: string | null }];
   'open-pinned': [channel: ChannelPublic, kind: HomePinKind];
+  'open-user-settings': [];
+  'minimap-teleport': [x: number, y: number];
+  'reorder-sections': [fromKey: string, toKey: string];
 }>();
 </script>
 
 <template>
-  <LayoutNookSidebar
-    v-for="side in ['left', 'right'] as const"
-    :key="side"
-    :side="side"
-    :sidebar="sidebar"
-    :sections="sections"
+  <LayoutLeftSidebar
     :channels="channels"
+    :voice-channels="voiceChannels"
     :categories="categories"
     :active-channel-ids="activeChannelIds"
     :current-voice-id="currentVoiceId"
@@ -45,13 +52,21 @@ defineEmits<{
     :server-id="serverId"
     :server-name="serverName"
     :banner-url="bannerUrl"
-    :always-show="side === 'left'"
     @select-channel="(ch, e) => $emit('select-channel', ch, e)"
     @edit-channel="(id) => $emit('edit-channel', id)"
     @edit-category="(id) => $emit('edit-category', id)"
     @open-server-switcher="(e) => $emit('open-server-switcher', e)"
     @open-server-menu="(e) => $emit('open-server-menu', e)"
-    @create-channel="$emit('create-channel')"
+    @create-channel="(opts) => $emit('create-channel', opts)"
+    @open-user-settings="$emit('open-user-settings')"
+  />
+
+  <LayoutNookSidebar
+    :sidebar="sidebar"
+    :sections="rightSections"
+    :server-id="serverId"
     @open-pinned="(ch, kind) => $emit('open-pinned', ch, kind)"
+    @minimap-teleport="(x, y) => $emit('minimap-teleport', x, y)"
+    @reorder-sections="(from, to) => $emit('reorder-sections', from, to)"
   />
 </template>
