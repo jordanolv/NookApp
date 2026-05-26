@@ -70,7 +70,7 @@ onClickOutside(wrapperEl, () => {
   <div ref="wrapperEl" class="relative">
     <button
       class="action-btn text-xs font-bold tracking-wide"
-      :class="open ? 'text-indigo-400' : ''"
+      :class="open ? 'text-accent-violet' : ''"
       title="GIF"
       @click="toggle"
     >
@@ -83,22 +83,22 @@ onClickOutside(wrapperEl, () => {
           placeholder="Rechercher un GIF…"
           class="w-full rounded-lg px-2.5 py-1.5 text-xs outline-none"
           style="
-            background: rgba(255, 255, 255, 0.08);
-            color: rgba(255, 255, 255, 0.85);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: var(--surface-border);
+            color: var(--ink);
+            border: 1px solid var(--surface-border);
           "
           @keydown.enter="search"
         />
       </div>
       <div v-if="loading" class="flex items-center justify-center py-6">
         <div
-          class="h-4 w-4 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent"
+          class="h-4 w-4 animate-spin rounded-full border-2 border-accent-violet border-t-transparent"
         />
       </div>
       <div
         v-else-if="gifs.length === 0"
         class="flex items-center justify-center py-6 text-xs"
-        style="color: rgba(255, 255, 255, 0.25)"
+        style="color: var(--ink-faint)"
       >
         Aucun résultat
       </div>
@@ -133,11 +133,11 @@ onClickOutside(wrapperEl, () => {
   transition:
     background 0.15s,
     color 0.15s;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--ink-muted);
 }
 .action-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.85);
+  background: var(--surface-border);
+  color: var(--ink);
 }
 
 .popup {
@@ -148,9 +148,9 @@ onClickOutside(wrapperEl, () => {
   overflow: hidden;
   z-index: 50;
   background: rgba(16, 16, 26, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--surface-tinted);
   backdrop-filter: blur(24px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 12px 40px rgba(20, 35, 25, 0.55);
 }
 .gif-popup {
   width: 290px;

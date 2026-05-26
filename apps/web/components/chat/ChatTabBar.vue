@@ -132,9 +132,9 @@ onUnmounted(() => {
           <div
             class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-medium px-3 py-1.5 rounded-xl"
             style="
-              background: rgba(99, 102, 241, 0.25);
-              color: rgba(165, 180, 252, 0.9);
-              border: 1px solid rgba(99, 102, 241, 0.4);
+              background: var(--accent-violet-soft);
+              color: var(--ink);
+              border: 1px solid var(--accent-violet);
             "
           >
             Déposer pour ajouter l'onglet
@@ -144,7 +144,7 @@ onUnmounted(() => {
 
       <div
         class="flex flex-shrink-0 items-stretch gap-0 pr-2 select-none"
-        style="border-bottom: 1px solid rgba(255, 255, 255, 0.07); min-height: 32px"
+        :style="{ borderBottom: '1px solid var(--surface-divider)', minHeight: '32px' }"
       >
         <div
           v-for="channelId in channelIds"
@@ -152,20 +152,23 @@ onUnmounted(() => {
           class="relative flex items-center gap-1.5 px-2.5 text-xs font-medium select-none cursor-pointer"
           :style="
             channelId === activeId
-              ? 'background: rgba(255,255,255,0.09); color: rgba(255,255,255,0.85); margin-bottom: -1px; padding-bottom: 1px; position: relative; z-index: 1'
-              : 'color: rgba(255,255,255,0.35); padding-top: 4px; padding-bottom: 4px; border-radius: 8px 8px 0 0; margin-top: 4px'
+              ? 'background: var(--surface-tinted-strong); color: var(--ink); margin-bottom: -1px; padding-bottom: 1px; position: relative; z-index: 1'
+              : 'color: var(--ink-muted); padding-top: 4px; padding-bottom: 4px; border-radius: 8px 8px 0 0; margin-top: 4px'
           "
           @mousedown="onTabMousedown(channelId, $event)"
         >
           <span
             v-if="_tearDrag?.channelId === channelId && _tearDrag.tearing"
             class="absolute inset-0 rounded-t-lg"
-            style="background: rgba(99, 102, 241, 0.2); border: 1px dashed rgba(99, 102, 241, 0.4)"
+            :style="{
+              background: 'var(--accent-leaf-soft)',
+              border: '1px dashed var(--accent-violet)',
+            }"
           />
           <span class="truncate max-w-[110px]"># {{ channelName(channelId) }}</span>
           <button
             class="flex-shrink-0 ml-0.5 h-3.5 w-3.5 rounded-full flex items-center justify-center transition-opacity opacity-40 hover:opacity-100"
-            style="color: rgba(255, 255, 255, 0.7)"
+            :style="{ color: 'var(--ink-soft)' }"
             @mousedown.stop
             @click.stop="emit('close-tab', channelId)"
           >
@@ -182,7 +185,7 @@ onUnmounted(() => {
       <div
         v-else
         class="flex-1 flex items-center justify-center text-xs"
-        style="color: rgba(255, 255, 255, 0.2)"
+        :style="{ color: 'var(--ink-faint)' }"
       >
         Aucun canal ouvert
       </div>

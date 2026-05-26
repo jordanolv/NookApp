@@ -47,8 +47,8 @@ const { resolveUrl } = useResolveUrl();
     <template #header-actions>
       <button
         v-if="canManageChannels && channel"
-        class="rounded-lg p-1 transition-colors hover:bg-white/10"
-        style="color: rgba(255, 255, 255, 0.4)"
+        class="rounded-lg p-1 transition-colors hover:bg-surface-tinted"
+        style="color: var(--ink-muted)"
         title="Modifier le canal"
         @click="showEdit = true"
       >

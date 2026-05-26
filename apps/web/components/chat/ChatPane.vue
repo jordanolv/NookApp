@@ -81,21 +81,22 @@ function showHeader(i: number): boolean {
     <div
       ref="listEl"
       class="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-0.5"
-      style="scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.08) transparent"
+      style="scrollbar-width: thin; scrollbar-color: var(--surface-divider) transparent"
     >
       <div
         v-if="loading"
         class="flex items-center justify-center h-24"
-        style="color: rgba(255, 255, 255, 0.2)"
+        :style="{ color: 'var(--ink-faint)' }"
       >
         <div
-          class="h-4 w-4 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent"
+          class="h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"
+          :style="{ borderColor: 'var(--accent-violet)', borderTopColor: 'transparent' }"
         />
       </div>
       <div
         v-else-if="messages.length === 0"
         class="flex items-center justify-center h-24 text-xs"
-        style="color: rgba(255, 255, 255, 0.2)"
+        :style="{ color: 'var(--ink-faint)' }"
       >
         Aucun message
       </div>
@@ -105,28 +106,31 @@ function showHeader(i: number): boolean {
           :key="msg.id"
           class="flex gap-2.5 group rounded-xl px-2 py-0 transition-colors"
           :class="{ 'mt-1.5': i > 0 && showHeader(i) }"
-          style="color: rgba(255, 255, 255, 0.8)"
+          :style="{ color: 'var(--ink-soft)' }"
         >
           <div
             v-if="showHeader(i)"
             class="h-7 w-7 flex-shrink-0 rounded-full flex items-center justify-center text-xs font-bold mt-0.5"
-            style="background: linear-gradient(135deg, #6366f1, #4338ca); color: white"
+            :style="{
+              background: 'linear-gradient(135deg, var(--accent-violet), var(--accent-cool))',
+              color: '#fff',
+            }"
           >
             {{ msg.authorId.slice(0, 2).toUpperCase() }}
           </div>
           <div v-else class="w-7 flex-shrink-0" />
           <div class="flex flex-col min-w-0">
             <div v-if="showHeader(i)" class="flex items-baseline gap-2 mb-0.5">
-              <span class="text-xs font-semibold" style="color: rgba(255, 255, 255, 0.85)">
+              <span class="text-xs font-semibold" :style="{ color: 'var(--ink)' }">
                 {{ msg.authorId.slice(0, 8) }}
               </span>
-              <span class="text-xs" style="color: rgba(255, 255, 255, 0.25)">{{
+              <span class="text-xs" :style="{ color: 'var(--ink-muted)' }">{{
                 formatTime(msg.createdAt)
               }}</span>
             </div>
             <div
               class="text-sm break-words leading-relaxed message-content"
-              style="color: rgba(255, 255, 255, 0.7)"
+              :style="{ color: 'var(--ink-soft)' }"
               v-html="renderContent(msg.content)"
             />
           </div>
@@ -150,11 +154,11 @@ function showHeader(i: number): boolean {
   margin-top: 0.25rem;
 }
 .message-content strong {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--ink);
   font-weight: 600;
 }
 .message-content em {
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--ink-soft);
 }
 .message-content del {
   opacity: 0.5;
@@ -164,25 +168,25 @@ function showHeader(i: number): boolean {
   font-size: 0.8em;
   padding: 0.1em 0.35em;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(180, 190, 255, 0.9);
+  background: var(--surface-tinted-strong);
+  color: var(--accent-violet);
 }
 .message-content pre {
   margin: 0.4rem 0;
   padding: 0.6rem 0.8rem;
   border-radius: 8px;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--surface-tinted-strong);
   overflow-x: auto;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--surface-border);
 }
 .message-content pre code {
   background: none;
   padding: 0;
   font-size: 0.78em;
-  color: rgba(200, 210, 255, 0.85);
+  color: var(--ink-soft);
 }
 .message-content a {
-  color: rgba(130, 140, 255, 0.9);
+  color: var(--accent-cool);
   text-decoration: underline;
 }
 </style>
