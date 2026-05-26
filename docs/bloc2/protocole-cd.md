@@ -40,13 +40,13 @@ GitHub (push main / push dev)
               • Si KO : exit 1 (alerte GitHub, rollback manuel via tag précédent)
                                 │
                                 ▼
-                ┌───────── VPS Hetzner CPX21 ──────────┐
+                ┌───────── VPS OVH (partagé) ──────────┐
                 │                                       │
-                │  [ Caddy ] (stack proxy partagée)    │
+                │  [ Traefik ] (proxy mutualisé du VPS)│
                 │   • 80, 443/tcp, 443/udp             │
-                │   • Routing par domaine              │
-                │     nookapp.eu     → nookapp-prod-*   │
-                │     dev.nookapp.eu → nookapp-staging-*│
+                │   • Discovery via labels Docker      │
+                │   • Réseau : dokploy-network         │
+                │   • TLS auto : Let's Encrypt         │
                 │                                       │
                 │  ┌──────────────┐  ┌──────────────┐  │
                 │  │ nookapp-prod │  │   -staging   │  │
@@ -65,19 +65,19 @@ GitHub (push main / push dev)
 
 ## 3. Composants techniques
 
-| Composant                     | Choix                                  | Rôle                                                               |
-| ----------------------------- | -------------------------------------- | ------------------------------------------------------------------ |
-| **Gestion sources**           | Git + GitHub                           | Historique + déclenchement workflow                                |
-| **Registry images**           | GHCR (ghcr.io)                         | Stockage des images Docker, lié au repo, privé par défaut, gratuit |
-| **Builder**                   | Docker Buildx + GHA cache              | Build multi-stage reproductible, cache des layers entre runs       |
-| **Orchestrateur**             | Docker Compose v2                      | Stacks isolés par projet (`-p` flag), zéro orchestrateur lourd     |
-| **Reverse proxy / HTTPS**     | Caddy 2                                | Auto-HTTPS via Let's Encrypt, routing déclaratif par domaine       |
-| **Serveur d'application API** | Node 22 (alpine)                       | Runtime NestJS + Hocuspocus dans un même process                   |
-| **Serveur d'application Web** | Node 22 (alpine)                       | Runtime Nuxt 3 (Nitro)                                             |
-| **Base de données**           | Postgres 18 alpine                     | Une instance par stack (isolation prod/staging)                    |
-| **Voix/vidéo**                | LiveKit OSS                            | Une instance par stack                                             |
-| **Stockage assets uploads**   | Volume Docker `api-uploads`            | Persistant entre redeploys                                         |
-| **Logs**                      | `docker compose logs` + Loki (phase 5) | À court terme : logs containers natifs                             |
+| Composant                     | Choix                                  | Rôle                                                                                                                                                        |
+| ----------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Gestion sources**           | Git + GitHub                           | Historique + déclenchement workflow                                                                                                                         |
+| **Registry images**           | GHCR (ghcr.io)                         | Stockage des images Docker, lié au repo, privé par défaut, gratuit                                                                                          |
+| **Builder**                   | Docker Buildx + GHA cache              | Build multi-stage reproductible, cache des layers entre runs                                                                                                |
+| **Orchestrateur**             | Docker Compose v2                      | Stacks isolés par projet (`-p` flag), zéro orchestrateur lourd                                                                                              |
+| **Reverse proxy / HTTPS**     | Traefik v3 (mutualisé sur le VPS)      | Routing par labels Docker, TLS Let's Encrypt automatique. Le VPS héberge plusieurs projets ; Traefik est partagé, notre stack s'y intègre sans le posséder. |
+| **Serveur d'application API** | Node 22 (alpine)                       | Runtime NestJS + Hocuspocus dans un même process                                                                                                            |
+| **Serveur d'application Web** | Node 22 (alpine)                       | Runtime Nuxt 3 (Nitro)                                                                                                                                      |
+| **Base de données**           | Postgres 18 alpine                     | Une instance par stack (isolation prod/staging)                                                                                                             |
+| **Voix/vidéo**                | LiveKit OSS                            | Une instance par stack                                                                                                                                      |
+| **Stockage assets uploads**   | Volume Docker `api-uploads`            | Persistant entre redeploys                                                                                                                                  |
+| **Logs**                      | `docker compose logs` + Loki (phase 5) | À court terme : logs containers natifs                                                                                                                      |
 
 ---
 
@@ -158,9 +158,11 @@ chown -R deploy:deploy /home/deploy/.ssh
 ### Arborescence
 
 ```bash
-mkdir -p /opt/nookapp-prod /opt/nookapp-staging /opt/nookapp-proxy
+mkdir -p /opt/nookapp-prod /opt/nookapp-staging
 chown -R deploy:deploy /opt/nookapp-*
 ```
+
+Pas de dossier proxy : le reverse-proxy (Traefik) est mutualisé sur le VPS et géré indépendamment ; on s'y branche via le réseau Docker `dokploy-network` et des labels.
 
 Dans chaque dossier :
 
@@ -183,10 +185,6 @@ nano .env   # remplir secrets (POSTGRES_PASSWORD, JWT_SECRET, RESEND_API_KEY, ..
 ### Premier démarrage
 
 ```bash
-# Proxy partagé (une seule fois)
-cd /opt/nookapp-proxy
-docker compose -f docker-compose.proxy.yml up -d
-
 # Prod
 cd /opt/nookapp-prod
 docker compose -p nookapp-prod -f docker-compose.app.yml --env-file .env up -d
@@ -203,7 +201,7 @@ docker compose -p nookapp-staging -f docker-compose.app.yml --env-file .env up -
 | `nookapp.eu`     | A    | IP du VPS |
 | `dev.nookapp.eu` | A    | IP du VPS |
 
-Caddy provisionne les certificats Let's Encrypt automatiquement au premier hit HTTPS.
+Traefik (mutualisé) provisionne les certificats Let's Encrypt automatiquement au premier hit HTTPS, via le challenge HTTP-01 sur l'entrypoint `web` (port 80).
 
 ---
 
@@ -258,7 +256,7 @@ Le tag immuable `<branch>-<sha>` permet ce rollback sans rebuild.
 
 - **Phase 4** — `release-please` qui crée des tags `vX.Y.Z` à partir des Conventional Commits → tags GHCR sémantiques (`:v1.2.3`) en plus de `<branch>-<sha>`.
 - **Phase 5** — Stack monitoring (Prometheus + Loki + Grafana) qui scrape `/metrics` (à exposer sur l'api) et envoie alertes Discord si healthcheck KO post-deploy.
-- **Plus tard** — `--scale=2` + load-balancing Caddy pour zero-downtime deploys ; jobs e2e en CI utilisant Playwright sur l'image buildée avant déploiement.
+- **Plus tard** — `--scale=2` + load-balancing Traefik pour zero-downtime deploys ; jobs e2e en CI utilisant Playwright sur l'image buildée avant déploiement.
 
 ---
 
@@ -300,8 +298,6 @@ git push main / dev
 **Références** :
 
 - [.github/workflows/cd.yml](../../.github/workflows/cd.yml) — implémentation
-- [docker-compose.app.yml](../../docker-compose.app.yml) — stack applicative
-- [docker-compose.proxy.yml](../../docker-compose.proxy.yml) — stack proxy partagée
-- [Caddyfile.prod](../../Caddyfile.prod) — routing par domaine
+- [docker-compose.app.yml](../../docker-compose.app.yml) — stack applicative + labels Traefik
 - [protocole-ci.md](./protocole-ci.md) — pipeline CI en amont
 - [dependances.md](../bloc4/dependances.md) — mises à jour dépendances

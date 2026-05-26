@@ -18,10 +18,16 @@ services:
     expose:
       - '4001'
     networks:
-      default: {}
-      proxy:
-        aliases:
-          - ${STACK_NAME}-web
+      - default
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dokploy-network
+      - traefik.http.routers.${STACK_NAME}-web.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.${STACK_NAME}-web.entrypoints=websecure
+      - traefik.http.routers.${STACK_NAME}-web.tls.certresolver=letsencrypt
+      - traefik.http.routers.${STACK_NAME}-web.priority=1
+      - traefik.http.services.${STACK_NAME}-web.loadbalancer.server.port=4001
 
   api:
     image: ghcr.io/${GHCR_OWNER}/nookapp-api:${IMAGE_TAG:-latest}
@@ -56,10 +62,26 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      default: {}
-      proxy:
-        aliases:
-          - ${STACK_NAME}-api
+      - default
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dokploy-network
+      # HTTP api (NestJS)
+      - traefik.http.routers.${STACK_NAME}-api.rule=Host(`${DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/uploads`) || PathPrefix(`/socket.io`))
+      - traefik.http.routers.${STACK_NAME}-api.entrypoints=websecure
+      - traefik.http.routers.${STACK_NAME}-api.tls.certresolver=letsencrypt
+      - traefik.http.routers.${STACK_NAME}-api.priority=10
+      - traefik.http.services.${STACK_NAME}-api.loadbalancer.server.port=4000
+      # WebSocket Hocuspocus (/collab)
+      - traefik.http.middlewares.${STACK_NAME}-collab-strip.stripprefix.prefixes=/collab
+      - traefik.http.routers.${STACK_NAME}-collab.rule=Host(`${DOMAIN}`) && PathPrefix(`/collab`)
+      - traefik.http.routers.${STACK_NAME}-collab.entrypoints=websecure
+      - traefik.http.routers.${STACK_NAME}-collab.tls.certresolver=letsencrypt
+      - traefik.http.routers.${STACK_NAME}-collab.priority=10
+      - traefik.http.routers.${STACK_NAME}-collab.middlewares=${STACK_NAME}-collab-strip
+      - traefik.http.routers.${STACK_NAME}-collab.service=${STACK_NAME}-collab
+      - traefik.http.services.${STACK_NAME}-collab.loadbalancer.server.port=4234
 
   postgres:
     image: postgres:18-alpine
@@ -97,10 +119,18 @@ services:
       - '${LIVEKIT_TCP_PORT:-7881}:7881/tcp'
       - '${LIVEKIT_UDP_PORT:-7882}:7882/udp'
     networks:
-      default: {}
-      proxy:
-        aliases:
-          - ${STACK_NAME}-livekit
+      - default
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dokploy-network
+      - traefik.http.middlewares.${STACK_NAME}-livekit-strip.stripprefix.prefixes=/livekit
+      - traefik.http.routers.${STACK_NAME}-livekit.rule=Host(`${DOMAIN}`) && PathPrefix(`/livekit`)
+      - traefik.http.routers.${STACK_NAME}-livekit.entrypoints=websecure
+      - traefik.http.routers.${STACK_NAME}-livekit.tls.certresolver=letsencrypt
+      - traefik.http.routers.${STACK_NAME}-livekit.priority=10
+      - traefik.http.routers.${STACK_NAME}-livekit.middlewares=${STACK_NAME}-livekit-strip
+      - traefik.http.services.${STACK_NAME}-livekit.loadbalancer.server.port=7880
 
 volumes:
   postgres-data:
@@ -110,4 +140,4 @@ networks:
   default:
   proxy:
     external: true
-    name: nookapp-proxy
+    name: dokploy-network
