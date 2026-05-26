@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { computed, markRaw, onMounted, onUnmounted, ref, watch } from 'vue';
-import { Hash, Pin, Users } from 'lucide-vue-next';
+import { Hammer, Map as MapIcon, Pin, Users } from 'lucide-vue-next';
 import type { CategoryPublic, ChannelPublic } from '@nookapp/protocol';
 import { type HomePinKind } from '~/composables/useHomePins';
 import { useInterfacePreferences } from '~/composables/useInterfacePreferences';
 import { useChatTabs } from '~/composables/useChatTabs';
 import { useServerPicker } from '~/composables/useServerPicker';
 import { useInviteFlow } from '~/composables/useInviteFlow';
+import { useChannelReadState } from '~/composables/useChannelReadState';
+import { useSidebarSectionOrder } from '~/composables/useSidebarSectionOrder';
+import { useChannelEditing } from '~/composables/useChannelEditing';
 import type ClassicLayout from '~/components/classic/Layout.vue';
 import type PhaserApp from '~/components/world/PhaserApp.vue';
 
@@ -26,7 +29,7 @@ const presence = usePresence();
 const { isAdmin, canManageChannels, canManageMap, loadMember } = useMember();
 const interfacePrefs = useInterfacePreferences();
 const classicEnabled = computed(() => interfacePrefs.prefs.value.useClassicInterface);
-const { loadMap } = useMap();
+const { loadMap, buildMode } = useMap();
 
 if (!store.ready) await fetchServers();
 const server = computed(() => store.list.find((s) => s.id === serverId.value) ?? null);
@@ -34,34 +37,63 @@ const server = computed(() => store.list.find((s) => s.id === serverId.value) ??
 const { resolveUrl } = useResolveUrl();
 
 // ── Sidebar config ─────────────────────────────────────────────────────
-const SIDEBAR_SECTIONS = markRaw([
-  { key: 'channels', label: 'Salons', icon: Hash },
+const SECTION_LABELS: Record<string, string> = {
+  channels: 'Salons',
+  members: 'Membres',
+  pinned: 'Épinglés',
+  map: 'Carte',
+};
+const PANEL_SECTIONS = markRaw([
   { key: 'members', label: 'Membres', icon: Users },
   { key: 'pinned', label: 'Épinglés', icon: Pin },
+  { key: 'map', label: 'Carte', icon: MapIcon },
 ]);
-const sidebar = useSidebar(
-  SIDEBAR_SECTIONS.map((s) => s.key),
-  ['channels'],
-);
+const sectionOrder = useSidebarSectionOrder('right');
 
-function classicPad(side: 'left' | 'right'): number {
-  const keys = side === 'left' ? sidebar.leftKeys.value : sidebar.rightKeys.value;
-  const hasSections = keys.length > 0;
-  const hasContent =
-    hasSections || sidebar.serverHeaderSide.value === side || sidebar.userDockSide.value === side;
-  if (!hasContent) return side === 'left' ? 70 : 0;
-  return hasSections ? 400 : 280;
+const rightSections = computed(() => {
+  const sections: Array<{
+    key: string;
+    label: string;
+    icon: typeof Hammer;
+    mode?: 'panel' | 'toggle';
+    active?: boolean;
+    onToggle?: () => void;
+  }> = [...PANEL_SECTIONS];
+  if (canManageMap) {
+    sections.push({
+      key: 'build',
+      label: 'Build',
+      icon: Hammer,
+      mode: 'toggle',
+      active: buildMode.value,
+      onToggle: () => {
+        buildMode.value = !buildMode.value;
+      },
+    });
+  }
+  return sectionOrder.applyOrder(sections);
+});
+
+function onReorderSections(fromKey: string, toKey: string) {
+  sectionOrder.move(
+    fromKey,
+    toKey,
+    rightSections.value.map((s) => s.key),
+  );
 }
-const classicLeftPad = computed(() => classicPad('left'));
-const classicRightPad = computed(() => classicPad('right'));
+const sidebar = useSidebar(['channels', ...PANEL_SECTIONS.map((s) => s.key)]);
+
+const classicLeftPad = computed(() => 300);
+const classicRightPad = computed(() => (sidebar.activeSet.value.size > 0 ? 352 : 72));
 
 // ── Shared state ───────────────────────────────────────────────────────
 const chatTabs = useChatTabs();
 const serverPicker = useServerPicker();
 const invite = useInviteFlow(serverId);
 
-const showCreateModal = ref(false);
 const showServerSettings = ref(false);
+const showPlugins = ref(false);
+const showUserSettings = ref(false);
 const editingChannel = ref<ChannelPublic | null>(null);
 const editingCategory = ref<CategoryPublic | null>(null);
 
@@ -81,11 +113,14 @@ async function joinOrLeaveVoice(channelId: string) {
   else await voice.join(serverId.value, channelId);
 }
 
+const readState = useChannelReadState();
+
 function handleChannelClick(ch: ChannelPublic, e: MouseEvent) {
   if (ch.type === 'voice') {
     void joinOrLeaveVoice(ch.id);
     return;
   }
+  readState.markRead(ch.id);
   if (classicEnabled.value) {
     classicLayoutRef.value?.openChannel(ch.id);
     return;
@@ -101,9 +136,26 @@ function openHomePinnedItem(channel: ChannelPublic, kind: HomePinKind) {
   handleChannelClick(channel, new MouseEvent('click'));
 }
 
-function onChannelCreated(channelId: string, type: string) {
-  showCreateModal.value = false;
-  phaserAppRef.value?.onChannelCreated(channelId, type);
+const { createChannel: createChannelApi } = useChannels();
+const channelEditing = useChannelEditing();
+
+async function onInlineCreateChannel(opts: { type: 'text' | 'voice'; categoryId: string | null }) {
+  const defaultName = opts.type === 'voice' ? 'nouveau vocal' : 'nouveau channel';
+  const ch = await createChannelApi(serverId.value, {
+    name: defaultName,
+    type: opts.type,
+    showStat: true,
+  });
+  if (opts.categoryId) {
+    try {
+      const { updateChannel } = useChannels();
+      await updateChannel(serverId.value, ch.id, { categoryId: opts.categoryId });
+    } catch {
+      /* ignore */
+    }
+  }
+  channelEditing.startEditing(ch.id);
+  phaserAppRef.value?.onChannelCreated(ch.id, ch.type);
 }
 
 // ── Data loaders ───────────────────────────────────────────────────────
@@ -160,8 +212,9 @@ const serverBannerUrl = computed(() => resolveUrl(server.value?.bannerUrl) ?? nu
   <div class="page-root">
     <LayoutNookSidebars
       :sidebar="sidebar"
-      :sections="SIDEBAR_SECTIONS"
+      :right-sections="rightSections"
       :channels="sidebarChannels"
+      :voice-channels="voiceChannels"
       :categories="sidebarCategories"
       :active-channel-ids="chatTabs.activeChannelIds.value"
       :current-voice-id="voice.currentChannelId.value"
@@ -174,7 +227,36 @@ const serverBannerUrl = computed(() => resolveUrl(server.value?.bannerUrl) ?? nu
       @edit-category="openCategoryEdit"
       @open-server-switcher="serverPicker.openSwitcher"
       @open-server-menu="serverPicker.openMenu"
-      @create-channel="showCreateModal = true"
+      @create-channel="onInlineCreateChannel"
+      @open-pinned="openHomePinnedItem"
+      @open-user-settings="showUserSettings = true"
+      @minimap-teleport="(x, y) => phaserAppRef?.teleport(x, y)"
+      @reorder-sections="onReorderSections"
+    />
+
+    <LayoutNotificationDock />
+
+    <LayoutBottomDock
+      :server-name="server?.name ?? ''"
+      :banner-url="serverBannerUrl"
+      @open-server-switcher="serverPicker.openSwitcher"
+    />
+
+    <UserSettingsModal v-if="showUserSettings" @close="showUserSettings = false" />
+
+    <LayoutSidebarDetachedWindows
+      :sidebar="sidebar"
+      :section-labels="SECTION_LABELS"
+      :channels="sidebarChannels"
+      :categories="sidebarCategories"
+      :active-channel-ids="chatTabs.activeChannelIds.value"
+      :current-voice-id="voice.currentChannelId.value"
+      :can-manage="canManageChannels"
+      :server-id="serverId"
+      @select-channel="handleChannelClick"
+      @edit-channel="openChannelEdit"
+      @edit-category="openCategoryEdit"
+      @create-channel="onInlineCreateChannel"
       @open-pinned="openHomePinnedItem"
     />
 
@@ -205,11 +287,13 @@ const serverBannerUrl = computed(() => resolveUrl(server.value?.bannerUrl) ?? nu
       :current-server-name="server?.name"
       :top="serverPicker.top.value"
       :left="serverPicker.left.value"
+      :placement="serverPicker.placement.value"
       :is-admin="isAdmin"
       @close="serverPicker.close"
       @switch-server="serverPicker.switchServer"
       @invite="invite.open"
       @open-settings="showServerSettings = true"
+      @open-plugins="showPlugins = true"
     />
 
     <LayoutInviteModal
@@ -226,10 +310,9 @@ const serverBannerUrl = computed(() => resolveUrl(server.value?.bannerUrl) ?? nu
       :server-id="serverId"
       :server-name="server?.name"
       v-model:show-settings="showServerSettings"
-      v-model:show-create="showCreateModal"
+      v-model:show-plugins="showPlugins"
       v-model:editing-channel="editingChannel"
       v-model:editing-category="editingCategory"
-      @channel-created="onChannelCreated"
     />
   </div>
 </template>
