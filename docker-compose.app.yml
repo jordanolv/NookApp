@@ -74,6 +74,7 @@ services:
       - traefik.http.routers.${STACK_NAME}-api.entrypoints=websecure
       - traefik.http.routers.${STACK_NAME}-api.tls.certresolver=letsencrypt
       - traefik.http.routers.${STACK_NAME}-api.priority=10
+      - traefik.http.routers.${STACK_NAME}-api.service=${STACK_NAME}-api
       - traefik.http.services.${STACK_NAME}-api.loadbalancer.server.port=4000
       # WebSocket Hocuspocus (/collab)
       - traefik.http.middlewares.${STACK_NAME}-collab-strip.stripprefix.prefixes=/collab
@@ -105,16 +106,9 @@ services:
   livekit:
     image: livekit/livekit-server:latest
     restart: unless-stopped
-    command:
-      - --bind=0.0.0.0
-      - --node-ip=${LIVEKIT_NODE_IP}
-    environment:
-      LIVEKIT_KEYS: '${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}'
-      LIVEKIT_PORT: '7880'
-      LIVEKIT_RTC_TCP_PORT: '7881'
-      LIVEKIT_RTC_PORT_RANGE_START: '7882'
-      LIVEKIT_RTC_PORT_RANGE_END: '7882'
-      LIVEKIT_RTC_USE_EXTERNAL_IP: 'true'
+    command: --config /etc/livekit.yaml
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
     expose:
       - '7880'
     ports:
