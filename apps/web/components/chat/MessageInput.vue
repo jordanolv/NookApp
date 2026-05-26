@@ -77,7 +77,7 @@ function handleKeydown(e: KeyboardEvent) {
         :disabled="disabled"
         rows="1"
         class="flex-1 resize-none bg-transparent text-sm focus:outline-none py-2.5 pl-4 pr-2 leading-relaxed"
-        style="color: rgba(255, 255, 255, 0.85); min-height: 42px; max-height: 140px"
+        :style="{ color: 'var(--ink)', minHeight: '42px', maxHeight: '140px' }"
         :class="{ 'opacity-50': disabled }"
         @keydown="handleKeydown"
       />
@@ -95,11 +95,11 @@ function handleKeydown(e: KeyboardEvent) {
   display: flex;
   align-items: flex-end;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-tinted);
+  border: 1px solid var(--surface-border);
   transition: border-color 0.15s;
 }
 .input-bar:focus-within {
-  border-color: rgba(255, 255, 255, 0.14);
+  border-color: var(--ink-muted);
 }
 </style>

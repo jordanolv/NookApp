@@ -33,25 +33,22 @@ onClickOutside(wrapperEl, () => {
   <div ref="wrapperEl" class="relative">
     <button
       class="action-btn text-base"
-      :class="open ? 'text-indigo-400' : ''"
+      :class="open ? 'text-accent-violet' : ''"
       title="Emoji"
       @click="toggle"
     >
       😀
     </button>
     <div v-if="open" class="popup emoji-popup">
-      <div
-        class="flex gap-0.5 p-1.5 pb-1"
-        style="border-bottom: 1px solid rgba(255, 255, 255, 0.07)"
-      >
+      <div class="flex gap-0.5 p-1.5 pb-1" style="border-bottom: 1px solid var(--surface-border)">
         <button
           v-for="(cat, i) in EMOJI_CATEGORIES"
           :key="i"
           class="text-sm px-1 py-0.5 rounded transition-colors"
           :class="
             activeCat === i
-              ? 'bg-indigo-500/30 text-white'
-              : 'opacity-60 hover:opacity-100 hover:bg-white/5'
+              ? 'bg-accent-violet/30 text-white'
+              : 'opacity-60 hover:opacity-100 hover:bg-surface-tinted'
           "
           :title="cat.name"
           @click="activeCat = i"
@@ -63,7 +60,7 @@ onClickOutside(wrapperEl, () => {
         <button
           v-for="emoji in EMOJI_CATEGORIES[activeCat]?.emojis"
           :key="emoji"
-          class="text-xl rounded hover:bg-white/10 transition-colors p-1 flex items-center justify-center leading-none"
+          class="text-xl rounded hover:bg-surface-tinted-strong transition-colors p-1 flex items-center justify-center leading-none"
           @click="onPick(emoji)"
         >
           {{ emoji }}
@@ -85,11 +82,11 @@ onClickOutside(wrapperEl, () => {
   transition:
     background 0.15s,
     color 0.15s;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--ink-muted);
 }
 .action-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.85);
+  background: var(--surface-border);
+  color: var(--ink);
 }
 
 .popup {
@@ -100,9 +97,9 @@ onClickOutside(wrapperEl, () => {
   overflow: hidden;
   z-index: 50;
   background: rgba(16, 16, 26, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--surface-tinted);
   backdrop-filter: blur(24px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 12px 40px rgba(20, 35, 25, 0.55);
 }
 .emoji-popup {
   width: 232px;
