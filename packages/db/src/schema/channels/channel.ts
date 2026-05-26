@@ -21,6 +21,8 @@ export const channel = pgTable(
     bannerUrl: text('banner_url'),
     widgetKind: text('widget_kind'),
     showStat: boolean('show_stat').notNull().default(true),
+    color: text('color'),
+    iconName: text('icon_name'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({

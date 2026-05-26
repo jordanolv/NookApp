@@ -112,52 +112,48 @@ async function remove() {
   <Teleport to="body">
     <div
       class="fixed inset-0 z-[70] flex items-center justify-center"
-      style="background: rgba(0, 0, 0, 0.6)"
+      style="background: rgba(20, 35, 25, 0.55)"
       @click.self="emit('close')"
     >
       <div
         class="w-full max-w-sm rounded-2xl overflow-hidden flex flex-col"
         style="
-          background: rgba(10, 10, 16, 0.82);
+          background: var(--surface-strong);
           backdrop-filter: blur(28px) saturate(160%);
           -webkit-backdrop-filter: blur(28px) saturate(160%);
-          border: 1px solid rgba(255, 255, 255, 0.07);
+          border: 1px solid var(--surface-border);
           box-shadow:
-            0 24px 64px rgba(0, 0, 0, 0.6),
-            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            0 24px 64px rgba(20, 35, 25, 0.55),
+            inset 0 1px 0 var(--surface-tinted);
         "
       >
         <div
-          class="flex items-center gap-3 px-4 py-3"
-          style="border-bottom: 1px solid rgba(255, 255, 255, 0.06)"
+          class="flex items-center justify-between px-4 py-3"
+          style="border-bottom: 1px solid var(--surface-tinted)"
         >
-          <div class="flex gap-1.5">
-            <button
-              class="h-3 w-3 rounded-full transition-opacity hover:opacity-75"
-              style="background: #ef4444"
-              @click="emit('close')"
-            />
-            <div class="h-3 w-3 rounded-full" style="background: rgba(255, 255, 255, 0.08)" />
-            <div class="h-3 w-3 rounded-full" style="background: rgba(255, 255, 255, 0.08)" />
-          </div>
-          <span class="text-xs font-semibold" style="color: rgba(255, 255, 255, 0.5)">
+          <span class="text-xs font-semibold" style="color: var(--ink-soft)">
             Modifier la catégorie
           </span>
+          <button
+            class="flex h-5 w-5 items-center justify-center rounded transition-opacity hover:opacity-60"
+            title="Fermer"
+            @click="emit('close')"
+          >
+            <span class="block h-0.5 w-3 rounded-full" style="background: #ffffff" />
+          </button>
         </div>
 
         <div class="p-4 flex flex-col gap-4">
           <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium px-0.5" style="color: rgba(255, 255, 255, 0.25)"
-              >Nom</label
-            >
+            <label class="text-xs font-medium px-0.5" style="color: var(--ink-faint)">Nom</label>
             <input
               v-model="name"
               type="text"
               class="rounded-xl px-3 py-2 text-xs outline-none"
               style="
-                background: rgba(255, 255, 255, 0.05);
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                color: rgba(255, 255, 255, 0.8);
+                background: var(--surface-tinted);
+                border: 1px solid var(--surface-border);
+                color: var(--ink-soft);
               "
               maxlength="100"
               @keydown.enter="save"
@@ -172,10 +168,7 @@ async function remove() {
                 type="checkbox"
                 class="accent-indigo-400"
               />
-              <label
-                for="colorEnabled"
-                class="text-xs font-medium"
-                style="color: rgba(255, 255, 255, 0.4)"
+              <label for="colorEnabled" class="text-xs font-medium" style="color: var(--ink-muted)"
                 >Activer une couleur</label
               >
             </div>
@@ -185,20 +178,20 @@ async function remove() {
                 type="color"
                 class="h-8 w-8 rounded-lg cursor-pointer border-0 bg-transparent"
               />
-              <span class="text-xs font-mono" style="color: rgba(255, 255, 255, 0.4)">{{
+              <span class="text-xs font-mono" style="color: var(--ink-muted)">{{
                 colorValue
               }}</span>
             </div>
           </div>
 
           <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium px-0.5" style="color: rgba(255, 255, 255, 0.25)">
+            <label class="text-xs font-medium px-0.5" style="color: var(--ink-faint)">
               Icône
-              <span class="ml-1" style="color: rgba(255, 255, 255, 0.15)">optionnel</span>
+              <span class="ml-1" style="color: var(--ink-faint)">optionnel</span>
             </label>
             <div
               class="relative rounded-xl overflow-hidden cursor-pointer"
-              style="border: 1px dashed rgba(255, 255, 255, 0.1)"
+              style="border: 1px dashed var(--surface-tinted)"
               @click="iconInputRef?.click()"
             >
               <img
@@ -210,16 +203,14 @@ async function remove() {
               <div
                 v-else
                 class="flex items-center justify-center gap-2"
-                style="height: 52px; background: rgba(255, 255, 255, 0.025)"
+                style="height: 52px; background: var(--surface-tinted)"
               >
-                <span class="text-xs" style="color: rgba(255, 255, 255, 0.2)"
-                  >Choisir une image</span
-                >
+                <span class="text-xs" style="color: var(--ink-faint)">Choisir une image</span>
               </div>
               <button
                 v-if="iconDisplaySrc"
                 class="absolute top-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded-full text-xs"
-                style="background: rgba(0, 0, 0, 0.6); color: rgba(255, 255, 255, 0.7)"
+                style="background: rgba(20, 35, 25, 0.55); color: var(--ink-soft)"
                 @click.stop="clearIcon"
               >
                 ×
@@ -235,13 +226,13 @@ async function remove() {
           </div>
 
           <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium px-0.5" style="color: rgba(255, 255, 255, 0.25)">
+            <label class="text-xs font-medium px-0.5" style="color: var(--ink-faint)">
               Bannière
-              <span class="ml-1" style="color: rgba(255, 255, 255, 0.15)">optionnel</span>
+              <span class="ml-1" style="color: var(--ink-faint)">optionnel</span>
             </label>
             <div
               class="relative rounded-xl overflow-hidden cursor-pointer"
-              style="border: 1px dashed rgba(255, 255, 255, 0.1)"
+              style="border: 1px dashed var(--surface-tinted)"
               @click="bannerInputRef?.click()"
             >
               <img
@@ -253,16 +244,14 @@ async function remove() {
               <div
                 v-else
                 class="flex items-center justify-center gap-2"
-                style="height: 52px; background: rgba(255, 255, 255, 0.025)"
+                style="height: 52px; background: var(--surface-tinted)"
               >
-                <span class="text-xs" style="color: rgba(255, 255, 255, 0.2)"
-                  >Choisir une image</span
-                >
+                <span class="text-xs" style="color: var(--ink-faint)">Choisir une image</span>
               </div>
               <button
                 v-if="bannerDisplaySrc"
                 class="absolute top-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded-full text-xs"
-                style="background: rgba(0, 0, 0, 0.6); color: rgba(255, 255, 255, 0.7)"
+                style="background: rgba(20, 35, 25, 0.55); color: var(--ink-soft)"
                 @click.stop="clearBanner"
               >
                 ×
@@ -290,7 +279,7 @@ async function remove() {
             </button>
             <button
               class="flex-1 rounded-xl py-2 text-xs font-medium"
-              style="background: rgba(255, 255, 255, 0.05); color: rgba(255, 255, 255, 0.4)"
+              style="background: var(--surface-tinted); color: var(--ink-muted)"
               @click="emit('close')"
             >
               Annuler

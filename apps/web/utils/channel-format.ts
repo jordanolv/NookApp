@@ -1,8 +1,20 @@
 import type { Component } from 'vue';
 import { Hash, MessageSquare, Gamepad2, Sticker } from 'lucide-vue-next';
 import type { ChannelPublic } from '@nookapp/protocol';
+import { iconComponentByName } from './channel-icons';
 
-export function iconForChannel(type: ChannelPublic['type']): Component {
+export function iconForChannel(
+  typeOrChannel: ChannelPublic['type'] | Pick<ChannelPublic, 'type' | 'iconName'>,
+): Component {
+  if (typeof typeOrChannel === 'object') {
+    const custom = iconComponentByName(typeOrChannel.iconName);
+    if (custom) return custom;
+    return defaultIconForType(typeOrChannel.type);
+  }
+  return defaultIconForType(typeOrChannel);
+}
+
+function defaultIconForType(type: ChannelPublic['type']): Component {
   switch (type) {
     case 'forum':
       return MessageSquare;

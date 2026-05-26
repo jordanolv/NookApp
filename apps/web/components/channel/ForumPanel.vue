@@ -46,33 +46,33 @@ async function submitPost() {
       right: (props.side ?? 'right') === 'right' ? (props.offset ?? 76) + 'px' : 'auto',
       width: '228px',
       transition: 'left 200ms cubic-bezier(0.4,0,0.2,1), right 200ms cubic-bezier(0.4,0,0.2,1)',
-      background: 'rgba(10, 10, 16, 0.82)',
+      background: 'var(--surface-strong)',
       backdropFilter: 'blur(28px) saturate(160%)',
       WebkitBackdropFilter: 'blur(28px) saturate(160%)',
-      border: '1px solid rgba(255, 255, 255, 0.07)',
+      border: '1px solid var(--surface-border)',
       boxShadow: '0 24px 64px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)',
     }"
   >
     <!-- Header -->
     <div
       class="flex items-center gap-2 px-3 py-2.5 flex-shrink-0"
-      style="border-bottom: 1px solid rgba(255, 255, 255, 0.06)"
+      style="border-bottom: 1px solid var(--surface-tinted)"
     >
       <svg
         width="13"
         height="13"
         viewBox="0 0 24 24"
         fill="currentColor"
-        style="color: rgba(255, 255, 255, 0.25); flex-shrink: 0"
+        style="color: var(--ink-faint); flex-shrink: 0"
       >
         <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" />
       </svg>
-      <span class="flex-1 text-xs font-semibold truncate" style="color: rgba(255, 255, 255, 0.8)">
+      <span class="flex-1 text-xs font-semibold truncate" style="color: var(--ink-soft)">
         {{ channelName }}
       </span>
       <button
         class="flex-shrink-0 rounded-md p-0.5 transition-colors"
-        style="color: rgba(255, 255, 255, 0.25)"
+        style="color: var(--ink-faint)"
         @mouseenter="($event.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.6)'"
         @mouseleave="($event.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.25)'"
         @click="emit('close')"
@@ -88,10 +88,10 @@ async function submitPost() {
     <!-- Posts list -->
     <div
       class="flex-1 overflow-y-auto py-1"
-      style="scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.08) transparent"
+      style="scrollbar-width: thin; scrollbar-color: var(--surface-border) transparent"
     >
       <div v-if="!posts.length" class="px-3 py-8 text-center">
-        <p class="text-xs" style="color: rgba(255, 255, 255, 0.2)">Aucun post pour l'instant.</p>
+        <p class="text-xs" style="color: var(--ink-faint)">Aucun post pour l'instant.</p>
       </div>
 
       <button
@@ -100,24 +100,24 @@ async function submitPost() {
         class="w-full flex items-center gap-2 px-3 py-2 text-left post-row"
         @click="emit('open-post', post.id)"
       >
-        <span class="text-xs font-mono" style="color: rgba(255, 255, 255, 0.2)">#</span>
-        <span class="text-xs font-medium truncate" style="color: rgba(255, 255, 255, 0.6)">{{
+        <span class="text-xs font-mono" style="color: var(--ink-faint)">#</span>
+        <span class="text-xs font-medium truncate" style="color: var(--ink-soft)">{{
           post.name
         }}</span>
       </button>
     </div>
 
     <!-- New post -->
-    <div class="flex-shrink-0 p-2.5" style="border-top: 1px solid rgba(255, 255, 255, 0.06)">
+    <div class="flex-shrink-0 p-2.5" style="border-top: 1px solid var(--surface-tinted)">
       <div v-if="showNewPost" class="flex flex-col gap-1.5">
         <input
           v-model="newPostName"
           type="text"
           class="w-full rounded-xl px-2.5 py-1.5 text-xs outline-none"
           style="
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            color: rgba(255, 255, 255, 0.8);
+            background: var(--surface-tinted);
+            border: 1px solid var(--surface-border);
+            color: var(--ink-soft);
           "
           placeholder="Nom du post…"
           maxlength="100"
@@ -139,7 +139,7 @@ async function submitPost() {
           </button>
           <button
             class="rounded-xl px-2.5 py-1.5 text-xs"
-            style="background: rgba(255, 255, 255, 0.05); color: rgba(255, 255, 255, 0.35)"
+            style="background: var(--surface-tinted); color: var(--ink-faint)"
             @click="
               showNewPost = false;
               newPostName = '';
@@ -154,9 +154,9 @@ async function submitPost() {
         v-else
         class="w-full rounded-xl py-1.5 text-xs font-medium transition-all"
         style="
-          background: rgba(255, 255, 255, 0.04);
-          border: 1px solid rgba(255, 255, 255, 0.07);
-          color: rgba(255, 255, 255, 0.4);
+          background: var(--surface-tinted);
+          border: 1px solid var(--surface-border);
+          color: var(--ink-muted);
         "
         @mouseenter="($event.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.7)'"
         @mouseleave="($event.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.4)'"
@@ -173,6 +173,6 @@ async function submitPost() {
   transition: background 120ms;
 }
 .post-row:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--surface-tinted);
 }
 </style>
