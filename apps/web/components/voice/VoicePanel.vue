@@ -65,13 +65,13 @@ const currentTextChannel = computed(() => {
             <p class="text-xs font-semibold leading-tight text-green-400">
               {{ t('voice.connected') }}
             </p>
-            <p class="truncate text-xs leading-tight" style="color: rgba(255, 255, 255, 0.35)">
+            <p class="truncate text-xs leading-tight" style="color: var(--ink-faint)">
               {{ store.current?.name }} / {{ currentChannel?.name }}
             </p>
           </div>
           <button
             class="flex-shrink-0 rounded-lg p-1.5 transition-colors"
-            style="color: rgba(255, 255, 255, 0.3)"
+            style="color: var(--ink-faint)"
             :title="t('voice.leave')"
             @mouseenter="($event.currentTarget as HTMLElement).style.color = 'rgb(248,113,113)'"
             @mouseleave="
@@ -94,7 +94,7 @@ const currentTextChannel = computed(() => {
             :style="
               isMuted
                 ? 'background:rgba(239,68,68,0.18);color:rgb(248,113,113)'
-                : 'background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.5)'
+                : 'background:var(--surface-tinted);color:var(--ink-muted)'
             "
             :title="isMuted ? t('voice.unmute') : t('voice.mute')"
             @click="toggleMute"
@@ -119,7 +119,7 @@ const currentTextChannel = computed(() => {
             :style="
               isDeafened
                 ? 'background:rgba(239,68,68,0.18);color:rgb(248,113,113)'
-                : 'background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.5)'
+                : 'background:var(--surface-tinted);color:var(--ink-muted)'
             "
             :title="isDeafened ? t('voice.undeafen') : t('voice.deafen')"
             @click="toggleDeafen"
@@ -144,7 +144,7 @@ const currentTextChannel = computed(() => {
             :style="
               isCameraOn
                 ? 'background:rgba(99,102,241,0.18);color:rgb(129,140,248)'
-                : 'background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.5)'
+                : 'background:var(--surface-tinted);color:var(--ink-muted)'
             "
             :title="isCameraOn ? t('voice.disableCamera') : t('voice.enableCamera')"
             @click="toggleCamera"
@@ -167,7 +167,7 @@ const currentTextChannel = computed(() => {
             :style="
               isScreenSharing
                 ? 'background:rgba(99,102,241,0.18);color:rgb(129,140,248)'
-                : 'background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.5)'
+                : 'background:var(--surface-tinted);color:var(--ink-muted)'
             "
             :title="isScreenSharing ? t('voice.stopSharing') : t('voice.shareScreen')"
             @click="toggleScreenShare"
@@ -184,7 +184,7 @@ const currentTextChannel = computed(() => {
         </div>
 
         <!-- Participants -->
-        <div style="height: 1px; margin: 0 12px; background: rgba(255, 255, 255, 0.06)" />
+        <div style="height: 1px; margin: 0 12px; background: var(--surface-tinted)" />
       </div>
     </Transition>
 
@@ -192,30 +192,27 @@ const currentTextChannel = computed(() => {
     <div class="flex items-center gap-2.5 px-2.5 py-2.5">
       <!-- Avatar + name (click → profile popup) -->
       <button
-        class="flex flex-1 min-w-0 items-center gap-2.5 text-left rounded-lg -mx-1 px-1 py-0.5 transition-colors hover:bg-white/[0.04]"
+        class="flex flex-1 min-w-0 items-center gap-2.5 text-left rounded-lg -mx-1 px-1 py-0.5 transition-colors hover:bg-surface-tinted"
         @click="openProfile"
       >
         <!-- Avatar + status dot -->
         <div class="relative flex-shrink-0">
           <div
-            class="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold text-white"
+            class="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold text-ink"
             style="background: linear-gradient(135deg, #6366f1, #4f46e5)"
           >
             {{ user?.name?.[0]?.toUpperCase() }}
           </div>
           <span
             class="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full"
-            style="border: 2px solid rgba(15, 15, 20, 0.9)"
+            style="border: 2px solid var(--surface-strong)"
             :style="{ background: currentChannelId ? '#22c55e' : 'rgba(255,255,255,0.2)' }"
           />
         </div>
 
         <!-- Name + status text -->
         <div class="flex-1 min-w-0">
-          <p
-            class="truncate text-xs font-semibold leading-tight"
-            style="color: rgba(255, 255, 255, 0.9)"
-          >
+          <p class="truncate text-xs font-semibold leading-tight" style="color: var(--ink)">
             {{ user?.name }}
           </p>
           <p
@@ -280,8 +277,8 @@ const currentTextChannel = computed(() => {
         </button>
 
         <button
-          class="rounded-xl p-1.5 transition-all duration-150 hover:bg-white/[0.06]"
-          style="color: rgba(255, 255, 255, 0.35)"
+          class="rounded-xl p-1.5 transition-all duration-150 hover:bg-surface-tinted"
+          style="color: var(--ink-faint)"
           :title="t('voice.accountSettings')"
           @click="showUserSettings = true"
         >
@@ -310,10 +307,10 @@ const currentTextChannel = computed(() => {
           top: profileTop + 'px',
           transform: 'translateY(-100%)',
           minWidth: '240px',
-          background: 'rgba(10, 10, 16, 0.95)',
+          background: 'var(--surface-strong)',
           backdropFilter: 'blur(28px) saturate(160%)',
           WebkitBackdropFilter: 'blur(28px) saturate(160%)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
+          border: '1px solid var(--surface-border)',
           boxShadow: '0 16px 48px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)',
         }"
         @mousedown.stop
@@ -321,7 +318,7 @@ const currentTextChannel = computed(() => {
         <!-- Header: avatar + name + email -->
         <div class="flex items-center gap-3 px-3 py-3">
           <div
-            class="h-11 w-11 flex-shrink-0 rounded-full flex items-center justify-center text-base font-bold text-white"
+            class="h-11 w-11 flex-shrink-0 rounded-full flex items-center justify-center text-base font-bold text-ink"
             style="background: linear-gradient(135deg, #6366f1, #4f46e5)"
           >
             {{ user?.name?.[0]?.toUpperCase() }}
@@ -333,20 +330,17 @@ const currentTextChannel = computed(() => {
             >
               {{ user?.name }}
             </p>
-            <p
-              class="truncate text-[11px] leading-tight mt-0.5"
-              style="color: rgba(255, 255, 255, 0.4)"
-            >
+            <p class="truncate text-[11px] leading-tight mt-0.5" style="color: var(--ink-muted)">
               {{ user?.email }}
             </p>
           </div>
         </div>
 
-        <div class="mx-2 my-1" style="height: 1px; background: rgba(255, 255, 255, 0.06)" />
+        <div class="mx-2 my-1" style="height: 1px; background: var(--surface-tinted)" />
 
         <!-- Sign out -->
         <button
-          class="flex items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-white/[0.05]"
+          class="flex items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-surface-tinted"
           @click="handleSignOut"
         >
           <div
@@ -359,7 +353,7 @@ const currentTextChannel = computed(() => {
               />
             </svg>
           </div>
-          <span class="text-xs font-medium" style="color: rgba(255, 255, 255, 0.85)">
+          <span class="text-xs font-medium" style="color: var(--ink)">
             {{ t('voice.signOut') }}
           </span>
         </button>
@@ -379,13 +373,13 @@ const currentTextChannel = computed(() => {
   height: 100%;
   overflow: hidden;
   border-radius: 16px;
-  background: rgba(15, 15, 20, 0.78);
+  background: var(--surface-strong);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--surface-border);
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    0 8px 32px rgba(20, 35, 25, 0.45),
+    inset 0 1px 0 var(--surface-tinted);
 }
 
 .voice-section-enter-active,

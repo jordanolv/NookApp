@@ -131,7 +131,7 @@ function initial(name: string) {
   transition: background-color 0.15s;
 }
 .voice-member:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--surface-tinted);
 }
 
 .voice-member__avatar-wrap {
@@ -187,7 +187,7 @@ function initial(name: string) {
 }
 
 .voice-member__you {
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--ink-faint);
   font-weight: 400;
 }
 
@@ -206,7 +206,7 @@ function initial(name: string) {
 .voice-members-empty {
   padding: 8px;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--ink-faint);
   text-align: center;
 }
 </style>

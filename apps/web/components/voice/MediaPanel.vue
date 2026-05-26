@@ -164,31 +164,29 @@ onBeforeUnmount(() => {
       <div
         class="relative rounded-2xl overflow-hidden flex flex-col"
         style="
-          background: rgba(12, 12, 18, 0.88);
+          background: var(--surface-strong);
           backdrop-filter: blur(24px) saturate(180%);
           -webkit-backdrop-filter: blur(24px) saturate(180%);
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          border: 1px solid var(--surface-border);
           box-shadow:
-            0 8px 32px rgba(0, 0, 0, 0.6),
-            inset 0 1px 0 rgba(255, 255, 255, 0.06);
+            0 8px 32px rgba(20, 35, 25, 0.55),
+            inset 0 1px 0 var(--surface-tinted);
         "
       >
         <!-- Drag handle -->
         <div
           class="flex items-center gap-2 px-3 py-2 cursor-grab active:cursor-grabbing shrink-0"
-          style="border-bottom: 1px solid rgba(255, 255, 255, 0.06)"
+          style="border-bottom: 1px solid var(--surface-tinted)"
           @mousedown="onDragStart"
         >
           <span
             class="h-1.5 w-1.5 rounded-full animate-pulse"
             style="background: rgb(99, 102, 241)"
           />
-          <p class="text-xs font-semibold flex-1" style="color: rgba(255, 255, 255, 0.6)">
-            En direct
-          </p>
+          <p class="text-xs font-semibold flex-1" style="color: var(--ink-soft)">En direct</p>
           <button
             class="rounded-md p-0.5 transition-colors"
-            style="color: rgba(255, 255, 255, 0.35)"
+            style="color: var(--ink-faint)"
             title="Fermer"
             @mousedown.stop
             @click="voice.closeMediaPanel()"
@@ -220,8 +218,8 @@ onBeforeUnmount(() => {
           <div
             class="absolute bottom-2 left-2 rounded-md px-2 py-0.5 text-xs font-medium"
             style="
-              background: rgba(0, 0, 0, 0.6);
-              color: rgba(255, 255, 255, 0.9);
+              background: rgba(20, 35, 25, 0.55);
+              color: var(--ink);
               backdrop-filter: blur(4px);
             "
           >
@@ -249,7 +247,7 @@ onBeforeUnmount(() => {
               width: 72px;
               height: 54px;
               background: #111118;
-              border: 1px solid rgba(255, 255, 255, 0.08);
+              border: 1px solid var(--surface-border);
             "
             @click="focusedKey = feed.key"
           >
@@ -263,11 +261,7 @@ onBeforeUnmount(() => {
             />
             <div
               class="absolute bottom-0 inset-x-0 px-1 py-0.5 text-center truncate"
-              style="
-                font-size: 9px;
-                color: rgba(255, 255, 255, 0.7);
-                background: rgba(0, 0, 0, 0.55);
-              "
+              style="font-size: 9px; color: var(--ink-soft); background: rgba(0, 0, 0, 0.55)"
             >
               {{ feed.name }}
             </div>
