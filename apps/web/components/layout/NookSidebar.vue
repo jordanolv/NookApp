@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { Component } from 'vue';
-import type { CategoryPublic, ChannelPublic } from '@nookapp/protocol';
+import type { ChannelPublic } from '@nookapp/protocol';
 import type { useSidebar } from '~/composables/useSidebar';
 import type { HomePinKind } from '~/composables/useHomePins';
 
@@ -11,102 +11,87 @@ interface SidebarSectionDef {
   key: string;
   label: string;
   icon: Component;
+  mode?: 'panel' | 'toggle';
+  active?: boolean;
+  onToggle?: () => void;
 }
 
 const props = defineProps<{
-  side: 'left' | 'right';
   sidebar: Sidebar;
   sections: SidebarSectionDef[];
-  channels: ChannelPublic[];
-  categories: CategoryPublic[];
-  activeChannelIds: Set<string>;
-  currentVoiceId: string | null;
-  canManage: boolean;
   serverId: string;
-  serverName: string;
-  bannerUrl: string | null;
-  alwaysShow?: boolean;
 }>();
 
 const emit = defineEmits<{
-  'select-channel': [channel: ChannelPublic, e: MouseEvent];
-  'edit-channel': [channelId: string];
-  'edit-category': [categoryId: string];
-  'open-server-switcher': [e: MouseEvent];
-  'open-server-menu': [e: MouseEvent];
-  'create-channel': [];
   'open-pinned': [channel: ChannelPublic, kind: HomePinKind];
+  'minimap-teleport': [x: number, y: number];
+  'reorder-sections': [fromKey: string, toKey: string];
 }>();
 
-const otherSide = computed<'left' | 'right'>(() => (props.side === 'left' ? 'right' : 'left'));
-const keys = computed(() =>
-  props.side === 'left' ? props.sidebar.leftKeys.value : props.sidebar.rightKeys.value,
-);
-const otherKeys = computed(() =>
-  props.side === 'left' ? props.sidebar.rightKeys.value : props.sidebar.leftKeys.value,
+const { user } = useAuth();
+const { store } = useServers();
+const { currentMap } = useMap();
+const voice = useVoice();
+const presence = usePresence();
+
+const voiceChannels = computed(() =>
+  store.channels.filter((c) => c.type === 'voice' && c.serverId === props.serverId),
 );
 
-const visible = computed(
-  () =>
-    keys.value.length > 0 ||
-    props.sidebar.serverHeaderSide.value === props.side ||
-    props.sidebar.userDockSide.value === props.side ||
-    !!props.alwaysShow,
-);
+const detachedKeys = computed(() => new Set(props.sidebar.detached.value.map((w) => w.sectionKey)));
+
+function onToggleSection(key: string) {
+  const section = props.sections.find((s) => s.key === key);
+  if (section?.mode === 'toggle') {
+    section.onToggle?.();
+    return;
+  }
+  props.sidebar.toggleSection(key);
+}
 </script>
 
 <template>
   <LayoutSideBar
-    v-if="visible"
-    :side="side"
     :sections="sections"
-    :keys="keys"
     :active-keys="sidebar.activeSet.value"
+    :detached-keys="detachedKeys"
     :section-heights="sidebar.sectionHeights.value"
-    :server-name="serverName"
-    :banner-url="bannerUrl"
-    :always-show="alwaysShow"
-    :show-server-header="sidebar.serverHeaderSide.value === side"
-    :show-user-dock="sidebar.userDockSide.value === side"
-    :other-side-has-sections="otherKeys.length > 0"
-    @toggle-section="sidebar.toggleSection"
-    @toggle-key="(key) => sidebar.setSectionSide(key, otherSide)"
-    @toggle-server-header="sidebar.setServerHeaderSide(otherSide)"
-    @toggle-user-dock="sidebar.setUserDockSide(otherSide)"
+    @toggle-section="onToggleSection"
     @set-section-height="sidebar.setSectionHeight"
-    @open-server-switcher="(e) => emit('open-server-switcher', e)"
-    @open-server-menu="(e) => emit('open-server-menu', e)"
+    @detach-section="(key, x, y) => sidebar.detachSection(key, { initialX: x, initialY: y })"
+    @reorder-sections="(from, to) => emit('reorder-sections', from, to)"
   >
-    <template #user-dock><LayoutUserDock /></template>
-
-    <template #channels-action>
-      <button
-        type="button"
-        class="section__close"
-        title="Créer un channel"
-        @click="emit('create-channel')"
-      >
-        +
-      </button>
-    </template>
-
-    <template #channels>
-      <LayoutChannelsList
-        :channels="channels"
-        :categories="categories"
-        :active-channel-ids="activeChannelIds"
-        :current-voice-id="currentVoiceId"
-        :can-manage="canManage"
-        @select="(ch, e) => emit('select-channel', ch, e)"
-        @edit-channel="(id) => emit('edit-channel', id)"
-        @edit-category="(id) => emit('edit-category', id)"
-      />
-    </template>
-
     <template #members><HomeMembersList :server-id="serverId" /></template>
-
     <template #pinned>
       <HomePinsList :server-id="serverId" @open="(ch, kind) => emit('open-pinned', ch, kind)" />
     </template>
+    <template #map>
+      <div class="minimap-host">
+        <div class="minimap-square">
+          <WorldMinimap
+            embedded
+            :map-data="currentMap"
+            :voice-channels="voiceChannels"
+            :players="presence.players.value"
+            :voice-members="presence.voiceMembers.value"
+            :current-user-id="user?.id ?? null"
+            :current-user-name="user?.name ?? null"
+            :current-voice-channel-id="voice.currentChannelId.value"
+            @teleport-to="(x, y) => emit('minimap-teleport', x, y)"
+          />
+        </div>
+      </div>
+    </template>
   </LayoutSideBar>
 </template>
+
+<style scoped>
+.minimap-host {
+  padding: 12px;
+  min-width: 0;
+}
+.minimap-square {
+  width: 100%;
+  aspect-ratio: 1;
+}
+</style>
