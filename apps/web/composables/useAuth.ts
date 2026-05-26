@@ -35,6 +35,25 @@ export function useAuth() {
     });
   }
 
+  async function requestPasswordReset(email: string) {
+    await $fetch(`${authBase}/request-password-reset`, {
+      method: 'POST',
+      body: {
+        email,
+        redirectTo: `${window.location.origin}/auth/reset-password`,
+      },
+      credentials: 'include',
+    });
+  }
+
+  async function resetPassword(token: string, newPassword: string) {
+    await $fetch(`${authBase}/reset-password`, {
+      method: 'POST',
+      body: { token, newPassword },
+      credentials: 'include',
+    });
+  }
+
   async function signOut() {
     await $fetch(`${authBase}/sign-out`, {
       method: 'POST',
@@ -43,5 +62,15 @@ export function useAuth() {
     store.setUser(null);
   }
 
-  return { user, isAuthenticated, ready, signIn, signUp, signOut, refreshUser };
+  return {
+    user,
+    isAuthenticated,
+    ready,
+    signIn,
+    signUp,
+    signOut,
+    refreshUser,
+    requestPasswordReset,
+    resetPassword,
+  };
 }
