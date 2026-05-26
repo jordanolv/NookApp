@@ -21,6 +21,7 @@ const props = defineProps<{
   currentUserId?: string | null;
   currentUserName?: string | null;
   currentVoiceChannelId?: string | null;
+  embedded?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -98,14 +99,21 @@ function onZoneClick(ch: ChannelPublic) {
 <template>
   <div
     class="minimap"
-    :class="{ 'minimap--dragging': position.dragging.value }"
-    :style="{
-      left: `${position.pos.value.x}px`,
-      top: `${position.pos.value.y}px`,
-      width: `${SIZE}px`,
-      height: `${SIZE}px`,
+    :class="{
+      'minimap--dragging': position.dragging.value,
+      'minimap--embedded': embedded,
     }"
-    @pointerdown="position.onPointerDown"
+    :style="
+      embedded
+        ? { position: 'static', width: '100%', height: '100%', borderRadius: '14px' }
+        : {
+            left: `${position.pos.value.x}px`,
+            top: `${position.pos.value.y}px`,
+            width: `${SIZE}px`,
+            height: `${SIZE}px`,
+          }
+    "
+    @pointerdown="embedded ? undefined : position.onPointerDown($event)"
   >
     <svg class="minimap__svg" :viewBox="viewBoxStr" preserveAspectRatio="xMidYMid meet">
       <path v-if="floorPath" :d="floorPath" fill="rgba(243, 234, 212, 0.5)" />
@@ -219,6 +227,12 @@ function onZoneClick(ch: ChannelPublic) {
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
   touch-action: none;
+}
+.minimap--embedded {
+  cursor: default;
+  box-shadow: none;
+  background: var(--surface-tinted);
+  border: 1px solid var(--surface-border);
 }
 .minimap--dragging {
   cursor: grabbing;

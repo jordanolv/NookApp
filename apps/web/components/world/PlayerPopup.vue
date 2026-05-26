@@ -50,8 +50,12 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
       left: `${x}px`,
       top: `${y}px`,
       transform: 'translateX(-50%) translateY(calc(-100% - 12px))',
-      background: 'linear-gradient(180deg, #2a2734 0%, #1d1b26 100%)',
-      boxShadow: '0 18px 40px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06) inset',
+      background: 'var(--surface-strong)',
+      border: '1px solid var(--surface-border)',
+      boxShadow: 'var(--shadow-lift)',
+      backdropFilter: 'blur(20px) saturate(1.4)',
+      WebkitBackdropFilter: 'blur(20px) saturate(1.4)',
+      color: 'var(--ink)',
     }"
     @click.stop
   >
@@ -81,8 +85,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
           width: 68px;
           height: 68px;
           background: linear-gradient(135deg, #6f3cff, #ff6fbf);
-          border-color: #1d1b26;
-          box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+          border-color: var(--surface-strong);
+          box-shadow: 0 6px 18px rgba(20, 35, 25, 0.45);
         "
       >
         {{ initials }}
@@ -94,8 +98,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
             bottom: -2px;
             width: 16px;
             height: 16px;
-            background: #2bd47b;
-            border-color: #1d1b26;
+            background: var(--accent-leaf);
+            border-color: var(--surface-strong);
             box-shadow: 0 0 6px rgba(43, 212, 123, 0.7);
           "
         />
@@ -104,8 +108,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
 
     <!-- Body -->
     <div class="pb-0 pl-5 pr-5 pt-12">
-      <p class="text-lg font-bold" style="color: #f3f0ff">{{ name }}</p>
-      <p class="mt-0.5 text-xs" style="color: #8a90a8">En ligne</p>
+      <p class="text-lg font-bold" :style="{ color: 'var(--ink)' }">{{ name }}</p>
+      <p class="mt-0.5 text-xs" :style="{ color: 'var(--ink-muted)' }">En ligne</p>
     </div>
 
     <!-- Actions -->
@@ -132,7 +136,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown));
 
       <button
         class="flex w-full items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-semibold transition-colors"
-        style="background: rgba(255, 255, 255, 0.08); color: #f3f0ff"
+        :style="{ background: 'var(--surface-tinted)', color: 'var(--ink)' }"
         @click="emit('close')"
       >
         👋 Wave

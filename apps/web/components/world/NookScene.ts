@@ -29,9 +29,15 @@ import { CellPaintTool } from './scene/cell-paint-tool';
 import { RectPaintTool } from './scene/rect-paint-tool';
 import { WallRenderer, WALL_TEXTURE_KEYS } from './scene/wall-renderer';
 import { getRoomTemplate } from './scene/room-templates';
-import { normalizeWallFrame } from './scene/wall-catalog';
+import {
+  DEFAULT_WALL_FRAME,
+  normalizeWallFrame,
+  themeOfFrame,
+  WALL_SHEET,
+  type WallThemeBlock,
+} from './scene/wall-catalog';
 
-export type BuildTool = 'tile' | 'wall' | 'room' | 'decor';
+export type BuildTool = 'tile' | 'wall' | 'room' | 'decor' | 'erase';
 
 export interface WallCellPayload {
   x: number;
@@ -63,6 +69,11 @@ export interface DecorPlacePayload {
 }
 
 export interface DecorRemovePayload {
+  x: number;
+  y: number;
+}
+
+export interface CellErasePayload {
   x: number;
   y: number;
 }
@@ -183,7 +194,9 @@ export class NookScene extends Phaser.Scene {
   private selectedDecor: string | null = null;
   private selectedFloor: string = 'office_floor_light';
   private selectedWallFrame: number = 33;
+  private selectedRoomTheme: WallThemeBlock = themeOfFrame(DEFAULT_WALL_FRAME);
   private selectedRoomTemplate: string = 'drywall_small';
+  private eraseDragLastTile: { x: number; y: number } | null = null;
   private roomGhost?: Phaser.GameObjects.Graphics;
   private roomCustomTool?: RectPaintTool;
   private decorGhost: Phaser.GameObjects.Image[] = [];
@@ -388,6 +401,11 @@ export class NookScene extends Phaser.Scene {
     if (id) this.selectedRoomTemplate = id;
   }
 
+  setSelectedRoomTheme(theme: WallThemeBlock) {
+    if (!theme) return;
+    this.selectedRoomTheme = { col: theme.col, row: theme.row };
+  }
+
   setSelectedDecor(assetId: string | null) {
     this.selectedDecor = assetId;
     this.rebuildDecorGhost();
@@ -522,6 +540,11 @@ export class NookScene extends Phaser.Scene {
           templateId: this.selectedRoomTemplate,
         } satisfies RoomTemplatePayload);
       }
+      return;
+    }
+    if (this.buildTool === 'erase') {
+      this.eraseDragLastTile = { x: tx, y: ty };
+      this.events.emit('cell-erase', { x: tx, y: ty } satisfies CellErasePayload);
     }
   }
 
@@ -538,6 +561,14 @@ export class NookScene extends Phaser.Scene {
     if (this.buildTool === 'wall') {
       const result = this.wallPaintTool?.move(tx, ty, this.isWallPresentAt(tx, ty));
       if (result) this.emitWallCell(result.x, result.y, result.mode);
+      return;
+    }
+    if (this.buildTool === 'erase') {
+      if (!this.isBuildActive() || !pointer.isDown || !this.eraseDragLastTile) return;
+      if (tx < 0 || ty < 0 || tx >= WORLD_COLS || ty >= WORLD_ROWS) return;
+      if (this.eraseDragLastTile.x === tx && this.eraseDragLastTile.y === ty) return;
+      this.eraseDragLastTile = { x: tx, y: ty };
+      this.events.emit('cell-erase', { x: tx, y: ty } satisfies CellErasePayload);
       return;
     }
     if (this.buildTool === 'room') {
@@ -564,6 +595,10 @@ export class NookScene extends Phaser.Scene {
       this.wallPaintTool?.end();
       return;
     }
+    if (this.buildTool === 'erase') {
+      this.eraseDragLastTile = null;
+      return;
+    }
     if (this.buildTool === 'room' && this.selectedRoomTemplate === ROOM_CUSTOM_ID) {
       const tool = this.roomCustomTool;
       if (!tool) return;
@@ -575,7 +610,7 @@ export class NookScene extends Phaser.Scene {
           y1: result.y1,
           x2: result.x2,
           y2: result.y2,
-          themeFrame: this.selectedWallFrame,
+          themeFrame: this.selectedRoomTheme.row * WALL_SHEET.cols + this.selectedRoomTheme.col,
         } satisfies RoomCustomPayload);
       }
     }

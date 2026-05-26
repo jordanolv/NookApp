@@ -85,6 +85,10 @@ export interface RoomStampCell {
  *   y=2..H-2 sides:     (1,5) left              | (6,5) right
  *   y=H-1   bottom:     (2,5) | (3,5)×N         | (5,5)
  * Requires w >= 3, h >= 4.
+ *
+ * The room is rendered one cell taller than the requested h — LimeZu front-wall
+ * sprites occupy only the top half of their cell, so the extra row makes the
+ * visible wall sit at the bottom of the user's intended bounding box.
  */
 export function stampRoomCells(
   x: number,
@@ -97,7 +101,7 @@ export function stampRoomCells(
   const out: RoomStampCell[] = [];
   const f = (cc: number, rr: number) => (theme.row + rr) * WALL_SHEET.cols + (theme.col + cc);
   const x2 = x + w - 1;
-  const y2 = y + h - 1;
+  const y2 = y + h;
 
   out.push({ x, y, frame: f(1, 1) });
   out.push({ x: x2, y, frame: f(6, 1) });

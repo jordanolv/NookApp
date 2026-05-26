@@ -7,6 +7,7 @@ import {
   type BuildTool,
   type DecorPlacePayload,
   type DecorRemovePayload,
+  type CellErasePayload,
   type WallCellPayload,
   type RoomTemplatePayload,
   type RoomCustomPayload,
@@ -44,6 +45,7 @@ const props = defineProps<{
   selectedDecor?: string | null;
   selectedFloor?: string | null;
   selectedWallFrame?: number | null;
+  selectedRoomTheme?: { col: number; row: number } | null;
   selectedRoomTemplate?: string | null;
   sidebarSide?: 'left' | 'right' | null;
 }>();
@@ -57,6 +59,7 @@ const emit = defineEmits<{
   'room-custom-stamp': [payload: RoomCustomPayload];
   'decor-place': [payload: DecorPlacePayload];
   'decor-remove': [payload: DecorRemovePayload];
+  'cell-erase': [payload: CellErasePayload];
 }>();
 
 const serversStore = useServers().store;
@@ -129,6 +132,13 @@ watch(
 watch(
   () => props.selectedRoomTemplate ?? 'drywall_small',
   (v) => _scene?.setSelectedRoomTemplate(v),
+);
+watch(
+  () => props.selectedRoomTheme,
+  (v) => {
+    if (v) _scene?.setSelectedRoomTheme(v);
+  },
+  { deep: true },
 );
 watch(
   () => character.appearance.value,
@@ -250,6 +260,7 @@ onMounted(() => {
     );
     scene.events.on('decor-place', (p: DecorPlacePayload) => emit('decor-place', p));
     scene.events.on('decor-remove', (p: DecorRemovePayload) => emit('decor-remove', p));
+    scene.events.on('cell-erase', (p: CellErasePayload) => emit('cell-erase', p));
 
     scene.events.on(
       'player:interact',
@@ -272,6 +283,7 @@ onMounted(() => {
     scene.setSelectedFloor(props.selectedFloor ?? 'office_floor_light');
     scene.setSelectedWallFrame(props.selectedWallFrame ?? 33);
     scene.setSelectedRoomTemplate(props.selectedRoomTemplate ?? 'drywall_small');
+    if (props.selectedRoomTheme) scene.setSelectedRoomTheme(props.selectedRoomTheme);
     if (props.buildMode) scene.setBuildMode(true);
 
     cameraOffset.apply();

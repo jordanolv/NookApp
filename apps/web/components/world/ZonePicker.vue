@@ -87,8 +87,8 @@ const dragRect = computed(() => {
     <div
       class="absolute top-4 left-1/2 -translate-x-1/2 rounded-xl px-4 py-2 text-xs font-medium pointer-events-none"
       style="
-        background: rgba(12, 12, 18, 0.85);
-        color: rgba(255, 255, 255, 0.8);
+        background: var(--surface-strong);
+        color: var(--ink-soft);
         border: 1px solid rgba(99, 102, 241, 0.4);
       "
     >
@@ -98,9 +98,9 @@ const dragRect = computed(() => {
     <button
       class="absolute top-4 right-4 rounded-xl px-3 py-1.5 text-xs font-medium"
       style="
-        background: rgba(12, 12, 18, 0.85);
-        color: rgba(255, 255, 255, 0.5);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: var(--surface-strong);
+        color: var(--ink-muted);
+        border: 1px solid var(--surface-tinted);
       "
       @click.stop="emit('zone-cancel')"
     >
