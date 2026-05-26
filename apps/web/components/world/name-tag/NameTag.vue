@@ -19,8 +19,17 @@ const dotStyle = computed(() => {
 
 <template>
   <div
-    class="pointer-events-none absolute z-10 -translate-x-1/2 flex items-center gap-1.5 rounded-full px-2.5 py-[3px] text-[11px] font-semibold text-white/95 whitespace-nowrap shadow-[0_4px_10px_rgba(0,0,0,0.45)] backdrop-blur-md bg-zinc-900/70 ring-1 ring-white/10"
-    :style="{ left: x + 'px', top: y + 'px' }"
+    class="pointer-events-none absolute z-10 -translate-x-1/2 flex items-center gap-1.5 rounded-md px-2 py-[2px] text-[11px] font-semibold whitespace-nowrap"
+    :style="{
+      left: x + 'px',
+      top: y + 'px',
+      background: 'var(--surface)',
+      color: 'var(--ink)',
+      border: '1px solid var(--surface-border)',
+      backdropFilter: 'blur(28px) saturate(1.6)',
+      WebkitBackdropFilter: 'blur(28px) saturate(1.6)',
+      boxShadow: 'var(--shadow-soft)',
+    }"
   >
     <span
       v-if="activity"

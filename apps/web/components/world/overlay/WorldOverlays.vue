@@ -39,15 +39,7 @@ defineProps<{
       :x="b.x"
       :y="b.y"
     />
-    <VoiceRoomLabel
-      v-for="r in voiceRooms"
-      :key="r.channelId"
-      :name="r.name"
-      :members="r.members"
-      :speaking-user-ids="r.speakingUserIds"
-      :x="r.x"
-      :y="r.y"
-    />
+    <VoiceRoomLabel v-for="r in voiceRooms" :key="r.channelId" :name="r.name" :x="r.x" :y="r.y" />
     <ObjectLabel v-for="l in objectLabels" :key="l.id" :label="l.label" :x="l.x" :y="l.y" />
   </div>
 </template>

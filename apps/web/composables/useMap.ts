@@ -12,6 +12,7 @@ import {
   DEFAULT_WALL_FRAME,
   stampRoomCells,
   themeOfFrame,
+  type WallThemeBlock,
 } from '~/components/world/scene/wall-catalog';
 import { DEFAULT_ROOM_TEMPLATE_ID, getRoomTemplate } from '~/components/world/scene/room-templates';
 
@@ -29,6 +30,7 @@ const buildTool = ref<BuildTool>('tile');
 const selectedDecor = ref<string | null>(null);
 const selectedFloor = ref<string>('office_floor_light');
 const selectedWallFrame = ref<number>(DEFAULT_WALL_FRAME);
+const selectedRoomTheme = ref<WallThemeBlock>(themeOfFrame(DEFAULT_WALL_FRAME));
 const selectedRoomTemplate = ref<string>(DEFAULT_ROOM_TEMPLATE_ID);
 const isSynced = ref(false);
 const isSaving = ref(false);
@@ -102,6 +104,7 @@ export function useMap() {
     selectedDecor.value = null;
     selectedFloor.value = 'office_floor_light';
     selectedWallFrame.value = DEFAULT_WALL_FRAME;
+    selectedRoomTheme.value = themeOfFrame(DEFAULT_WALL_FRAME);
     selectedRoomTemplate.value = DEFAULT_ROOM_TEMPLATE_ID;
     if (!isSynced.value) currentMap.value = DEFAULT_MAP;
 
@@ -230,6 +233,27 @@ export function useMap() {
     });
   }
 
+  function eraseCell(x: number, y: number) {
+    if (x < 0 || y < 0 || x > 199 || y > 199) return;
+    ydoc.transact(() => {
+      const floors = floorsArray.toArray().filter((cell) => cell.x !== x || cell.y !== y);
+      if (floors.length !== floorsArray.length) {
+        floorsArray.delete(0, floorsArray.length);
+        if (floors.length) floorsArray.insert(0, floors);
+      }
+      const walls = wallsArray.toArray().filter((cell) => cell.x !== x || cell.y !== y);
+      if (walls.length !== wallsArray.length) {
+        wallsArray.delete(0, wallsArray.length);
+        if (walls.length) wallsArray.insert(0, walls);
+      }
+      const decor = decorArray.toArray().filter((item) => item.x !== x || item.y !== y);
+      if (decor.length !== decorArray.length) {
+        decorArray.delete(0, decorArray.length);
+        if (decor.length) decorArray.insert(0, decor);
+      }
+    });
+  }
+
   return {
     currentMap,
     buildMode,
@@ -237,6 +261,7 @@ export function useMap() {
     selectedDecor,
     selectedFloor,
     selectedWallFrame,
+    selectedRoomTheme,
     selectedRoomTemplate,
     isSynced: readonly(isSynced),
     isSaving: readonly(isSaving),
@@ -248,5 +273,6 @@ export function useMap() {
     clearWallsRect,
     placeDecor,
     removeDecorAt,
+    eraseCell,
   };
 }

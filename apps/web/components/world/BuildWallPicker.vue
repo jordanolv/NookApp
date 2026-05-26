@@ -17,12 +17,14 @@ const ROOM_CUSTOM_TEMPLATE_ID = 'custom';
 const props = defineProps<{
   tool: 'wall' | 'room' | string;
   selectedWallFrame?: number;
+  selectedRoomTheme?: WallThemeBlock;
 }>();
 
 const emit = defineEmits<{
   'update:selected-wall-frame': [frame: number];
+  'update:selected-room-theme': [theme: WallThemeBlock];
   'update:selected-room-template': [id: string];
-  'update:tool': [tool: 'room'];
+  'update:tool': [tool: 'wall' | 'room'];
 }>();
 
 const themeCellPx = 28;
@@ -35,7 +37,10 @@ const roomPreviewSize = 5;
 const activeFrame = computed(() =>
   normalizeWallFrame(props.selectedWallFrame ?? DEFAULT_WALL_FRAME),
 );
-const activeTheme = computed(() => themeOfFrame(activeFrame.value));
+const activeWallTheme = computed(() => themeOfFrame(activeFrame.value));
+const activeRoomTheme = computed<WallThemeBlock>(
+  () => props.selectedRoomTheme ?? themeOfFrame(DEFAULT_WALL_FRAME),
+);
 
 function textureCellStyle(frame: number, cellPx: number): CSSProperties {
   const col = frame % WALL_SHEET.cols;
@@ -61,7 +66,9 @@ function roomPreviewCellStyle(cell: RoomStampCell): CSSProperties {
 
 function roomPreviewFloorCells() {
   const cells: Array<{ x: number; y: number }> = [];
-  for (let y = 2; y < roomPreviewSize - 1; y += 1) {
+  // Interior spans y=2..h-1 because stampRoomCells renders an extra row below
+  // for the front wall's offset; the preview mirrors that.
+  for (let y = 2; y <= roomPreviewSize - 1; y += 1) {
     for (let x = 1; x < roomPreviewSize - 1; x += 1) {
       cells.push({ x, y });
     }
@@ -85,7 +92,7 @@ function roomPreviewCells(theme: WallThemeBlock) {
 }
 
 function pickThemeForRoom(theme: WallThemeBlock) {
-  emit('update:selected-wall-frame', (theme.row + 1) * WALL_SHEET.cols + theme.col + 1);
+  emit('update:selected-room-theme', { col: theme.col, row: theme.row });
   emit('update:selected-room-template', ROOM_CUSTOM_TEMPLATE_ID);
   emit('update:tool', 'room');
 }
@@ -118,6 +125,7 @@ function onThemeStripClick(ev: MouseEvent, theme: { col: number; row: number }) 
   const frame = (theme.row + cy) * WALL_SHEET.cols + (theme.col + cx);
   if (frame < 0 || frame >= WALL_SHEET_FRAMES) return;
   emit('update:selected-wall-frame', frame);
+  if (props.tool !== 'wall') emit('update:tool', 'wall');
 }
 </script>
 
@@ -133,11 +141,21 @@ function onThemeStripClick(ev: MouseEvent, theme: { col: number; row: number }) 
         class="rounded-lg p-2"
         :style="{
           boxShadow:
-            activeTheme.col === theme.col && activeTheme.row === theme.row
+            (tool === 'wall' &&
+              activeWallTheme.col === theme.col &&
+              activeWallTheme.row === theme.row) ||
+            (tool === 'room' &&
+              activeRoomTheme.col === theme.col &&
+              activeRoomTheme.row === theme.row)
               ? 'inset 0 0 0 1.5px rgba(165,180,252,0.9)'
               : 'inset 0 0 0 1px rgba(255,255,255,0.06)',
           background:
-            activeTheme.col === theme.col && activeTheme.row === theme.row
+            (tool === 'wall' &&
+              activeWallTheme.col === theme.col &&
+              activeWallTheme.row === theme.row) ||
+            (tool === 'room' &&
+              activeRoomTheme.col === theme.col &&
+              activeRoomTheme.row === theme.row)
               ? 'rgba(99,102,241,0.13)'
               : 'rgba(255,255,255,0.035)',
         }"
@@ -147,13 +165,18 @@ function onThemeStripClick(ev: MouseEvent, theme: { col: number; row: number }) 
             class="relative shrink-0 rounded-md overflow-hidden transition-transform active:scale-[0.98]"
             :style="{
               width: `${roomPreviewSize * roomPreviewCellPx}px`,
-              height: `${roomPreviewSize * roomPreviewCellPx}px`,
+              height: `${(roomPreviewSize + 1) * roomPreviewCellPx}px`,
               background:
                 'linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), rgba(255,255,255,0.035)',
               backgroundSize: `${roomPreviewCellPx}px ${roomPreviewCellPx}px`,
-              boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)',
+              boxShadow:
+                tool === 'room' &&
+                activeRoomTheme.col === theme.col &&
+                activeRoomTheme.row === theme.row
+                  ? 'inset 0 0 0 2px rgba(165,180,252,0.95), 0 0 0 2px rgba(99,102,241,0.35)'
+                  : 'inset 0 0 0 1px rgba(255,255,255,0.08)',
             }"
-            title="Créer une room avec ce thème"
+            title="Créer une pièce préfaite avec ce thème"
             @click="pickThemeForRoom(theme)"
           >
             <span
@@ -170,11 +193,11 @@ function onThemeStripClick(ev: MouseEvent, theme: { col: number; row: number }) 
             />
           </button>
           <div class="min-w-0 flex-1">
-            <p class="text-[10px] font-semibold uppercase tracking-wide text-white/45">
-              Preview room
+            <p class="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
+              Pièce préfaite
             </p>
-            <p class="mt-1 text-[10px] leading-tight text-white/30">
-              Clique la miniature pour créer une room avec ce thème.
+            <p class="mt-1 text-[10px] leading-tight text-ink-faint">
+              Clique la miniature pour créer une pièce avec ce thème.
             </p>
           </div>
         </div>
@@ -207,7 +230,7 @@ function onThemeStripClick(ev: MouseEvent, theme: { col: number; row: number }) 
             }"
           />
           <div
-            v-if="frameInTheme(activeFrame, theme)"
+            v-if="tool === 'wall' && frameInTheme(activeFrame, theme)"
             class="absolute pointer-events-none"
             :style="{
               left: `${frameInTheme(activeFrame, theme)!.col * themeCellPx}px`,
@@ -225,13 +248,13 @@ function onThemeStripClick(ev: MouseEvent, theme: { col: number; row: number }) 
     <p
       v-if="tool === 'room'"
       class="mt-2 text-[10px] leading-tight"
-      style="color: rgba(255, 255, 255, 0.35)"
+      style="color: var(--ink-faint)"
     >
       Glisse un rectangle sur la map. Clique Mur pour revenir à la pose case par case.
     </p>
-    <p v-else class="mt-2 text-[10px] leading-tight" style="color: rgba(255, 255, 255, 0.35)">
-      Clique une miniature pour créer une room avec ce thème, ou clique une tuile pour poser des
-      murs case par case.
+    <p v-else class="mt-2 text-[10px] leading-tight" style="color: var(--ink-faint)">
+      Clique une miniature pour créer une pièce préfaite, ou clique une tuile pour poser des murs
+      case par case.
     </p>
   </div>
 </template>

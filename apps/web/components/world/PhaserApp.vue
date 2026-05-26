@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
 import type { ChannelPublic } from '@nookapp/protocol';
 import type { useChatTabs } from '~/composables/useChatTabs';
 import type { useVoice } from '~/composables/useVoice';
@@ -29,6 +29,7 @@ const {
   selectedDecor,
   selectedFloor,
   selectedWallFrame,
+  selectedRoomTheme,
   selectedRoomTemplate,
   isSaving: isMapSaving,
   paintRect,
@@ -37,6 +38,7 @@ const {
   stampCustomRoom,
   placeDecor,
   removeDecorAt,
+  eraseCell,
 } = useMap();
 
 const widgetWindows = useFloatingChannels({ width: 720, height: 560 });
@@ -44,6 +46,7 @@ const topicWindows = useFloatingChannels({ width: 760, height: 600 });
 const forumPanel = ref<{ channelId: string; channelName: string } | null>(null);
 
 const worldRef = ref<{ teleport: unknown } | null>(null);
+const showMap = ref(false);
 
 // ── Channel routing inside Phaser mode ─────────────────────────────────
 function toggleForumPanel(channelId: string, channelName: string) {
@@ -124,6 +127,9 @@ function onDecorPlace(p: { asset: string; x: number; y: number }) {
 function onDecorRemove(p: { x: number; y: number }) {
   if (canEdit()) removeDecorAt(p.x, p.y);
 }
+function onCellErase(p: { x: number; y: number }) {
+  if (canEdit()) eraseCell(p.x, p.y);
+}
 
 // ── Zone picker (after creating a voice channel) ───────────────────────
 const zonePickerActive = ref(false);
@@ -149,7 +155,15 @@ function onChannelCreated(channelId: string, type: string) {
   }
 }
 
-defineExpose({ openChannel, openTopicWindow, onChannelCreated });
+function openMap() {
+  showMap.value = true;
+}
+
+function teleport(x: number, y: number) {
+  onMinimapTeleport(x, y);
+}
+
+defineExpose({ openChannel, openTopicWindow, onChannelCreated, openMap, teleport });
 
 // ── Minimap + spawn-on-leave teleport ──────────────────────────────────
 const SPAWN_PX = { x: 35 * 32 + 16, y: 35 * 32 + 16 };
@@ -180,8 +194,6 @@ onUnmounted(() => {
   // Reset build mode when leaving Phaser (e.g. switching to classic interface).
   if (buildMode.value) buildMode.value = false;
 });
-
-const showBuildToggle = computed(() => props.canManageMap);
 </script>
 
 <template>
@@ -198,6 +210,7 @@ const showBuildToggle = computed(() => props.canManageMap);
       :selected-decor="selectedDecor"
       :selected-floor="selectedFloor"
       :selected-wall-frame="selectedWallFrame"
+      :selected-room-theme="selectedRoomTheme"
       :selected-room-template="selectedRoomTemplate"
       sidebar-side="left"
       @zone-picked="onZonePicked"
@@ -208,21 +221,24 @@ const showBuildToggle = computed(() => props.canManageMap);
       @room-custom-stamp="onRoomCustomStamp"
       @decor-place="onDecorPlace"
       @decor-remove="onDecorRemove"
+      @cell-erase="onCellErase"
     />
   </ClientOnly>
 
-  <ClientOnly>
-    <WorldMinimap
-      :map-data="currentMap ?? null"
-      :voice-channels="voiceChannels"
-      :players="presence.players.value"
-      :voice-members="presence.voiceMembers.value"
-      :current-user-id="user.id"
-      :current-user-name="user.name"
-      :current-voice-channel-id="voice.currentChannelId.value"
-      @teleport-to="onMinimapTeleport"
-    />
-  </ClientOnly>
+  <WorldHudVoiceMembersHere />
+
+  <WorldHudMapOverlay
+    v-if="showMap"
+    :map-data="currentMap ?? null"
+    :voice-channels="voiceChannels"
+    :players="presence.players.value"
+    :voice-members="presence.voiceMembers.value"
+    :current-user-id="user.id"
+    :current-user-name="user.name"
+    :current-voice-channel-id="voice.currentChannelId.value"
+    @close="showMap = false"
+    @teleport-to="onMinimapTeleport"
+  />
 
   <ChatTabBar
     v-if="chatTabs.tabIds.value.length"
@@ -287,21 +303,6 @@ const showBuildToggle = computed(() => props.canManageMap);
     @drag-end="(x: number, y: number) => topicWindows.updatePosition(w.channelId, x, y)"
   />
 
-  <button
-    v-if="showBuildToggle"
-    class="build-toggle"
-    :class="{ 'build-toggle--active': buildMode }"
-    :title="buildMode ? 'Quitter le mode build (B)' : 'Activer le mode build (B)'"
-    @click="toggleBuildMode"
-  >
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-      <path
-        d="M22 9l-3.39-.34-1.46-3.15-2.91 1.81L11 6l-1.24 3.32-2.91-1.81L5.39 10.66 2 11l1.81 2.91L2 16.83l3.39.34 1.46 3.15 2.91-1.81L11 22l1.24-3.32 2.91 1.81 1.46-3.15L22 17l-1.81-2.91z"
-      />
-    </svg>
-    <span>{{ buildMode ? 'Quitter' : 'Build' }}</span>
-  </button>
-
   <ClientOnly>
     <WorldBuildPanel
       v-if="canManageMap && buildMode"
@@ -310,49 +311,15 @@ const showBuildToggle = computed(() => props.canManageMap);
       :selected-decor="selectedDecor"
       :selected-floor="selectedFloor"
       :selected-wall-frame="selectedWallFrame"
+      :selected-room-theme="selectedRoomTheme"
       :selected-room-template="selectedRoomTemplate"
       @update:tool="buildTool = $event"
       @update:selected-decor="selectedDecor = $event"
       @update:selected-floor="selectedFloor = $event"
       @update:selected-wall-frame="selectedWallFrame = $event"
+      @update:selected-room-theme="selectedRoomTheme = $event"
       @update:selected-room-template="selectedRoomTemplate = $event"
       @close="toggleBuildMode"
     />
   </ClientOnly>
 </template>
-
-<style scoped>
-.build-toggle {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  background: rgba(15, 15, 20, 0.78);
-  color: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-  cursor: pointer;
-  transition:
-    background 120ms,
-    color 120ms,
-    box-shadow 120ms;
-}
-
-.build-toggle--active {
-  background: rgba(99, 102, 241, 0.92);
-  color: white;
-  border-color: rgba(165, 180, 252, 0.5);
-  box-shadow:
-    0 8px 24px rgba(99, 102, 241, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
-}
-</style>

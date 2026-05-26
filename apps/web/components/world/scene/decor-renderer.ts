@@ -4,6 +4,10 @@ import { getDecorAsset } from './decor-catalog';
 import type { MapModel } from './map-model';
 
 const SCALE = 2;
+// Sub-pixel depth bump so decor always wins Y-sort ties against walls at the
+// same cell — walls get re-created on every map change and would otherwise
+// jump above the older decor sprite in Phaser's display list.
+const DECOR_DEPTH_OFFSET = 0.5;
 
 export function decorCellTextureKey(decorId: string, dx: number, dy: number) {
   return `decor:${decorId}:${dx},${dy}`;
@@ -50,13 +54,14 @@ export class DecorRenderer {
         if (prev) {
           prev.setTexture(textureKey);
           prev.setPosition(cx, cy);
-          prev.setDepth(cy);
+          prev.setDepth(cy + DECOR_DEPTH_OFFSET);
+          this.scene.children.bringToTop(prev);
         } else {
           list[i] = this.scene.add
             .image(cx, cy, textureKey)
             .setOrigin(0.5, 1)
             .setScale(SCALE)
-            .setDepth(cy);
+            .setDepth(cy + DECOR_DEPTH_OFFSET);
         }
 
         const collider = this.scene.add.zone(
