@@ -84,7 +84,7 @@ services:
       - traefik.http.services.${STACK_NAME}-collab.loadbalancer.server.port=4234
 
   postgres:
-    image: postgres:18-alpine
+    image: postgres:17-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
