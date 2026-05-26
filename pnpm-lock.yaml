@@ -98,6 +98,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(kysely@0.28.16)(postgres@3.4.9)
+      express:
+        specifier: ^4.22.1
+        version: 4.22.1
       livekit-server-sdk:
         specifier: ^2.15.2
         version: 2.15.2
@@ -5852,6 +5855,7 @@ packages:
 
   lucide-vue-next@1.0.0:
     resolution: {integrity: sha512-V6SPvx1IHTj/UY+FrIYWV5faISsPSb8BnWSFDxAtezWKvWc9ZZ40PDrdu1/Qb5vg4lHWr1hs1BAMGVGm6V1Xdg==}
+    deprecated: Package deprecated. Please use @lucide/vue instead.
     peerDependencies:
       vue: '>=3.0.1'
 
