@@ -49,9 +49,11 @@ services:
       LIVEKIT_URL: wss://${DOMAIN}/livekit
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
-      MAIL_DRIVER: resend
+      MAIL_DRIVER: ${MAIL_DRIVER:-mailpit}
       MAIL_FROM: ${MAIL_FROM}
-      RESEND_API_KEY: ${RESEND_API_KEY}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAILPIT_HOST: ${MAILPIT_HOST:-mailpit}
+      MAILPIT_PORT: ${MAILPIT_PORT:-1025}
       NUXT_PUBLIC_WEB_URL: https://${DOMAIN}
     expose:
       - '4000'
