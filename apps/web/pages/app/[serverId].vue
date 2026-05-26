@@ -115,7 +115,7 @@ async function joinOrLeaveVoice(channelId: string) {
 
 const readState = useChannelReadState();
 
-function handleChannelClick(ch: ChannelPublic, e: MouseEvent) {
+function handleChannelClick(ch: ChannelPublic, e: MouseEvent | KeyboardEvent) {
   if (ch.type === 'voice') {
     void joinOrLeaveVoice(ch.id);
     return;

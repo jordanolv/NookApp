@@ -28,7 +28,7 @@ defineProps<{
 }>();
 
 defineEmits<{
-  'select-channel': [channel: ChannelPublic, e: MouseEvent];
+  'select-channel': [channel: ChannelPublic, e: MouseEvent | KeyboardEvent];
   'edit-channel': [channelId: string];
   'edit-category': [categoryId: string];
   'open-server-switcher': [e: MouseEvent];

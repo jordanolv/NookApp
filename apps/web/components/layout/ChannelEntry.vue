@@ -10,12 +10,12 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  select: [channel: ChannelPublic, event: MouseEvent];
+  select: [channel: ChannelPublic, event: MouseEvent | KeyboardEvent];
   contextmenu: [channel: ChannelPublic, event: MouseEvent];
   'toggle-forum': [];
 }>();
 
-function onMainClick(e: MouseEvent) {
+function onMainClick(e: MouseEvent | KeyboardEvent) {
   if (props.channel.type === 'forum') emit('toggle-forum');
   else emit('select', props.channel, e);
 }

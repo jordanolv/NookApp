@@ -53,7 +53,7 @@ function toggleForumPanel(channelId: string, channelName: string) {
   forumPanel.value = forumPanel.value?.channelId === channelId ? null : { channelId, channelName };
 }
 
-function openChannel(ch: ChannelPublic, e?: MouseEvent) {
+function openChannel(ch: ChannelPublic, e?: MouseEvent | KeyboardEvent) {
   if (ch.type === 'forum') {
     e?.stopPropagation();
     toggleForumPanel(ch.id, ch.name);
