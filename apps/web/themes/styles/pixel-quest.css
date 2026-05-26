@@ -1,0 +1,74 @@
+/*
+ * Pixel quest — structural overrides.
+ *
+ * Token-only theming can't express:
+ *   - external font loading
+ *   - font-smoothing disabled (per-element CSS)
+ *   - image-rendering pixelated
+ *   - composite rules (uppercase + letter-spacing) on display elements
+ *
+ * Everything below is scoped to [data-theme='pixel-quest'] so it only
+ * activates when this theme is on.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+[data-theme='pixel-quest'] body {
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: auto;
+  font-smooth: never;
+  letter-spacing: 0;
+}
+
+/* Press Start 2P is wide — scale text down so existing layouts still breathe. */
+[data-theme='pixel-quest'] {
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+[data-theme='pixel-quest'] h1,
+[data-theme='pixel-quest'] h2,
+[data-theme='pixel-quest'] h3 {
+  letter-spacing: 0.02em;
+}
+
+/* Decor — pixel-perfect rendering for any in-DOM bitmap art. */
+[data-theme='pixel-quest'] img[src*='.png'],
+[data-theme='pixel-quest'] [style*='background-image'] {
+  image-rendering: pixelated;
+}
+
+/* Buttons & inputs — hard 2px outline + block shadow, no smooth focus ring. */
+[data-theme='pixel-quest'] button,
+[data-theme='pixel-quest'] input,
+[data-theme='pixel-quest'] textarea {
+  border: 2px solid var(--ink);
+  box-shadow: 3px 3px 0 var(--ink);
+  transition: none;
+}
+
+[data-theme='pixel-quest'] button:hover {
+  transform: translate(1px, 1px);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+[data-theme='pixel-quest'] button:active {
+  transform: translate(3px, 3px);
+  box-shadow: 0 0 0 var(--ink);
+}
+
+[data-theme='pixel-quest'] button:focus-visible,
+[data-theme='pixel-quest'] input:focus,
+[data-theme='pixel-quest'] textarea:focus {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 2px;
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+/* Disable rounded backdrops on transient overlays so they read as pixel UI. */
+[data-theme='pixel-quest'] [class*='modal'],
+[data-theme='pixel-quest'] [class*='picker'],
+[data-theme='pixel-quest'] [class*='card'] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
