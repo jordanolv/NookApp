@@ -182,6 +182,11 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     this.server.to(`server:${serverId}`).emit('voice:left', { userId, channelId });
   }
 
+  @SubscribeMessage('client:ping')
+  handleClientPing() {
+    return { t: Date.now() };
+  }
+
   emitToServer(serverId: string, event: string, payload: unknown) {
     this.server.to(`server:${serverId}`).emit(event, payload);
   }

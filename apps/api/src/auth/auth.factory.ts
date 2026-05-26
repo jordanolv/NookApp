@@ -37,6 +37,12 @@ export function createAuth({ db, mailer, env }: AuthFactoryDeps) {
       enabled: true,
       requireEmailVerification: true,
       autoSignIn: false,
+      sendResetPassword: async ({ user, url }) => {
+        await mailer.sendResetPasswordEmail(user.email, {
+          name: user.name,
+          resetUrl: url,
+        });
+      },
     },
     emailVerification: {
       sendOnSignUp: true,
