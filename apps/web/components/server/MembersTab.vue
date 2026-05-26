@@ -62,15 +62,15 @@ onMounted(refresh);
 
 <template>
   <div class="h-full overflow-y-auto p-5">
-    <div v-if="loading" class="text-xs text-white/50">
+    <div v-if="loading" class="text-xs text-ink-muted">
       {{ t('serverSettings.members.loading') }}
     </div>
     <div v-else>
       <div class="mb-4 flex items-center justify-between">
-        <h3 class="text-sm font-medium text-white">
+        <h3 class="text-sm font-medium text-ink">
           {{ t('serverSettings.members.title', { count: members.length }) }}
         </h3>
-        <button class="text-xs text-white/60 hover:text-white" :disabled="loading" @click="refresh">
+        <button class="text-xs text-ink-soft hover:text-ink" :disabled="loading" @click="refresh">
           {{ t('serverSettings.members.refresh') }}
         </button>
       </div>
@@ -81,7 +81,7 @@ onMounted(refresh);
         <li
           v-for="m in members"
           :key="m.id"
-          class="flex items-start gap-3 p-3 rounded border border-white/10"
+          class="flex items-start gap-3 p-3 rounded border border-surface-border"
           style="background: rgba(0, 0, 0, 0.15)"
         >
           <img
@@ -93,14 +93,14 @@ onMounted(refresh);
           <div
             v-else
             class="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-medium"
-            style="background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.7)"
+            style="background: var(--surface-border); color: var(--ink-soft)"
           >
             {{ m.user.name.slice(0, 1).toUpperCase() }}
           </div>
 
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 mb-1.5">
-              <span class="text-sm text-white truncate">{{ m.user.name }}</span>
+              <span class="text-sm text-ink truncate">{{ m.user.name }}</span>
               <span
                 v-if="m.isOwner"
                 class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300"
@@ -115,20 +115,20 @@ onMounted(refresh);
                 v-for="rid in m.roleIds"
                 :key="rid"
                 class="text-[11px] px-1.5 py-0.5 rounded inline-flex items-center gap-1"
-                style="background: rgba(255, 255, 255, 0.08)"
+                style="background: var(--surface-border)"
               >
                 <span
                   class="w-2 h-2 rounded-full"
                   :style="{ background: rolesById.get(rid)?.color ?? '#99aab5' }"
                 />
-                <span class="text-white/85">{{ rolesById.get(rid)?.name ?? '?' }}</span>
+                <span class="text-ink">{{ rolesById.get(rid)?.name ?? '?' }}</span>
               </span>
             </div>
 
             <!-- Role assignment toggles -->
             <details v-if="!m.isOwner && assignableRoles.length" class="group">
               <summary
-                class="text-xs text-white/50 hover:text-white cursor-pointer select-none list-none"
+                class="text-xs text-ink-muted hover:text-ink cursor-pointer select-none list-none"
               >
                 <span class="group-open:hidden">{{ t('serverSettings.members.assignRoles') }}</span>
                 <span class="hidden group-open:inline">{{
@@ -142,8 +142,8 @@ onMounted(refresh);
                   class="text-[11px] px-2 py-0.5 rounded border transition-colors disabled:opacity-50"
                   :class="
                     m.roleIds.includes(r.id)
-                      ? 'border-white/30 bg-white/10 text-white'
-                      : 'border-white/10 text-white/60 hover:bg-white/5'
+                      ? 'border-surface-border bg-surface-tinted text-ink'
+                      : 'border-surface-border text-ink-soft hover:bg-surface-tinted'
                   "
                   :disabled="savingMemberId === m.id"
                   @click="toggleRole(m, r.id)"

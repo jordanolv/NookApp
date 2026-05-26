@@ -30,7 +30,7 @@ const activeTab = ref<TabKey>('roles');
     <div class="h-full flex">
       <!-- Tabs sidebar -->
       <nav
-        class="w-44 flex-shrink-0 border-r border-white/10 p-2 space-y-0.5"
+        class="w-44 flex-shrink-0 border-r border-surface-border p-2 space-y-0.5"
         style="background: rgba(0, 0, 0, 0.2)"
       >
         <button
@@ -39,8 +39,8 @@ const activeTab = ref<TabKey>('roles');
           class="w-full text-left px-3 py-1.5 rounded text-sm transition-colors"
           :class="
             activeTab === tab.key
-              ? 'bg-white/15 text-white'
-              : 'text-white/60 hover:bg-white/5 hover:text-white'
+              ? 'bg-surface-tinted text-ink'
+              : 'text-ink-soft hover:bg-surface-tinted hover:text-ink'
           "
           @click="activeTab = tab.key"
         >
@@ -55,7 +55,7 @@ const activeTab = ref<TabKey>('roles');
         <div
           v-else-if="activeTab === 'general'"
           class="h-full flex items-center justify-center p-8 text-center text-xs"
-          style="color: rgba(255, 255, 255, 0.4)"
+          style="color: var(--ink-muted)"
         >
           {{ t('serverSettings.generalSoon') }}
         </div>

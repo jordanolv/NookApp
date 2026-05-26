@@ -59,11 +59,11 @@ defineEmits<{
   gap: 16px;
   padding: 24px;
   border-radius: 16px;
-  background: rgba(12, 12, 18, 0.98);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-strong);
+  border: 1px solid var(--surface-border);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 64px rgba(20, 35, 25, 0.55);
 }
 
 .modal__head {
@@ -76,19 +76,19 @@ defineEmits<{
   margin: 0;
   font-size: 13px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--ink);
 }
 
 .modal__close {
   background: transparent;
   border: none;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--ink-faint);
   font-size: 14px;
 }
 
 .modal__close:hover {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--ink-soft);
 }
 
 .modal__loading {
@@ -122,7 +122,7 @@ defineEmits<{
 .modal__hint {
   margin: 0;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--ink-faint);
 }
 
 .modal__field {
@@ -131,15 +131,15 @@ defineEmits<{
   gap: 8px;
   padding: 8px 12px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-tinted);
+  border: 1px solid var(--surface-border);
 }
 
 .modal__url {
   flex: 1;
   font-family: ui-monospace, 'SF Mono', monospace;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--ink-soft);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
