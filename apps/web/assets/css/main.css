@@ -1,10 +1,12 @@
+/* Theme system. The active theme's tokens are written to :root by
+   applyTheme() at runtime (see apps/web/themes/apply.ts). This manifest
+   provides shared defaults and per-theme structural overrides.
+   Imports must come before @tailwind directives (CSS spec). */
+@import '../../themes/styles/index.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-:root {
-  color-scheme: light dark;
-}
 
 html,
 body,
@@ -13,5 +15,9 @@ body,
 }
 
 body {
-  @apply bg-neutral-50 text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100;
+  background: var(--page-bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }

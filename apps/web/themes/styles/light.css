@@ -1,0 +1,10 @@
+/*
+ * Cozy paper — structural overrides.
+ *
+ * Tokens are applied by `applyTheme()`. Add rules here only for things that
+ * can't be expressed as a single value (selectors, pseudo-elements, keyframes,
+ * font imports, etc.).
+ */
+[data-theme='light'] {
+  /* nothing structural to override — pure token theme */
+}

@@ -1,0 +1,11 @@
+/*
+ * Theme stylesheet manifest.
+ *
+ * Imports the shared defaults and every theme's structural overrides.
+ * To register a new theme: add its CSS here AND register it in themes/index.ts.
+ */
+
+@import './_shared.css';
+@import './light.css';
+@import './dark.css';
+@import './pixel-quest.css';
