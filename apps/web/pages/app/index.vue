@@ -3,20 +3,31 @@ import type { CreateServerInput } from '@nookapp/protocol';
 
 definePageMeta({ layout: 'app' });
 
+const { t } = useI18n();
 const { store, fetchServers, createServer } = useServers();
-const { user } = useAuth();
+const { user, signOut } = useAuth();
 
 const showCreate = ref(false);
 const createName = ref('');
 const createError = ref('');
 const creating = ref(false);
+const menuOpen = ref(false);
 
 await fetchServers();
+
+function initials(name: string) {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? '')
+    .join('');
+}
 
 async function submitCreate() {
   const name = createName.value.trim();
   if (name.length < 2) {
-    createError.value = 'Name must be at least 2 characters';
+    createError.value = t('nooks.create.nameTooShort');
     return;
   }
   creating.value = true;
@@ -28,100 +39,116 @@ async function submitCreate() {
     await navigateTo(`/app/${server.id}`);
   } catch (e: unknown) {
     const err = e as { data?: { message?: string } };
-    createError.value = err.data?.message ?? 'Failed to create server';
+    createError.value = err.data?.message ?? t('nooks.create.failed');
   } finally {
     creating.value = false;
   }
 }
+
+async function onSignOut() {
+  menuOpen.value = false;
+  await signOut();
+  await navigateTo('/');
+}
 </script>
 
 <template>
-  <div class="flex h-full w-full flex-col">
-    <header class="flex items-center justify-between border-b border-neutral-800 px-6 py-4">
-      <h1 class="text-lg font-semibold">Your Nooks</h1>
-      <div class="flex items-center gap-3">
-        <span class="text-sm text-neutral-400">{{ user?.name }}</span>
-        <button
-          class="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium hover:bg-indigo-500 transition-colors"
-          @click="showCreate = true"
-        >
-          + New Nook
+  <div class="nooks">
+    <div class="nooks__grid" aria-hidden="true" />
+    <div class="nooks__blob nooks__blob--a" aria-hidden="true" />
+    <div class="nooks__blob nooks__blob--b" aria-hidden="true" />
+
+    <header class="nooks__header">
+      <div class="nooks__heading">
+        <h1 class="nooks__title">{{ t('nooks.title') }}</h1>
+        <p class="nooks__subtitle">{{ t('nooks.subtitle') }}</p>
+      </div>
+
+      <div class="nooks__actions">
+        <button class="nooks__btn nooks__btn--primary" @click="showCreate = true">
+          <span aria-hidden="true">+</span>
+          {{ t('nooks.newNook') }}
         </button>
+
+        <div class="nooks__user" @click.stop>
+          <button class="nooks__userchip" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen">
+            <span class="nooks__avatar">{{ initials(user?.name ?? '?') }}</span>
+            <span class="nooks__username">{{ user?.name }}</span>
+          </button>
+          <div v-if="menuOpen" class="nooks__menu" role="menu">
+            <button class="nooks__menu-item" role="menuitem" @click="onSignOut">
+              {{ t('nooks.signOut') }}
+            </button>
+          </div>
+        </div>
       </div>
     </header>
 
-    <main class="flex-1 overflow-y-auto p-6">
-      <div v-if="!store.ready" class="flex items-center justify-center h-48 text-neutral-500">
-        Loading…
-      </div>
+    <main class="nooks__main">
+      <div v-if="!store.ready" class="nooks__state">{{ t('nooks.loading') }}</div>
 
-      <div
-        v-else-if="store.list.length === 0"
-        class="flex flex-col items-center justify-center h-48 gap-3"
-      >
-        <p class="text-neutral-400">No Nook yet.</p>
-        <button
-          class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium hover:bg-indigo-500 transition-colors"
-          @click="showCreate = true"
-        >
-          Create your first Nook
+      <div v-else-if="store.list.length === 0" class="nooks__empty">
+        <div class="nooks__empty-art" aria-hidden="true">🏡</div>
+        <h2 class="nooks__empty-title">{{ t('nooks.empty.title') }}</h2>
+        <p class="nooks__empty-body">{{ t('nooks.empty.body') }}</p>
+        <button class="nooks__btn nooks__btn--primary" @click="showCreate = true">
+          {{ t('nooks.empty.cta') }}
         </button>
       </div>
 
-      <div v-else class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+      <div v-else class="nooks__cards">
         <NuxtLink
           v-for="server in store.list"
           :key="server.id"
           :to="`/app/${server.id}`"
-          class="group flex flex-col gap-3 rounded-xl border border-neutral-800 bg-neutral-800/50 p-5 hover:border-indigo-500 hover:bg-neutral-800 transition-all"
+          class="card"
         >
           <div
-            class="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 text-xl font-bold"
-          >
-            {{ server.name[0]?.toUpperCase() }}
+            v-if="server.iconUrl"
+            class="card__icon card__icon--image"
+            :style="{ backgroundImage: `url(${server.iconUrl})` }"
+          />
+          <div v-else class="card__icon">{{ initials(server.name) }}</div>
+
+          <div class="card__body">
+            <p class="card__name">{{ server.name }}</p>
+            <p class="card__slug">{{ server.slug }}</p>
           </div>
-          <div>
-            <p class="font-medium truncate">{{ server.name }}</p>
-            <p class="text-xs text-neutral-500 truncate">{{ server.slug }}</p>
-          </div>
+
+          <span class="card__arrow" aria-hidden="true">→</span>
         </NuxtLink>
       </div>
     </main>
 
     <Teleport to="body">
-      <div
-        v-if="showCreate"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-        @click.self="showCreate = false"
-      >
-        <div class="w-full max-w-md rounded-xl bg-neutral-800 p-6 shadow-2xl">
-          <h2 class="mb-4 text-lg font-semibold">Create a Nook</h2>
-          <form class="flex flex-col gap-4" @submit.prevent="submitCreate">
-            <div class="flex flex-col gap-1.5">
-              <label class="text-sm font-medium text-neutral-300">Server name</label>
+      <div v-if="showCreate" class="modal" @click.self="showCreate = false">
+        <div class="modal__panel">
+          <h2 class="modal__title">{{ t('nooks.create.title') }}</h2>
+          <form class="modal__form" @submit.prevent="submitCreate">
+            <div class="modal__field">
+              <label class="modal__label" for="server-name">
+                {{ t('nooks.create.nameLabel') }}
+              </label>
               <input
+                id="server-name"
                 v-model="createName"
                 type="text"
-                placeholder="My awesome team"
+                :placeholder="t('nooks.create.namePlaceholder')"
                 autofocus
-                class="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm placeholder-neutral-500 focus:border-indigo-500 focus:outline-none"
+                class="modal__input"
               />
-              <p v-if="createError" class="text-xs text-red-400">{{ createError }}</p>
+              <p v-if="createError" class="modal__error">{{ createError }}</p>
             </div>
-            <div class="flex justify-end gap-2">
+            <div class="modal__actions">
               <button
                 type="button"
-                class="rounded-lg px-4 py-2 text-sm text-neutral-400 hover:text-neutral-200 transition-colors"
+                class="nooks__btn nooks__btn--ghost"
                 @click="showCreate = false"
               >
-                Cancel
+                {{ t('nooks.create.cancel') }}
               </button>
-              <button
-                type="submit"
-                :disabled="creating"
-                class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium hover:bg-indigo-500 disabled:opacity-50 transition-colors"
-              >
-                {{ creating ? 'Creating…' : 'Create' }}
+              <button type="submit" :disabled="creating" class="nooks__btn nooks__btn--primary">
+                {{ creating ? t('nooks.create.submitLoading') : t('nooks.create.submit') }}
               </button>
             </div>
           </form>
@@ -130,3 +157,374 @@ async function submitCreate() {
     </Teleport>
   </div>
 </template>
+
+<style scoped>
+.nooks {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--page-bg);
+  color: var(--ink);
+  overflow: hidden;
+}
+
+.nooks__grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--surface-border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--surface-border) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(ellipse at 50% 0%, #000 25%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 0%, #000 25%, transparent 70%);
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+.nooks__blob {
+  position: absolute;
+  width: 440px;
+  height: 440px;
+  border-radius: 999px;
+  filter: blur(80px);
+  pointer-events: none;
+  opacity: 0.4;
+}
+.nooks__blob--a {
+  top: -160px;
+  left: -120px;
+  background: var(--accent-leaf-soft);
+}
+.nooks__blob--b {
+  top: -100px;
+  right: -160px;
+  background: var(--accent-cool-soft);
+}
+
+.nooks__header {
+  position: relative;
+  padding: 32px 48px 24px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.nooks__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nooks__title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: 0;
+}
+.nooks__subtitle {
+  font-size: 14px;
+  color: var(--ink-muted);
+  margin: 0;
+}
+
+.nooks__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nooks__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.nooks__btn:hover {
+  transform: translateY(-1px);
+}
+.nooks__btn--primary {
+  background: var(--ink);
+  color: var(--ink-inverse);
+}
+.nooks__btn--primary:hover {
+  background: var(--ink-soft);
+}
+.nooks__btn--ghost {
+  background: var(--surface-strong);
+  border-color: var(--surface-border);
+  color: var(--ink);
+}
+.nooks__btn--ghost:hover {
+  background: var(--surface-raised);
+}
+
+.nooks__user {
+  position: relative;
+}
+.nooks__userchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 6px;
+  border-radius: 999px;
+  background: var(--surface-strong);
+  border: 1px solid var(--surface-border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.nooks__userchip:hover {
+  background: var(--surface-raised);
+}
+.nooks__avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-leaf-soft);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+.nooks__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 180px;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--surface-strong);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-soft);
+  z-index: 30;
+}
+.nooks__menu-item {
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.nooks__menu-item:hover {
+  background: var(--surface-tinted);
+}
+
+.nooks__main {
+  position: relative;
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 48px 56px;
+}
+
+.nooks__state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 240px;
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+
+.nooks__empty {
+  margin: 40px auto;
+  max-width: 460px;
+  padding: 40px 28px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  background: var(--surface-strong);
+  border: 1px dashed var(--surface-divider);
+  border-radius: 20px;
+}
+.nooks__empty-art {
+  font-size: 48px;
+  width: 80px;
+  height: 80px;
+  display: grid;
+  place-items: center;
+  border-radius: 24px;
+  background: var(--accent-warm-soft);
+}
+.nooks__empty-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+}
+.nooks__empty-body {
+  font-size: 14px;
+  color: var(--ink-muted);
+  margin: 0;
+}
+
+.nooks__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--surface-strong);
+  border: 1px solid var(--surface-border);
+  color: var(--ink);
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease;
+  overflow: hidden;
+}
+.card:hover {
+  transform: translateY(-2px);
+  background: var(--surface-raised);
+  border-color: var(--surface-divider);
+}
+
+.card__icon {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-violet-soft);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.card__icon--image {
+  background-size: cover;
+  background-position: center;
+  color: transparent;
+}
+
+.card__body {
+  min-width: 0;
+  flex: 1;
+}
+.card__name {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card__slug {
+  font-size: 12px;
+  color: var(--ink-faint);
+  margin: 2px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card__arrow {
+  font-size: 16px;
+  color: var(--ink-faint);
+  transform: translateX(-4px);
+  opacity: 0;
+  transition:
+    transform 0.18s ease,
+    opacity 0.18s ease;
+}
+.card:hover .card__arrow {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: rgba(29, 42, 35, 0.36);
+  backdrop-filter: blur(6px);
+  padding: 24px;
+}
+.modal__panel {
+  width: 100%;
+  max-width: 440px;
+  padding: 24px;
+  border-radius: 18px;
+  background: var(--surface-strong);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-lift);
+}
+.modal__title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 16px;
+}
+.modal__form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.modal__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.modal__input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--surface-divider);
+  background: var(--surface-raised);
+  color: var(--ink);
+  font-size: 14px;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.modal__input:focus {
+  outline: none;
+  border-color: var(--accent-leaf);
+  background: var(--surface-strong);
+}
+.modal__error {
+  font-size: 12px;
+  color: var(--accent-rose);
+  margin: 0;
+}
+.modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+</style>
