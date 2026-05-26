@@ -33,14 +33,14 @@ ENV NODE_ENV=production \
 
 COPY --from=builder /prod/api/node_modules ./node_modules
 COPY --from=builder /prod/api/dist ./dist
-COPY --from=builder /repo/packages/db/drizzle ./drizzle
-COPY --from=builder /repo/packages/db/dist ./packages/db/dist
+COPY apps/api/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-RUN mkdir -p /app/uploads && chown -R node:node /app
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+ && mkdir -p /app/uploads \
+ && chown -R node:node /app
 
 USER node
 
 EXPOSE 4000 4234
 
-ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["node", "dist/main.js"]
+ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
