@@ -17,7 +17,10 @@ const emit = defineEmits<{
   select: [channel: ChannelPublic, event: MouseEvent];
   'edit-channel': [channelId: string];
   'edit-category': [categoryId: string];
+  'create-channel': [categoryId: string | null];
 }>();
+
+const UNGROUPED_KEY = '__ungrouped__';
 
 const collapsed = ref<Set<string>>(new Set());
 const expandedForums = ref<Set<string>>(new Set());
@@ -86,23 +89,40 @@ const grouped = computed(() =>
 
 <template>
   <div class="channels-list">
-    <div v-if="ungrouped.length" class="channels-list__cards">
-      <ChannelEntry
-        v-for="ch in ungrouped"
-        :key="ch.id"
-        :channel="ch"
-        :children="childrenOf(ch.id)"
-        :active-ids="activeChannelIds"
-        :forum-expanded="expandedForums.has(ch.id)"
-        @select="(c, e) => emit('select', c, e)"
-        @contextmenu="onChannelCtx"
-        @toggle-forum="toggleForum(ch.id)"
-      />
+    <div class="channels-list__group">
+      <div class="cat-header" :class="{ 'cat-header--collapsed': collapsed.has(UNGROUPED_KEY) }">
+        <button type="button" class="cat-header__toggle" @click="toggleCategory(UNGROUPED_KEY)">
+          <ChevronDown :size="12" class="cat-header__chevron" />
+          <span class="cat-header__name">Discussion</span>
+        </button>
+        <button
+          v-if="canManage"
+          type="button"
+          class="cat-header__add"
+          title="Créer un channel"
+          @click.stop="emit('create-channel', null)"
+        >
+          +
+        </button>
+      </div>
+      <div v-if="!collapsed.has(UNGROUPED_KEY)" class="channels-list__cards">
+        <ChannelEntry
+          v-for="ch in ungrouped"
+          :key="ch.id"
+          :channel="ch"
+          :children="childrenOf(ch.id)"
+          :active-ids="activeChannelIds"
+          :forum-expanded="expandedForums.has(ch.id)"
+          @select="(c, e) => emit('select', c, e)"
+          @contextmenu="onChannelCtx"
+          @toggle-forum="toggleForum(ch.id)"
+        />
+        <div v-if="!ungrouped.length" class="channels-list__empty">Aucun salon texte</div>
+      </div>
     </div>
 
     <div v-for="g in grouped" :key="g.category.id" class="channels-list__group">
-      <button
-        type="button"
+      <div
         class="cat-header"
         :class="{ 'cat-header--collapsed': collapsed.has(g.category.id) }"
         :style="
@@ -110,13 +130,27 @@ const grouped = computed(() =>
             ? { borderLeft: `3px solid ${g.category.color}`, paddingLeft: '5px' }
             : {}
         "
-        @click="toggleCategory(g.category.id)"
-        @contextmenu="onCategoryCtx(g.category, $event)"
       >
-        <Folder :size="12" class="cat-header__icon" />
-        <span class="cat-header__name">{{ g.category.name }}</span>
-        <ChevronDown :size="12" class="cat-header__chevron" />
-      </button>
+        <button
+          type="button"
+          class="cat-header__toggle"
+          @click="toggleCategory(g.category.id)"
+          @contextmenu="onCategoryCtx(g.category, $event)"
+        >
+          <ChevronDown :size="12" class="cat-header__chevron" />
+          <Folder :size="12" class="cat-header__icon" />
+          <span class="cat-header__name">{{ g.category.name }}</span>
+        </button>
+        <button
+          v-if="canManage"
+          type="button"
+          class="cat-header__add"
+          title="Créer un channel"
+          @click.stop="emit('create-channel', g.category.id)"
+        >
+          +
+        </button>
+      </div>
       <div v-if="!collapsed.has(g.category.id)" class="channels-list__cards">
         <ChannelEntry
           v-for="ch in g.channels"
@@ -130,10 +164,6 @@ const grouped = computed(() =>
           @toggle-forum="toggleForum(ch.id)"
         />
       </div>
-    </div>
-
-    <div v-if="!ungrouped.length && !grouped.length" class="channels-list__empty">
-      Aucun salon texte
     </div>
 
     <Teleport to="body">
@@ -164,7 +194,6 @@ const grouped = computed(() =>
   display: flex;
   flex-direction: column;
   padding: 0;
-  gap: 6px;
 }
 
 .channels-list__group {
@@ -175,18 +204,54 @@ const grouped = computed(() =>
 .channels-list__cards {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 
 .cat-header {
   display: flex;
   align-items: center;
+  gap: 4px;
+  padding: 8px 6px 4px 8px;
+  color: var(--ink-muted);
+}
+.cat-header__toggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
   gap: 5px;
-  padding: 4px 8px;
+  padding: 0;
   background: transparent;
   border: none;
   cursor: pointer;
-  color: rgba(165, 180, 252, 0.75);
+  color: inherit;
+  opacity: 0.75;
+  transition: opacity 0.15s;
+  text-align: left;
+}
+.cat-header__toggle:hover {
+  opacity: 1;
+}
+.cat-header__add {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.7;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    opacity 0.15s;
+}
+.cat-header__add:hover {
+  background: var(--surface-tinted);
+  color: var(--ink);
+  opacity: 1;
 }
 .cat-header__icon {
   flex-shrink: 0;
@@ -212,7 +277,7 @@ const grouped = computed(() =>
   padding: 32px 12px;
   text-align: center;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--ink-faint);
   font-style: italic;
 }
 
@@ -221,10 +286,12 @@ const grouped = computed(() =>
   z-index: 200;
   min-width: 140px;
   padding: 4px;
-  border-radius: 8px;
-  background: rgba(10, 10, 16, 0.97);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  border-radius: 10px;
+  background: var(--surface-strong);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-lift);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
 }
 .ctx-menu__item {
   display: block;
@@ -232,15 +299,15 @@ const grouped = computed(() =>
   padding: 6px 10px;
   text-align: left;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--ink-soft);
   background: transparent;
   border: none;
-  border-radius: 5px;
+  border-radius: 6px;
   cursor: pointer;
   transition: background 100ms;
 }
 .ctx-menu__item:hover {
-  background: rgba(255, 255, 255, 0.07);
-  color: rgba(255, 255, 255, 0.95);
+  background: var(--surface-tinted-strong);
+  color: var(--ink);
 }
 </style>

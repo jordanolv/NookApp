@@ -48,7 +48,7 @@ function onMainClick(e: MouseEvent) {
   padding: 6px 8px 6px 28px;
   font-size: 10px;
   font-style: italic;
-  color: rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.02);
+  color: var(--ink-faint);
+  background: var(--surface-tinted);
 }
 </style>

@@ -14,6 +14,12 @@ export const mapZoneSchema = z.object({
 });
 export type MapZone = z.infer<typeof mapZoneSchema>;
 
+const channelColorSchema = z
+  .string()
+  .regex(/^#[0-9a-fA-F]{6}$/, 'Color must be a 6-digit hex string like #74b86f');
+
+const channelIconNameSchema = z.string().min(1).max(40);
+
 export const createChannelInputSchema = z.object({
   name: z.string().min(1).max(100),
   type: channelTypeSchema.default('text'),
@@ -22,6 +28,8 @@ export const createChannelInputSchema = z.object({
   mapZone: mapZoneSchema.optional(),
   widgetKind: widgetKindSchema.optional(),
   showStat: z.boolean().default(true),
+  color: channelColorSchema.nullable().optional(),
+  iconName: channelIconNameSchema.nullable().optional(),
 });
 export type CreateChannelInput = z.infer<typeof createChannelInputSchema>;
 
@@ -34,6 +42,8 @@ export const updateChannelInputSchema = z.object({
   bannerUrl: z.string().nullable().optional(),
   categoryId: z.string().nullable().optional(),
   showStat: z.boolean().optional(),
+  color: channelColorSchema.nullable().optional(),
+  iconName: channelIconNameSchema.nullable().optional(),
 });
 export type UpdateChannelInput = z.infer<typeof updateChannelInputSchema>;
 
@@ -50,6 +60,8 @@ export const channelPublicSchema = z.object({
   bannerUrl: z.string().nullable(),
   widgetKind: widgetKindSchema.nullable(),
   showStat: z.boolean(),
+  color: channelColorSchema.nullable(),
+  iconName: channelIconNameSchema.nullable(),
   createdAt: z.string().datetime(),
 });
 export type ChannelPublic = z.infer<typeof channelPublicSchema>;

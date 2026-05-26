@@ -58,6 +58,6 @@ const defaultComponent = computed(() => CHANNEL_TYPE_DEFAULTS[props.type ?? 'tex
     :size="sz"
     :stroke-width="1.75"
     class="flex-shrink-0"
-    style="color: rgba(255, 255, 255, 0.3)"
+    style="color: var(--ink-faint)"
   />
 </template>

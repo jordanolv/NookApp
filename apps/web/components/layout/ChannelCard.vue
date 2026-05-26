@@ -1,17 +1,12 @@
 <script setup lang="ts">
-import { computed, inject } from 'vue';
+import { computed, inject, nextTick, ref, watch } from 'vue';
 import type { ChannelPublic } from '@nookapp/protocol';
 import { ChevronDown } from 'lucide-vue-next';
 import { CHANNEL_CARD_DATA } from '~/composables/useChannelCardData';
-import {
-  iconForChannel,
-  authorAvatarStyle,
-  authorInitials,
-  authorLabel,
-  snippet,
-  formatCount,
-  formatRelativeTime,
-} from '~/utils/channel-format';
+import { useChannelReadState } from '~/composables/useChannelReadState';
+import { useChannelEditing } from '~/composables/useChannelEditing';
+import { useChannels } from '~/composables/useChannels';
+import { iconForChannel, formatCount } from '~/utils/channel-format';
 
 const props = defineProps<{
   channel: ChannelPublic;
@@ -21,36 +16,121 @@ const props = defineProps<{
 }>();
 
 defineEmits<{
-  click: [event: MouseEvent];
+  click: [event: MouseEvent | KeyboardEvent];
   contextmenu: [event: MouseEvent];
 }>();
 
 const data = inject(CHANNEL_CARD_DATA);
 if (!data) throw new Error('ChannelCard must be used inside a provider of CHANNEL_CARD_DATA');
 
+const readState = useChannelReadState();
 const lastMessage = computed(() => data.lastMessageOf(props.channel.id));
 const stat = computed(() => data.statOf(props.channel));
 const isForumHeader = computed(() => props.channel.type === 'forum' && !props.isChild);
+const unread = computed(() =>
+  readState.unreadCount(props.channel.id, lastMessage.value?.createdAt),
+);
+const unreadLabel = computed(() => (unread.value > 99 ? '99+' : String(unread.value)));
+const accent = computed(() => data.accent(props.channel));
+const cardVars = computed(() => ({ '--accent': `rgba(${accent.value}, 1)` }));
+
+const channelEditing = useChannelEditing();
+const { updateChannel } = useChannels();
+const isEditingName = computed(() => channelEditing.isEditing(props.channel.id));
+const draftName = ref(props.channel.name);
+const inputEl = ref<HTMLInputElement | null>(null);
+
+watch(isEditingName, async (v) => {
+  if (v) {
+    draftName.value = props.channel.name;
+    await nextTick();
+    inputEl.value?.focus();
+    inputEl.value?.select();
+  }
+});
+
+async function commitName() {
+  if (!isEditingName.value) return;
+  const trimmed = draftName.value.trim();
+  channelEditing.stopEditing();
+  if (!trimmed || trimmed === props.channel.name) return;
+  try {
+    await updateChannel(props.channel.serverId, props.channel.id, { name: trimmed });
+  } catch {
+    /* swallow — revert by leaving channel.name as-is */
+  }
+}
+
+function cancelEdit() {
+  draftName.value = props.channel.name;
+  channelEditing.stopEditing();
+}
+
+const stylePickerOpen = ref(false);
+const stylePickerPos = ref<{ left: number; top: number } | null>(null);
+
+function openStylePicker(e: MouseEvent) {
+  if (!import.meta.client) return;
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  stylePickerPos.value = { left: rect.right + 8, top: rect.top };
+  stylePickerOpen.value = true;
+}
+
+function closeStylePicker() {
+  stylePickerOpen.value = false;
+  stylePickerPos.value = null;
+}
+
+async function updateChannelStyle(patch: { color?: string | null; iconName?: string | null }) {
+  try {
+    await updateChannel(props.channel.serverId, props.channel.id, patch);
+  } catch {
+    /* ignore */
+  }
+}
 </script>
 
 <template>
-  <button
-    type="button"
+  <div
+    role="button"
+    tabindex="0"
     class="card"
     :class="{
       'card--child': isChild,
       'card--active': active,
       'card--forum-open': isForumHeader && forumOpen,
     }"
-    :style="data.cardStyle(channel)"
+    :data-channel-type="channel.type"
+    :style="[data.cardStyle(channel), cardVars]"
     @click="$emit('click', $event)"
+    @keydown.enter.prevent="$emit('click', $event)"
+    @keydown.space.prevent="$emit('click', $event)"
     @contextmenu="$emit('contextmenu', $event)"
   >
-    <div class="card__icon" :style="data.iconBg(channel)">
-      <component :is="iconForChannel(channel.type)" :size="isChild ? 12 : 14" stroke-width="2.4" />
-    </div>
+    <button
+      type="button"
+      class="card__icon"
+      :style="data.iconStyle(channel)"
+      :title="'Couleur & icône'"
+      @click.stop="openStylePicker($event)"
+    >
+      <component :is="iconForChannel(channel)" :size="13" stroke-width="2.4" />
+    </button>
+
     <div class="card__text">
-      <span class="card__name">
+      <input
+        v-if="isEditingName"
+        ref="inputEl"
+        v-model="draftName"
+        type="text"
+        class="card__name-input"
+        maxlength="100"
+        @click.stop
+        @keydown.enter.prevent="commitName"
+        @keydown.esc.prevent="cancelEdit"
+        @blur="commitName"
+      />
+      <span v-else class="card__name">
         {{ channel.name }}
         <ChevronDown
           v-if="isForumHeader"
@@ -59,24 +139,36 @@ const isForumHeader = computed(() => props.channel.type === 'forum' && !props.is
           :class="{ 'card__forum-chevron--open': forumOpen }"
         />
       </span>
-      <span v-if="lastMessage" class="card__last">
-        <span
-          class="card__author-avatar"
-          :style="authorAvatarStyle(lastMessage.authorId)"
-          :title="authorLabel(lastMessage.authorId)"
-        >
-          {{ authorInitials(lastMessage.authorId) }}
-        </span>
-        <span class="card__snippet">{{ snippet(lastMessage.content) }}</span>
-        <span class="card__time">{{ formatRelativeTime(lastMessage.createdAt) }}</span>
-      </span>
-      <span v-else class="card__last card__last--empty">Aucun message</span>
     </div>
+
+    <span v-if="unread > 0" class="card__unread" :title="`${unread} non lus`">
+      {{ unreadLabel }}
+    </span>
+
     <div v-if="channel.showStat && stat.label" class="card__stat">
       <span class="card__stat-num">{{ formatCount(stat.num) }}</span>
       <span class="card__stat-label">{{ stat.label }}</span>
     </div>
-  </button>
+  </div>
+
+  <Teleport to="body">
+    <template v-if="stylePickerOpen && stylePickerPos">
+      <div class="style-picker__veil" @click="closeStylePicker" @mousedown.stop />
+      <div
+        class="style-picker__pop"
+        :style="{ left: stylePickerPos.left + 'px', top: stylePickerPos.top + 'px' }"
+        @mousedown.stop
+        @click.stop
+      >
+        <ChannelStylePicker
+          :color="channel.color"
+          :icon-name="channel.iconName"
+          @update:color="(v) => updateChannelStyle({ color: v })"
+          @update:icon-name="(v) => updateChannelStyle({ iconName: v })"
+        />
+      </div>
+    </template>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -84,40 +176,105 @@ const isForumHeader = computed(() => props.channel.type === 'forum' && !props.is
   position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 0;
+  gap: 10px;
+  padding: 8px 10px;
   border: none;
+  background: transparent;
   cursor: pointer;
   text-align: left;
+  border-radius: 12px;
   overflow: hidden;
-  isolation: isolate;
+  transition: background-color 160ms;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 999px;
+  background: transparent;
+  transition: background 160ms;
+}
+
+.card:hover::before {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.card--active::before {
+  background: var(--accent);
 }
 
 .card--child {
-  padding-left: 24px;
+  margin-left: 20px;
 }
-.card--child::before {
-  content: '';
-  position: absolute;
-  left: 14px;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: rgba(255, 255, 255, 0.1);
-  z-index: 1;
+
+.card__icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+}
+.card__icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.card__text {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .card__name {
-  font-size: 12px;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.95);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+  letter-spacing: -0.01em;
+}
+.card:hover .card__name {
+  color: var(--ink);
+}
+.card--active .card__name {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.card__name-input {
+  flex: 1 1 0;
+  min-width: 0;
+  background: var(--surface-tinted-strong);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  outline: none;
+  letter-spacing: -0.01em;
+}
+
+.card__icon {
+  border: none;
+  cursor: pointer;
+}
+.card__icon:hover {
+  transform: scale(1.06);
+  transition: transform 0.12s;
 }
 
 .card__forum-chevron {
@@ -133,90 +290,21 @@ const isForumHeader = computed(() => props.channel.type === 'forum' && !props.is
   transform: rotate(-90deg);
 }
 
-.card::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    100deg,
-    rgba(15, 15, 22, 0.65) 0%,
-    rgba(15, 15, 22, 0.25) 50%,
-    transparent 100%
-  );
-  z-index: 0;
-}
-
-.card > * {
-  position: relative;
-  z-index: 1;
-}
-
-.card__icon {
-  width: 26px;
-  height: 26px;
+.card__unread {
   flex-shrink: 0;
-  border-radius: 7px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.25),
-    0 2px 6px rgba(0, 0, 0, 0.25);
-}
-
-.card__text {
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.card__last {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.65);
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-}
-.card__last--empty {
-  font-style: italic;
-  color: rgba(255, 255, 255, 0.35);
-}
-
-.card__author-avatar {
-  flex-shrink: 0;
-  width: 13px;
-  height: 13px;
-  border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 7px;
-  font-weight: 700;
-  color: white;
-  letter-spacing: -0.02em;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
-    0 1px 2px rgba(0, 0, 0, 0.25);
-}
-
-.card__snippet {
-  min-width: 0;
-  color: rgba(255, 255, 255, 0.6);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.card__time {
-  flex-shrink: 0;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
   font-size: 10px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.35);
+  font-weight: 700;
+  line-height: 1;
+  background: var(--accent-rose);
+  color: #fff;
+  letter-spacing: -0.02em;
 }
 
 .card__stat {
@@ -230,7 +318,7 @@ const isForumHeader = computed(() => props.channel.type === 'forum' && !props.is
 .card__stat-num {
   font-size: 14px;
   font-weight: 800;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--ink);
   letter-spacing: -0.02em;
 }
 .card__stat-label {
@@ -238,7 +326,28 @@ const isForumHeader = computed(() => props.channel.type === 'forum' && !props.is
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--ink-muted);
   margin-top: 2px;
+}
+</style>
+
+<style>
+.style-picker__veil {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+}
+.style-picker__pop {
+  position: fixed;
+  z-index: 81;
+  width: 220px;
+  padding: 14px;
+  background: var(--surface-strong);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-tile);
+  box-shadow: var(--shadow-lift);
+  backdrop-filter: blur(24px) saturate(1.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  color: var(--ink);
 }
 </style>

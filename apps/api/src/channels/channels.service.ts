@@ -26,6 +26,8 @@ function toChannelPublic(row: typeof channel.$inferSelect): ChannelPublic {
     bannerUrl: row.bannerUrl ?? null,
     widgetKind: (row.widgetKind as ChannelPublic['widgetKind']) ?? null,
     showStat: row.showStat,
+    color: row.color ?? null,
+    iconName: row.iconName ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -79,6 +81,8 @@ export class ChannelsService {
         mapZone: input.mapZone ?? null,
         widgetKind: input.type === 'widget' ? (input.widgetKind ?? null) : null,
         showStat: input.showStat ?? true,
+        color: input.color ?? null,
+        iconName: input.iconName ?? null,
       })
       .returning();
 
@@ -104,6 +108,8 @@ export class ChannelsService {
         ...(input.bannerUrl !== undefined && { bannerUrl: input.bannerUrl }),
         ...(input.categoryId !== undefined && { categoryId: input.categoryId }),
         ...(input.showStat !== undefined && { showStat: input.showStat }),
+        ...(input.color !== undefined && { color: input.color }),
+        ...(input.iconName !== undefined && { iconName: input.iconName }),
       })
       .where(and(eq(channel.id, channelId), eq(channel.serverId, serverId)))
       .returning();
