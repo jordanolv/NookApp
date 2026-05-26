@@ -5,17 +5,16 @@ defineProps<{
   serverId: string;
   serverName?: string | null;
   showSettings: boolean;
-  showCreate: boolean;
+  showPlugins: boolean;
   editingChannel: ChannelPublic | null;
   editingCategory: CategoryPublic | null;
 }>();
 
 defineEmits<{
   'update:showSettings': [v: boolean];
-  'update:showCreate': [v: boolean];
+  'update:showPlugins': [v: boolean];
   'update:editingChannel': [v: ChannelPublic | null];
   'update:editingCategory': [v: CategoryPublic | null];
-  'channel-created': [channelId: string, type: string];
 }>();
 </script>
 
@@ -27,11 +26,11 @@ defineEmits<{
     @close="$emit('update:showSettings', false)"
   />
 
-  <ChannelCreateChannelModal
-    v-if="showCreate"
+  <ServerPluginsModal
+    v-if="showPlugins"
     :server-id="serverId"
-    @close="$emit('update:showCreate', false)"
-    @created="(id, type) => $emit('channel-created', id, type)"
+    :server-name="serverName"
+    @close="$emit('update:showPlugins', false)"
   />
 
   <ChannelEditChannelModal

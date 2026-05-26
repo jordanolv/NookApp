@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Home, Mail, Settings, Check } from 'lucide-vue-next';
+import { Home, Mail, Settings, Check, Puzzle } from 'lucide-vue-next';
 import type { ServerPublic } from '@nookapp/protocol';
 
 defineProps<{
@@ -9,6 +9,7 @@ defineProps<{
   currentServerName?: string | null;
   top: number;
   left: number;
+  placement?: 'top' | 'bottom';
   isAdmin: boolean;
 }>();
 
@@ -17,6 +18,7 @@ defineEmits<{
   'switch-server': [id: string];
   invite: [];
   'open-settings': [];
+  'open-plugins': [];
 }>();
 
 const { t } = useI18n();
@@ -26,7 +28,12 @@ const { t } = useI18n();
   <Teleport to="body">
     <div v-if="mode" class="picker-veil" @click="$emit('close')" />
 
-    <div v-if="mode === 'switcher'" class="picker" :style="{ top: top + 'px', left: left + 'px' }">
+    <div
+      v-if="mode === 'switcher'"
+      class="picker"
+      :class="{ 'picker--above': placement === 'top' }"
+      :style="{ top: top + 'px', left: left + 'px' }"
+    >
       <p class="picker__hint">{{ t('serverPicker.switchNook') }}</p>
       <div class="picker__list">
         <button
@@ -55,7 +62,12 @@ const { t } = useI18n();
       </NuxtLink>
     </div>
 
-    <div v-else-if="mode === 'menu'" class="picker" :style="{ top: top + 'px', left: left + 'px' }">
+    <div
+      v-else-if="mode === 'menu'"
+      class="picker"
+      :class="{ 'picker--above': placement === 'top' }"
+      :style="{ top: top + 'px', left: left + 'px' }"
+    >
       <p class="picker__hint picker__hint--truncate">{{ currentServerName }}</p>
 
       <button
@@ -67,6 +79,17 @@ const { t } = useI18n();
       >
         <span class="picker__icon"><Mail :size="13" :stroke-width="2" /></span>
         <span class="picker__label">{{ t('serverPicker.invite') }}</span>
+      </button>
+
+      <button
+        class="picker__row"
+        @click="
+          $emit('close');
+          $emit('open-plugins');
+        "
+      >
+        <span class="picker__icon"><Puzzle :size="13" :stroke-width="2" /></span>
+        <span class="picker__label">{{ t('serverPicker.plugins') }}</span>
       </button>
 
       <button
@@ -94,18 +117,23 @@ const { t } = useI18n();
 .picker {
   position: fixed;
   z-index: 56;
+  transform-origin: top left;
+}
+.picker--above {
+  transform: translateY(-100%);
+  transform-origin: bottom left;
   display: flex;
   flex-direction: column;
   min-width: 220px;
   padding: 6px;
   border-radius: 12px;
-  background: rgba(20, 20, 28, 0.92);
+  background: var(--surface-strong);
   backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--surface-border);
   box-shadow:
-    0 12px 36px rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    0 12px 36px rgba(20, 35, 25, 0.45),
+    inset 0 1px 0 var(--surface-tinted);
 }
 
 .picker__hint {
@@ -115,7 +143,7 @@ const { t } = useI18n();
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--ink-muted);
 }
 
 .picker__hint--truncate {
@@ -140,7 +168,7 @@ const { t } = useI18n();
   border: none;
   cursor: pointer;
   text-align: left;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--ink-soft);
   font-size: 12px;
   font-weight: 500;
   transition:
@@ -149,17 +177,17 @@ const { t } = useI18n();
 }
 
 .picker__row:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.95);
+  background: var(--surface-tinted);
+  color: var(--ink);
 }
 
 .picker__row--active {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--surface-tinted);
 }
 
 .picker__row--ghost .picker__icon {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.45);
+  background: var(--surface-tinted);
+  color: var(--ink-muted);
 }
 
 .picker__avatar {
@@ -183,8 +211,8 @@ const { t } = useI18n();
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.55);
+  background: var(--surface-tinted);
+  color: var(--ink-muted);
   flex-shrink: 0;
 }
 
@@ -196,16 +224,16 @@ const { t } = useI18n();
 }
 
 .picker__label--muted {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--ink-muted);
 }
 
 .picker__check {
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--ink-muted);
 }
 
 .picker__sep {
   height: 1px;
   margin: 4px 8px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--surface-tinted);
 }
 </style>

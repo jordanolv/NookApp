@@ -139,13 +139,10 @@ onMounted(refresh);
   <div class="flex h-full">
     <!-- Roles list -->
     <div
-      class="w-60 flex-shrink-0 border-r border-white/10 flex flex-col"
+      class="w-60 flex-shrink-0 border-r border-surface-border flex flex-col"
       style="background: rgba(0, 0, 0, 0.15)"
     >
-      <div
-        class="px-3 py-2 text-[10px] uppercase tracking-wider"
-        style="color: rgba(255, 255, 255, 0.5)"
-      >
+      <div class="px-3 py-2 text-[10px] uppercase tracking-wider" style="color: var(--ink-muted)">
         {{ t('serverSettings.roles.title', { count: roles.length }) }}
       </div>
       <div class="flex-1 overflow-y-auto px-2 pb-2 space-y-0.5">
@@ -155,21 +152,21 @@ onMounted(refresh);
           class="w-full text-left px-2 py-1.5 rounded text-sm flex items-center gap-2 transition-colors"
           :class="
             selectedId === r.id
-              ? 'bg-white/15 text-white'
-              : 'text-white/70 hover:bg-white/5 hover:text-white'
+              ? 'bg-surface-tinted text-ink'
+              : 'text-ink-soft hover:bg-surface-tinted hover:text-ink'
           "
           @click="selectedId = r.id"
         >
           <span
-            class="w-3 h-3 rounded-full flex-shrink-0 border border-white/20"
+            class="w-3 h-3 rounded-full flex-shrink-0 border border-surface-border"
             :style="{ background: r.color ?? '#99aab5' }"
           />
           <span class="truncate">{{ r.name }}</span>
         </button>
       </div>
-      <div class="p-2 border-t border-white/10">
+      <div class="p-2 border-t border-surface-border">
         <button
-          class="w-full px-3 py-1.5 rounded text-xs font-medium bg-white/10 hover:bg-white/15 text-white disabled:opacity-50"
+          class="w-full px-3 py-1.5 rounded text-xs font-medium bg-surface-tinted hover:bg-surface-tinted text-ink disabled:opacity-50"
           :disabled="saving"
           @click="onCreate"
         >
@@ -180,39 +177,39 @@ onMounted(refresh);
 
     <!-- Editor -->
     <div class="flex-1 overflow-y-auto p-5">
-      <div v-if="loading" class="text-xs text-white/50">
+      <div v-if="loading" class="text-xs text-ink-muted">
         {{ t('serverSettings.roles.loading') }}
       </div>
-      <div v-else-if="!selected" class="text-xs text-white/50">
+      <div v-else-if="!selected" class="text-xs text-ink-muted">
         {{ t('serverSettings.roles.empty') }}
       </div>
       <div v-else-if="draft" class="space-y-5 max-w-2xl">
         <div>
-          <label class="block text-[10px] uppercase tracking-wider mb-1.5 text-white/50">
+          <label class="block text-[10px] uppercase tracking-wider mb-1.5 text-ink-muted">
             {{ t('serverSettings.roles.roleName') }}
           </label>
           <input
             v-model="draft.name"
             type="text"
-            class="w-full px-3 py-2 rounded bg-black/30 border border-white/10 text-sm text-white focus:outline-none focus:border-white/30 disabled:opacity-50"
+            class="w-full px-3 py-2 rounded bg-surface-tinted-strong border border-surface-border text-sm text-ink focus:outline-none focus:border-surface-border disabled:opacity-50"
             :disabled="selected.isEveryone"
             maxlength="60"
           />
         </div>
 
         <div>
-          <label class="block text-[10px] uppercase tracking-wider mb-1.5 text-white/50">
+          <label class="block text-[10px] uppercase tracking-wider mb-1.5 text-ink-muted">
             {{ t('serverSettings.roles.color') }}
           </label>
           <div class="flex items-center gap-2">
             <input
               :value="draft.color ?? '#99aab5'"
               type="color"
-              class="w-10 h-10 rounded cursor-pointer bg-transparent border border-white/10"
+              class="w-10 h-10 rounded cursor-pointer bg-transparent border border-surface-border"
               @input="(e) => draft && (draft.color = (e.target as HTMLInputElement).value)"
             />
             <button
-              class="text-xs text-white/60 hover:text-white"
+              class="text-xs text-ink-soft hover:text-ink"
               :disabled="!draft.color"
               @click="draft && (draft.color = null)"
             >
@@ -222,19 +219,19 @@ onMounted(refresh);
         </div>
 
         <div>
-          <div class="text-[10px] uppercase tracking-wider mb-2 text-white/50">
+          <div class="text-[10px] uppercase tracking-wider mb-2 text-ink-muted">
             {{ t('serverSettings.roles.permissions') }}
           </div>
           <div class="space-y-4">
             <div v-for="(keys, group) in groupedPermissions" :key="group">
-              <div class="text-xs font-medium mb-1.5 text-white/80">
+              <div class="text-xs font-medium mb-1.5 text-ink-soft">
                 {{ t(`permissions.groups.${group}`) }}
               </div>
               <div class="space-y-1">
                 <label
                   v-for="key in keys"
                   :key="key"
-                  class="flex items-start gap-3 p-2 rounded hover:bg-white/5 cursor-pointer"
+                  class="flex items-start gap-3 p-2 rounded hover:bg-surface-tinted cursor-pointer"
                 >
                   <input
                     type="checkbox"
@@ -243,8 +240,8 @@ onMounted(refresh);
                     @change="togglePermission(PERMISSIONS[key])"
                   />
                   <div class="flex-1">
-                    <div class="text-sm text-white">{{ t(`permissions.${key}.label`) }}</div>
-                    <div class="text-xs text-white/50">
+                    <div class="text-sm text-ink">{{ t(`permissions.${key}.label`) }}</div>
+                    <div class="text-xs text-ink-muted">
                       {{ t(`permissions.${key}.description`) }}
                     </div>
                   </div>
@@ -256,7 +253,7 @@ onMounted(refresh);
 
         <div v-if="error" class="text-xs text-red-400">{{ error }}</div>
 
-        <div class="flex items-center justify-between pt-2 border-t border-white/10">
+        <div class="flex items-center justify-between pt-2 border-t border-surface-border">
           <button
             v-if="!selected.isEveryone"
             class="text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
@@ -268,14 +265,14 @@ onMounted(refresh);
           <span v-else />
           <div class="flex items-center gap-2">
             <button
-              class="px-3 py-1.5 rounded text-xs text-white/70 hover:text-white disabled:opacity-50"
+              class="px-3 py-1.5 rounded text-xs text-ink-soft hover:text-ink disabled:opacity-50"
               :disabled="!dirty || saving"
               @click="syncDraft"
             >
               {{ t('common.cancel') }}
             </button>
             <button
-              class="px-4 py-1.5 rounded text-xs font-medium bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50"
+              class="px-4 py-1.5 rounded text-xs font-medium bg-blue-500 hover:bg-blue-600 text-ink disabled:opacity-50"
               :disabled="!dirty || saving"
               @click="onSave"
             >
