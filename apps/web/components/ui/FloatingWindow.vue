@@ -16,6 +16,7 @@ const props = withDefaults(
     persistKey?: string | null;
     showClose?: boolean;
     surface?: 'default' | 'rail';
+    fitContent?: boolean;
   }>(),
   {
     title: '',
@@ -32,6 +33,7 @@ const props = withDefaults(
     persistKey: null,
     showClose: true,
     surface: 'default',
+    fitContent: false,
   },
 );
 
@@ -214,29 +216,21 @@ const panelStyle = computed(() => ({
   position: 'fixed' as const,
   left: panelX.value + 'px',
   top: panelY.value + 'px',
-  width: width.value + 'px',
-  height: height.value + 'px',
+  width: props.fitContent ? 'max-content' : width.value + 'px',
+  height: props.fitContent ? 'max-content' : height.value + 'px',
   zIndex: props.zIndex,
   pointerEvents: (_drag.value ? 'none' : 'auto') as 'none' | 'auto',
 }));
 
 const surfaceStyle = computed(() => {
-  if (props.surface === 'rail') {
-    return {
-      background: 'rgba(12, 12, 18, 0.75)',
-      backdropFilter: 'blur(18px) saturate(150%)',
-      WebkitBackdropFilter: 'blur(18px) saturate(150%)',
-      border: '1px solid rgba(255, 255, 255, 0.07)',
-      boxShadow: '0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)',
-    };
-  }
-
+  const blurAmount = props.surface === 'rail' ? '18px' : '28px';
   return {
-    background: 'rgba(10, 10, 16, 0.85)',
-    backdropFilter: 'blur(28px) saturate(160%)',
-    WebkitBackdropFilter: 'blur(28px) saturate(160%)',
-    border: '1px solid rgba(255, 255, 255, 0.07)',
-    boxShadow: '0 24px 64px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+    background: 'var(--surface-strong)',
+    backdropFilter: `blur(${blurAmount}) saturate(1.5)`,
+    WebkitBackdropFilter: `blur(${blurAmount}) saturate(1.5)`,
+    border: '1px solid var(--surface-border)',
+    boxShadow: 'var(--shadow-lift)',
+    color: 'var(--ink)',
   };
 });
 </script>
@@ -250,7 +244,7 @@ const surfaceStyle = computed(() => {
     >
       <div
         class="flex flex-shrink-0 items-center gap-3 px-4 py-2.5 cursor-grab active:cursor-grabbing select-none relative overflow-hidden"
-        style="border-bottom: 1px solid rgba(255, 255, 255, 0.06)"
+        :style="{ borderBottom: '1px solid var(--surface-divider)' }"
         @mousedown="onHandleMousedown"
       >
         <img
@@ -270,7 +264,7 @@ const surfaceStyle = computed(() => {
         />
         <span
           class="text-xs font-semibold truncate flex-1 relative"
-          style="color: rgba(255, 255, 255, 0.9)"
+          :style="{ color: 'var(--ink)' }"
         >
           {{ title }}
         </span>
@@ -282,7 +276,7 @@ const surfaceStyle = computed(() => {
             title="Réduire"
             @click="emit('close')"
           >
-            <span class="block h-0.5 w-3 rounded-full" style="background: #ffffff" />
+            <span class="block h-0.5 w-3 rounded-full" :style="{ background: 'var(--ink)' }" />
           </button>
         </div>
       </div>

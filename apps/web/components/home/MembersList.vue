@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Search, LayoutGrid, List } from 'lucide-vue-next';
 import type { MemberPublic, RolePublic } from '@nookapp/protocol';
 import { useRoles } from '~/composables/useRoles';
 
@@ -13,6 +14,8 @@ const members = ref<MemberPublic[]>([]);
 const roles = ref<RolePublic[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
+const query = ref('');
+const viewMode = useState<'list' | 'grid'>('home.members.viewMode', () => 'list');
 
 const rolesById = computed(() => {
   const m = new Map<string, RolePublic>();
@@ -20,13 +23,17 @@ const rolesById = computed(() => {
   return m;
 });
 
-const sortedMembers = computed(() =>
-  [...members.value].sort((a, b) => {
+const filteredMembers = computed(() => {
+  const q = query.value.trim().toLowerCase();
+  const list = q
+    ? members.value.filter((m) => m.user.name.toLowerCase().includes(q))
+    : members.value;
+  return [...list].sort((a, b) => {
     if (a.isOwner && !b.isOwner) return -1;
     if (!a.isOwner && b.isOwner) return 1;
     return a.user.name.localeCompare(b.user.name);
-  }),
-);
+  });
+});
 
 async function refresh() {
   loading.value = true;
@@ -56,10 +63,44 @@ watch(
 
 <template>
   <div class="home-members">
+    <div class="home-members__toolbar">
+      <label class="home-members__search">
+        <Search :size="13" class="home-members__search-icon" />
+        <input
+          v-model="query"
+          type="search"
+          placeholder="Rechercher…"
+          class="home-members__search-input"
+        />
+      </label>
+      <div class="home-members__view-toggle" role="tablist">
+        <button
+          type="button"
+          class="home-members__view-btn"
+          :class="{ 'home-members__view-btn--active': viewMode === 'list' }"
+          :title="'Liste'"
+          @click="viewMode = 'list'"
+        >
+          <List :size="13" />
+        </button>
+        <button
+          type="button"
+          class="home-members__view-btn"
+          :class="{ 'home-members__view-btn--active': viewMode === 'grid' }"
+          :title="'Avatars'"
+          @click="viewMode = 'grid'"
+        >
+          <LayoutGrid :size="13" />
+        </button>
+      </div>
+    </div>
+
     <div v-if="loading && !members.length" class="home-members__empty">Chargement…</div>
     <div v-else-if="error" class="home-members__error">{{ error }}</div>
-    <ul v-else class="home-members__list">
-      <li v-for="m in sortedMembers" :key="m.id" class="home-member">
+    <div v-else-if="!filteredMembers.length" class="home-members__empty">Aucun résultat</div>
+
+    <ul v-else-if="viewMode === 'list'" class="home-members__list">
+      <li v-for="m in filteredMembers" :key="m.id" class="home-member">
         <img
           v-if="m.user.avatarUrl"
           :src="m.user.avatarUrl"
@@ -91,6 +132,26 @@ watch(
         </div>
       </li>
     </ul>
+
+    <ul v-else class="home-members__grid">
+      <li
+        v-for="m in filteredMembers"
+        :key="m.id"
+        class="home-member-tile"
+        :title="m.isOwner ? `${m.user.name} (owner)` : m.user.name"
+      >
+        <img
+          v-if="m.user.avatarUrl"
+          :src="m.user.avatarUrl"
+          :alt="m.user.name"
+          class="home-member-tile__avatar"
+        />
+        <div v-else class="home-member-tile__avatar home-member-tile__avatar--placeholder">
+          {{ m.user.name.slice(0, 1).toUpperCase() }}
+        </div>
+        <span v-if="m.isOwner" class="home-member-tile__crown" aria-hidden="true">★</span>
+      </li>
+    </ul>
   </div>
 </template>
 
@@ -99,7 +160,120 @@ watch(
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
+}
+
+.home-members__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 8px 6px;
+  flex-shrink: 0;
+}
+.home-members__search {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border-radius: 10px;
+  background: var(--surface-tinted);
+  border: 1px solid var(--surface-border);
+  transition: border-color 120ms;
+}
+.home-members__search:focus-within {
+  border-color: var(--ink-muted);
+}
+.home-members__search-icon {
+  color: var(--ink-muted);
+  flex-shrink: 0;
+}
+.home-members__search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 12px;
+  color: var(--ink);
+  min-width: 0;
+}
+.home-members__search-input::placeholder {
+  color: var(--ink-faint);
+}
+.home-members__view-toggle {
+  display: inline-flex;
+  padding: 2px;
+  background: var(--surface-tinted);
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.home-members__view-btn {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition:
+    background 120ms,
+    color 120ms;
+}
+.home-members__view-btn:hover {
+  color: var(--ink);
+}
+.home-members__view-btn--active {
+  background: var(--ink);
+  color: var(--ink-inverse);
+}
+
+.home-members__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  gap: 6px;
+  padding: 4px 8px 8px;
   overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  list-style: none;
+  margin: 0;
+}
+.home-member-tile {
+  position: relative;
+  aspect-ratio: 1;
+}
+.home-member-tile__avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+  object-fit: cover;
+  background: var(--surface-tinted);
+  border: 1px solid var(--surface-border);
+}
+.home-member-tile__avatar--placeholder {
+  display: grid;
+  place-items: center;
+  color: var(--ink-soft);
+  font-size: 14px;
+  font-weight: 700;
+}
+.home-member-tile__crown {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent-warm);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  border: 2px solid var(--surface-strong);
 }
 
 .home-members__empty,
@@ -114,7 +288,7 @@ watch(
   text-align: center;
 }
 .home-members__empty {
-  color: rgba(255, 255, 255, 0.32);
+  color: var(--ink-faint);
 }
 .home-members__error {
   color: rgb(248, 113, 113);
@@ -124,16 +298,21 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 5px;
+  padding: 4px 6px 8px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  list-style: none;
+  margin: 0;
 }
 
 .home-member {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 9px;
   padding: 7px 9px;
   border-radius: 9px;
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--surface-tinted);
   border: 1px solid transparent;
   transition:
     background 140ms,
@@ -141,8 +320,8 @@ watch(
 }
 
 .home-member:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.07);
+  background: var(--surface-tinted);
+  border-color: var(--surface-border);
 }
 
 .home-member__avatar {
@@ -156,8 +335,8 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.7);
+  background: var(--surface-border);
+  color: var(--ink-soft);
   font-size: 11px;
   font-weight: 700;
 }
@@ -178,7 +357,7 @@ watch(
 }
 
 .home-member__name {
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--ink);
   font-size: 12px;
   font-weight: 700;
   overflow: hidden;
@@ -190,8 +369,8 @@ watch(
   flex-shrink: 0;
   padding: 1px 5px;
   border-radius: 4px;
-  background: rgba(245, 158, 11, 0.18);
-  color: rgb(252, 211, 77);
+  background: rgba(232, 163, 90, 0.22);
+  color: var(--accent-warm);
   font-size: 9px;
   font-weight: 800;
   text-transform: uppercase;
@@ -210,8 +389,8 @@ watch(
   gap: 4px;
   padding: 1px 6px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.78);
+  background: var(--surface-tinted);
+  color: var(--ink-soft);
   font-size: 10px;
   font-weight: 650;
   max-width: 140px;

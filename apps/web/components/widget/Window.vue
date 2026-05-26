@@ -62,7 +62,7 @@ const minSize = computed(() => widget.value?.minSize ?? { width: 420, height: 32
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--ink-muted);
 }
 .title {
   font-size: 14px;
@@ -70,6 +70,6 @@ const minSize = computed(() => widget.value?.minSize ?? { width: 420, height: 32
 }
 .hint {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--ink-faint);
 }
 </style>
