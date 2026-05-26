@@ -1,29 +1,37 @@
-{$DOMAIN} {
+(nookapp_site) {
 	encode gzip zstd
 
 	@livekit path /livekit /livekit/*
 	handle @livekit {
 		uri strip_prefix /livekit
-		reverse_proxy livekit:7880
+		reverse_proxy {args[0]}-livekit:7880
 	}
 
 	@collab path /collab /collab/*
 	handle @collab {
 		uri strip_prefix /collab
-		reverse_proxy api:4234
+		reverse_proxy {args[0]}-api:4234
 	}
 
 	@api path /api/* /uploads/*
 	handle @api {
-		reverse_proxy api:4000
+		reverse_proxy {args[0]}-api:4000
 	}
 
 	@socketio path /socket.io/*
 	handle @socketio {
-		reverse_proxy api:4000
+		reverse_proxy {args[0]}-api:4000
 	}
 
 	handle {
-		reverse_proxy web:4001
+		reverse_proxy {args[0]}-web:4001
 	}
+}
+
+nookapp.eu {
+	import nookapp_site nookapp-prod
+}
+
+dev.nookapp.eu {
+	import nookapp_site nookapp-staging
 }

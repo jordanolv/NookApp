@@ -1,21 +1,4 @@
 services:
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports:
-      - '80:80'
-      - '443:443'
-      - '443:443/udp'
-    volumes:
-      - ./Caddyfile.prod:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
-    environment:
-      DOMAIN: ${DOMAIN}
-    depends_on:
-      - web
-      - api
-
   web:
     image: ghcr.io/${GHCR_OWNER}/nookapp-web:${IMAGE_TAG:-latest}
     build:
@@ -34,6 +17,11 @@ services:
       NUXT_PUBLIC_GIPHY_API_KEY: ${NUXT_PUBLIC_GIPHY_API_KEY:-}
     expose:
       - '4001'
+    networks:
+      default: {}
+      proxy:
+        aliases:
+          - ${STACK_NAME}-web
 
   api:
     image: ghcr.io/${GHCR_OWNER}/nookapp-api:${IMAGE_TAG:-latest}
@@ -67,6 +55,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      default: {}
+      proxy:
+        aliases:
+          - ${STACK_NAME}-api
 
   postgres:
     image: postgres:18-alpine
@@ -82,6 +75,8 @@ services:
       interval: 10s
       timeout: 3s
       retries: 10
+    networks:
+      - default
 
   livekit:
     image: livekit/livekit-server:latest
@@ -99,11 +94,20 @@ services:
     expose:
       - '7880'
     ports:
-      - '7881:7881/tcp'
-      - '7882:7882/udp'
+      - '${LIVEKIT_TCP_PORT:-7881}:7881/tcp'
+      - '${LIVEKIT_UDP_PORT:-7882}:7882/udp'
+    networks:
+      default: {}
+      proxy:
+        aliases:
+          - ${STACK_NAME}-livekit
 
 volumes:
   postgres-data:
-  caddy-data:
-  caddy-config:
   api-uploads:
+
+networks:
+  default:
+  proxy:
+    external: true
+    name: nookapp-proxy
