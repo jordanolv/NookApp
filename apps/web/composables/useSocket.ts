@@ -12,10 +12,46 @@ import type {
 } from '@nookapp/protocol';
 
 let socket: Socket | null = null;
+let pingTimer: ReturnType<typeof setInterval> | null = null;
+
+const PING_INTERVAL_MS = 5000;
+const PING_TIMEOUT_MS = 3000;
 
 export function useSocket() {
   const { apiBase } = useRuntimeConfig().public;
   const socketBase = apiBase.replace('/api/v1', '');
+
+  const latencyMs = useState<number | null>('socket.latencyMs', () => null);
+
+  function startPingLoop() {
+    if (pingTimer || !socket) return;
+    const tick = () => {
+      if (!socket?.connected) {
+        latencyMs.value = null;
+        return;
+      }
+      const sent = Date.now();
+      socket
+        .timeout(PING_TIMEOUT_MS)
+        .emitWithAck('client:ping')
+        .then(() => {
+          latencyMs.value = Date.now() - sent;
+        })
+        .catch(() => {
+          latencyMs.value = null;
+        });
+    };
+    tick();
+    pingTimer = setInterval(tick, PING_INTERVAL_MS);
+  }
+
+  function stopPingLoop() {
+    if (pingTimer) {
+      clearInterval(pingTimer);
+      pingTimer = null;
+    }
+    latencyMs.value = null;
+  }
 
   function connect(token?: string) {
     // Idempotent based on existence, not connected state — otherwise we'd
@@ -26,10 +62,14 @@ export function useSocket() {
       auth: token ? { token } : undefined,
       transports: ['websocket'],
     });
+    socket.on('connect', startPingLoop);
+    socket.on('disconnect', stopPingLoop);
+    if (socket.connected) startPingLoop();
     return socket;
   }
 
   function disconnect() {
+    stopPingLoop();
     socket?.disconnect();
     socket = null;
   }
@@ -109,6 +149,7 @@ export function useSocket() {
     connect,
     disconnect,
     raw,
+    latencyMs: readonly(latencyMs),
     hello,
     onSnapshot,
     onMessage,

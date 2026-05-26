@@ -46,7 +46,6 @@ defineExpose({ openChannel, backToHome });
       <Transition name="classic-window">
         <article v-if="selectedChannel" :key="selectedChannel.id" class="window">
           <header class="window__head">
-            <span class="window__head-dots" aria-hidden="true"> <span /><span /><span /> </span>
             <span class="window__head-icon">
               <component
                 :is="selectedChannel.type === 'forum' ? MessageSquare : Hash"
@@ -213,28 +212,6 @@ defineExpose({ openChannel, backToHome });
 
 .window__head--ghost {
   border-bottom-color: transparent;
-}
-
-.window__head-dots {
-  display: flex;
-  gap: 4px;
-}
-
-.window__head-dots span {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.window__head-dots span:first-child {
-  background: rgba(239, 68, 68, 0.6);
-}
-.window__head-dots span:nth-child(2) {
-  background: rgba(234, 179, 8, 0.6);
-}
-.window__head-dots span:nth-child(3) {
-  background: rgba(34, 197, 94, 0.6);
 }
 
 .window__head-icon {
