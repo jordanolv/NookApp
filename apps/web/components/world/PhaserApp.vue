@@ -28,17 +28,19 @@ const {
   buildTool,
   selectedDecor,
   selectedFloor,
-  selectedWallFrame,
+  selectedTemplate,
+  selectedWallRegion,
   selectedRoomTheme,
-  selectedRoomTemplate,
   isSaving: isMapSaving,
   paintRect,
-  paintWallCell,
-  stampRoomTemplate,
-  stampCustomRoom,
+  paintWallRect,
   placeDecor,
   removeDecorAt,
   eraseCell,
+  applyTemplate,
+  resetMap,
+  stampRoom,
+  exportMapAsTemplate,
 } = useMap();
 
 const widgetWindows = useFloatingChannels({ width: 720, height: 560 });
@@ -80,7 +82,6 @@ function canEdit() {
 }
 
 function onBuildShortcut(e: KeyboardEvent) {
-  if (e.key !== 'b' && e.key !== 'B') return;
   if (!props.canManageMap) return;
   const target = e.target as HTMLElement | null;
   if (target) {
@@ -89,8 +90,10 @@ function onBuildShortcut(e: KeyboardEvent) {
       return;
     }
   }
-  e.preventDefault();
-  toggleBuildMode();
+  if (e.key === 'b' || e.key === 'B') {
+    e.preventDefault();
+    toggleBuildMode();
+  }
 }
 
 // ── World event handlers ───────────────────────────────────────────────
@@ -106,20 +109,30 @@ type RectPayload = {
 function onTilesRect(r: RectPayload) {
   if (canEdit()) paintRect(r.x1, r.y1, r.x2, r.y2, r.mode, selectedFloor.value);
 }
-function onWallCell(p: { x: number; y: number; frame: number; mode: 'add' | 'remove' }) {
-  if (canEdit()) paintWallCell(p.x, p.y, p.frame, p.mode);
+function onApplyTemplate(id: string) {
+  if (canEdit()) applyTemplate(id);
 }
-function onRoomTemplateStamp(p: { x: number; y: number; templateId: string }) {
-  if (canEdit()) stampRoomTemplate(p.x, p.y, p.templateId);
+function onResetMap() {
+  if (!canEdit()) return;
+  if (!confirm('Réinitialiser la map ? Tu vas perdre tout ce que tu as posé (murs, sol, décor).'))
+    return;
+  resetMap();
 }
-function onRoomCustomStamp(p: {
+function onWallRect(p: {
   x1: number;
   y1: number;
   x2: number;
   y2: number;
-  themeFrame: number;
+  region: { col: number; row: number; w: number; h: number };
+  mode: 'add' | 'remove';
 }) {
-  if (canEdit()) stampCustomRoom(p.x1, p.y1, p.x2, p.y2, p.themeFrame);
+  if (canEdit()) paintWallRect(p.x1, p.y1, p.x2, p.y2, p.region, p.mode);
+}
+function onRoomRect(p: { x1: number; y1: number; x2: number; y2: number }) {
+  if (canEdit()) stampRoom(p.x1, p.y1, p.x2, p.y2, selectedRoomTheme.value);
+}
+function onExportTemplate() {
+  exportMapAsTemplate();
 }
 function onDecorPlace(p: { asset: string; x: number; y: number }) {
   if (canEdit()) placeDecor(p.asset, p.x, p.y);
@@ -209,16 +222,13 @@ onUnmounted(() => {
       :build-tool="buildTool"
       :selected-decor="selectedDecor"
       :selected-floor="selectedFloor"
-      :selected-wall-frame="selectedWallFrame"
-      :selected-room-theme="selectedRoomTheme"
-      :selected-room-template="selectedRoomTemplate"
+      :selected-wall-region="selectedWallRegion"
       sidebar-side="left"
       @zone-picked="onZonePicked"
       @zone-cancel="onZoneCancel"
       @tiles-rect="onTilesRect"
-      @wall-cell="onWallCell"
-      @room-template-stamp="onRoomTemplateStamp"
-      @room-custom-stamp="onRoomCustomStamp"
+      @wall-rect="onWallRect"
+      @room-rect="onRoomRect"
       @decor-place="onDecorPlace"
       @decor-remove="onDecorRemove"
       @cell-erase="onCellErase"
@@ -310,15 +320,18 @@ onUnmounted(() => {
       :is-saving="isMapSaving"
       :selected-decor="selectedDecor"
       :selected-floor="selectedFloor"
-      :selected-wall-frame="selectedWallFrame"
+      :selected-template="selectedTemplate"
+      :selected-wall-region="selectedWallRegion"
       :selected-room-theme="selectedRoomTheme"
-      :selected-room-template="selectedRoomTemplate"
       @update:tool="buildTool = $event"
       @update:selected-decor="selectedDecor = $event"
       @update:selected-floor="selectedFloor = $event"
-      @update:selected-wall-frame="selectedWallFrame = $event"
+      @update:selected-template="selectedTemplate = $event"
+      @update:selected-wall-region="selectedWallRegion = $event"
       @update:selected-room-theme="selectedRoomTheme = $event"
-      @update:selected-room-template="selectedRoomTemplate = $event"
+      @apply-template="onApplyTemplate"
+      @reset-map="onResetMap"
+      @export-template="onExportTemplate"
       @close="toggleBuildMode"
     />
   </ClientOnly>

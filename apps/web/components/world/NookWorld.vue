@@ -8,9 +8,8 @@ import {
   type DecorPlacePayload,
   type DecorRemovePayload,
   type CellErasePayload,
-  type WallCellPayload,
-  type RoomTemplatePayload,
-  type RoomCustomPayload,
+  type WallRectPayload,
+  type RoomRectPayload,
 } from './NookScene';
 import type { PlayerState, MapData } from '@nookapp/protocol';
 import { useCharacter } from '~/composables/useCharacter';
@@ -44,9 +43,7 @@ const props = defineProps<{
   buildTool?: BuildTool;
   selectedDecor?: string | null;
   selectedFloor?: string | null;
-  selectedWallFrame?: number | null;
-  selectedRoomTheme?: { col: number; row: number } | null;
-  selectedRoomTemplate?: string | null;
+  selectedWallRegion?: { col: number; row: number; w: number; h: number } | null;
   sidebarSide?: 'left' | 'right' | null;
 }>();
 
@@ -54,9 +51,8 @@ const emit = defineEmits<{
   'zone-picked': [zone: { x: number; y: number; w: number; h: number }];
   'zone-cancel': [];
   'tiles-rect': [rect: RectPayload];
-  'wall-cell': [payload: WallCellPayload];
-  'room-template-stamp': [payload: RoomTemplatePayload];
-  'room-custom-stamp': [payload: RoomCustomPayload];
+  'wall-rect': [payload: WallRectPayload];
+  'room-rect': [payload: RoomRectPayload];
   'decor-place': [payload: DecorPlacePayload];
   'decor-remove': [payload: DecorRemovePayload];
   'cell-erase': [payload: CellErasePayload];
@@ -126,17 +122,9 @@ watch(
   (v) => _scene?.setSelectedFloor(v),
 );
 watch(
-  () => props.selectedWallFrame ?? 33,
-  (v) => _scene?.setSelectedWallFrame(v),
-);
-watch(
-  () => props.selectedRoomTemplate ?? 'drywall_small',
-  (v) => _scene?.setSelectedRoomTemplate(v),
-);
-watch(
-  () => props.selectedRoomTheme,
+  () => props.selectedWallRegion,
   (v) => {
-    if (v) _scene?.setSelectedRoomTheme(v);
+    if (v) _scene?.setSelectedWallRegion(v);
   },
   { deep: true },
 );
@@ -251,13 +239,8 @@ onMounted(() => {
     });
 
     scene.events.on('tiles-rect', (rect: RectPayload) => emit('tiles-rect', rect));
-    scene.events.on('wall-cell', (payload: WallCellPayload) => emit('wall-cell', payload));
-    scene.events.on('room-stamp', (payload: RoomTemplatePayload) =>
-      emit('room-template-stamp', payload),
-    );
-    scene.events.on('room-custom-stamp', (payload: RoomCustomPayload) =>
-      emit('room-custom-stamp', payload),
-    );
+    scene.events.on('wall-rect', (p: WallRectPayload) => emit('wall-rect', p));
+    scene.events.on('room-rect', (p: RoomRectPayload) => emit('room-rect', p));
     scene.events.on('decor-place', (p: DecorPlacePayload) => emit('decor-place', p));
     scene.events.on('decor-remove', (p: DecorRemovePayload) => emit('decor-remove', p));
     scene.events.on('cell-erase', (p: CellErasePayload) => emit('cell-erase', p));
@@ -281,9 +264,7 @@ onMounted(() => {
     if (props.buildTool) scene.setBuildTool(props.buildTool);
     if (props.selectedDecor) scene.setSelectedDecor(props.selectedDecor);
     scene.setSelectedFloor(props.selectedFloor ?? 'office_floor_light');
-    scene.setSelectedWallFrame(props.selectedWallFrame ?? 33);
-    scene.setSelectedRoomTemplate(props.selectedRoomTemplate ?? 'drywall_small');
-    if (props.selectedRoomTheme) scene.setSelectedRoomTheme(props.selectedRoomTheme);
+    if (props.selectedWallRegion) scene.setSelectedWallRegion(props.selectedWallRegion);
     if (props.buildMode) scene.setBuildMode(true);
 
     cameraOffset.apply();

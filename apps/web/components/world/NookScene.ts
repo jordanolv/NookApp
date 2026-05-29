@@ -25,42 +25,34 @@ import { DecorRenderer, decorCellTextureKey } from './scene/decor-renderer';
 import { FLOOR_CATALOG } from './scene/floor-catalog';
 import { FloorRenderer } from './scene/floor-renderer';
 import { MapModel } from './scene/map-model';
-import { CellPaintTool } from './scene/cell-paint-tool';
 import { RectPaintTool } from './scene/rect-paint-tool';
 import { WallRenderer, WALL_TEXTURE_KEYS } from './scene/wall-renderer';
-import { getRoomTemplate } from './scene/room-templates';
-import {
-  DEFAULT_WALL_FRAME,
-  normalizeWallFrame,
-  themeOfFrame,
-  WALL_SHEET,
-  type WallThemeBlock,
-} from './scene/wall-catalog';
+import { WALL_SHEET, WALL_SHEET_TEXTURE_KEY } from './scene/wall-catalog';
 
 export type BuildTool = 'tile' | 'wall' | 'room' | 'decor' | 'erase';
 
-export interface WallCellPayload {
-  x: number;
-  y: number;
-  frame: number;
-  mode: 'add' | 'remove';
-}
-
-export interface RoomTemplatePayload {
-  x: number;
-  y: number;
-  templateId: string;
-}
-
-export interface RoomCustomPayload {
+export interface RoomRectPayload {
   x1: number;
   y1: number;
   x2: number;
   y2: number;
-  themeFrame: number;
 }
 
-export const ROOM_CUSTOM_ID = 'custom';
+export interface WallRegion {
+  col: number;
+  row: number;
+  w: number;
+  h: number;
+}
+
+export interface WallRectPayload {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  region: WallRegion;
+  mode: 'add' | 'remove';
+}
 
 export interface DecorPlacePayload {
   asset: string;
@@ -187,19 +179,17 @@ export class NookScene extends Phaser.Scene {
   private decorRenderer?: DecorRenderer;
   private buildOverlay?: BuildOverlay;
   private tilePaintTool?: RectPaintTool;
-  private wallPaintTool?: CellPaintTool;
+  private wallPaintTool?: RectPaintTool;
+  private roomPaintTool?: RectPaintTool;
   private wallCollider?: Phaser.Physics.Arcade.Collider;
   private decorCollider?: Phaser.Physics.Arcade.Collider;
   private buildTool: BuildTool = 'tile';
   private selectedDecor: string | null = null;
   private selectedFloor: string = 'office_floor_light';
-  private selectedWallFrame: number = 33;
-  private selectedRoomTheme: WallThemeBlock = themeOfFrame(DEFAULT_WALL_FRAME);
-  private selectedRoomTemplate: string = 'drywall_small';
+  private selectedWallRegion: WallRegion = { col: 0, row: 0, w: 1, h: 1 };
   private eraseDragLastTile: { x: number; y: number } | null = null;
-  private roomGhost?: Phaser.GameObjects.Graphics;
-  private roomCustomTool?: RectPaintTool;
   private decorGhost: Phaser.GameObjects.Image[] = [];
+  private wallGhost: Phaser.GameObjects.Image[] = [];
   private cameraOffset = { x: 0, y: 0 };
 
   localUserId: string;
@@ -260,9 +250,8 @@ export class NookScene extends Phaser.Scene {
     this.decorRenderer = new DecorRenderer(this);
     this.buildOverlay = new BuildOverlay(this);
     this.tilePaintTool = new RectPaintTool(this, { add: 0x6366f1, remove: 0xef4444 });
-    this.wallPaintTool = new CellPaintTool(this, { add: 0x9a9a9a, remove: 0xef4444 });
-    this.roomGhost = this.add.graphics().setDepth(21);
-    this.roomCustomTool = new RectPaintTool(
+    this.wallPaintTool = new RectPaintTool(this, { add: 0x9a9a9a, remove: 0xef4444 });
+    this.roomPaintTool = new RectPaintTool(
       this,
       { add: 0x4ec9b0, remove: 0xef4444 },
       { shape: 'outline' },
@@ -371,8 +360,8 @@ export class NookScene extends Phaser.Scene {
       if (this.decorCollider) this.decorCollider.active = false;
     } else {
       this.tilePaintTool?.cancel();
-      this.wallPaintTool?.cancel();
       this.hideDecorGhost();
+      this.hideWallGhost();
       this.moveLocalPlayerOffBlockedTile();
       if (this.wallCollider) this.wallCollider.active = true;
       if (this.decorCollider) this.decorCollider.active = true;
@@ -384,26 +373,17 @@ export class NookScene extends Phaser.Scene {
     this.buildTool = tool;
     this.tilePaintTool?.cancel();
     this.wallPaintTool?.cancel();
-    this.roomCustomTool?.cancel();
-    this.roomGhost?.clear();
+    this.roomPaintTool?.cancel();
     if (tool !== 'decor') this.hideDecorGhost();
+    if (tool !== 'wall') this.hideWallGhost();
   }
 
   setSelectedFloor(assetId: string) {
     this.selectedFloor = assetId || 'office_floor_light';
   }
 
-  setSelectedWallFrame(frame: number) {
-    this.selectedWallFrame = normalizeWallFrame(frame);
-  }
-
-  setSelectedRoomTemplate(id: string) {
-    if (id) this.selectedRoomTemplate = id;
-  }
-
-  setSelectedRoomTheme(theme: WallThemeBlock) {
-    if (!theme) return;
-    this.selectedRoomTheme = { col: theme.col, row: theme.row };
+  setSelectedWallRegion(region: WallRegion) {
+    if (region && region.w > 0 && region.h > 0) this.selectedWallRegion = region;
   }
 
   setSelectedDecor(assetId: string | null) {
@@ -435,6 +415,43 @@ export class NookScene extends Phaser.Scene {
     for (const img of this.decorGhost) img.setVisible(false);
   }
 
+  private updateWallGhost(tx: number, ty: number) {
+    const region = this.selectedWallRegion;
+    if (!this.textures.exists(WALL_SHEET_TEXTURE_KEY)) return;
+    // Recreate sprites if region size changed
+    const needed = region.w * region.h;
+    while (this.wallGhost.length < needed) {
+      const img = this.add
+        .image(0, 0, WALL_SHEET_TEXTURE_KEY, 0)
+        .setOrigin(0, 0)
+        .setAlpha(0.55)
+        .setDepth(20000);
+      this.wallGhost.push(img);
+    }
+    while (this.wallGhost.length > needed) {
+      this.wallGhost.pop()!.destroy();
+    }
+    if (tx < 0 || ty < 0 || tx >= WORLD_COLS || ty >= WORLD_ROWS) {
+      this.hideWallGhost();
+      return;
+    }
+    let i = 0;
+    for (let dy = 0; dy < region.h; dy += 1) {
+      for (let dx = 0; dx < region.w; dx += 1) {
+        const frame = (region.row + dy) * WALL_SHEET.cols + (region.col + dx);
+        const img = this.wallGhost[i]!;
+        img.setFrame(frame);
+        img.setPosition((tx + dx) * TILE_SIZE, (ty + dy) * TILE_SIZE);
+        img.setVisible(true);
+        i += 1;
+      }
+    }
+  }
+
+  private hideWallGhost() {
+    for (const img of this.wallGhost) img.setVisible(false);
+  }
+
   setCameraOffset(x: number, y: number) {
     this.cameraOffset = { x, y };
     if (!this.localBody) return;
@@ -447,11 +464,6 @@ export class NookScene extends Phaser.Scene {
     if (!this.model) return false;
     const floor = this.model.floorAt(tx, ty);
     return !!floor && floor.asset === this.selectedFloor;
-  }
-
-  private isWallPresentAt(tx: number, ty: number): boolean {
-    if (!this.model) return false;
-    return this.model.hasWall(tx, ty);
   }
 
   private isBuildActive() {
@@ -526,20 +538,11 @@ export class NookScene extends Phaser.Scene {
       return;
     }
     if (this.buildTool === 'wall') {
-      const result = this.wallPaintTool?.begin(tx, ty, this.isWallPresentAt(tx, ty));
-      if (result) this.emitWallCell(result.x, result.y, result.mode);
+      this.wallPaintTool?.beginDrag(tx, ty, this.isWallPresentAt(tx, ty));
       return;
     }
     if (this.buildTool === 'room') {
-      if (this.selectedRoomTemplate === ROOM_CUSTOM_ID) {
-        this.roomCustomTool?.beginDrag(tx, ty, false);
-      } else {
-        this.events.emit('room-stamp', {
-          x: tx,
-          y: ty,
-          templateId: this.selectedRoomTemplate,
-        } satisfies RoomTemplatePayload);
-      }
+      this.roomPaintTool?.beginDrag(tx, ty, false);
       return;
     }
     if (this.buildTool === 'erase') {
@@ -558,9 +561,13 @@ export class NookScene extends Phaser.Scene {
       this.tilePaintTool?.updateDrag(tx, ty);
       return;
     }
-    if (this.buildTool === 'wall') {
-      const result = this.wallPaintTool?.move(tx, ty, this.isWallPresentAt(tx, ty));
-      if (result) this.emitWallCell(result.x, result.y, result.mode);
+    if (this.buildTool === 'wall' && this.isBuildActive()) {
+      this.wallPaintTool?.updateDrag(tx, ty);
+      this.updateWallGhost(tx, ty);
+      return;
+    }
+    if (this.buildTool === 'room' && this.isBuildActive()) {
+      this.roomPaintTool?.updateDrag(tx, ty);
       return;
     }
     if (this.buildTool === 'erase') {
@@ -569,15 +576,6 @@ export class NookScene extends Phaser.Scene {
       if (this.eraseDragLastTile.x === tx && this.eraseDragLastTile.y === ty) return;
       this.eraseDragLastTile = { x: tx, y: ty };
       this.events.emit('cell-erase', { x: tx, y: ty } satisfies CellErasePayload);
-      return;
-    }
-    if (this.buildTool === 'room') {
-      if (this.selectedRoomTemplate === ROOM_CUSTOM_ID) {
-        this.roomGhost?.clear();
-        this.roomCustomTool?.updateDrag(tx, ty);
-      } else {
-        this.updateRoomGhost(tx, ty);
-      }
     }
   }
 
@@ -592,58 +590,45 @@ export class NookScene extends Phaser.Scene {
       return;
     }
     if (this.buildTool === 'wall') {
-      this.wallPaintTool?.end();
-      return;
-    }
-    if (this.buildTool === 'erase') {
-      this.eraseDragLastTile = null;
-      return;
-    }
-    if (this.buildTool === 'room' && this.selectedRoomTemplate === ROOM_CUSTOM_ID) {
-      const tool = this.roomCustomTool;
+      const tool = this.wallPaintTool;
       if (!tool) return;
       const [tx, ty] = this.pointerToTile(pointer);
       const result = tool.endDrag(tx, ty);
-      if (result && result.mode === 'add') {
-        this.events.emit('room-custom-stamp', {
+      if (result) {
+        this.events.emit('wall-rect', {
           x1: result.x1,
           y1: result.y1,
           x2: result.x2,
           y2: result.y2,
-          themeFrame: this.selectedRoomTheme.row * WALL_SHEET.cols + this.selectedRoomTheme.col,
-        } satisfies RoomCustomPayload);
+          region: this.selectedWallRegion,
+          mode: result.mode,
+        } satisfies WallRectPayload);
       }
+      return;
+    }
+    if (this.buildTool === 'room') {
+      const tool = this.roomPaintTool;
+      if (!tool) return;
+      const [tx, ty] = this.pointerToTile(pointer);
+      const result = tool.endDrag(tx, ty);
+      if (result && result.mode === 'add') {
+        this.events.emit('room-rect', {
+          x1: result.x1,
+          y1: result.y1,
+          x2: result.x2,
+          y2: result.y2,
+        } satisfies RoomRectPayload);
+      }
+      return;
+    }
+    if (this.buildTool === 'erase') {
+      this.eraseDragLastTile = null;
     }
   }
 
-  private emitWallCell(x: number, y: number, mode: 'add' | 'remove') {
-    this.events.emit('wall-cell', {
-      x,
-      y,
-      frame: this.selectedWallFrame,
-      mode,
-    } satisfies WallCellPayload);
-  }
-
-  private updateRoomGhost(tx: number, ty: number) {
-    if (!this.roomGhost) return;
-    const tpl = getRoomTemplate(this.selectedRoomTemplate);
-    this.roomGhost.clear();
-    if (!tpl) return;
-    this.roomGhost.lineStyle(2, 0x4ec9b0, 0.85);
-    this.roomGhost.strokeRect(
-      tx * TILE_SIZE,
-      ty * TILE_SIZE,
-      tpl.width * TILE_SIZE,
-      tpl.height * TILE_SIZE,
-    );
-    this.roomGhost.fillStyle(0x4ec9b0, 0.12);
-    this.roomGhost.fillRect(
-      tx * TILE_SIZE,
-      ty * TILE_SIZE,
-      tpl.width * TILE_SIZE,
-      tpl.height * TILE_SIZE,
-    );
+  private isWallPresentAt(tx: number, ty: number): boolean {
+    if (!this.model) return false;
+    return this.model.hasWall(tx, ty);
   }
 
   private updateDecorGhost(tx: number, ty: number) {

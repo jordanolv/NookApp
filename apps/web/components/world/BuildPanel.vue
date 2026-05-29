@@ -9,27 +9,30 @@ import {
   type DecorCategory,
 } from './scene/decor-catalog';
 import { FLOOR_CATALOG_GROUPS, type FloorAsset } from './scene/floor-catalog';
-import BuildWallPicker from './BuildWallPicker.vue';
-
-const ROOM_CUSTOM_TEMPLATE_ID = 'custom';
+import { MAP_TEMPLATES } from './scene/map-templates';
+import { ROOM_THEMES, WALL_SHEET } from './scene/wall-catalog';
+import BuildWallPicker, { type WallRegion } from './BuildWallPicker.vue';
 
 const props = defineProps<{
   tool: BuildTool;
   isSaving?: boolean;
   selectedDecor?: string | null;
   selectedFloor?: string;
-  selectedWallFrame?: number;
-  selectedRoomTheme?: { col: number; row: number };
-  selectedRoomTemplate?: string;
+  selectedTemplate?: string;
+  selectedWallRegion?: WallRegion;
+  selectedRoomTheme?: string;
 }>();
 
 const emit = defineEmits<{
   'update:tool': [tool: BuildTool];
   'update:selected-decor': [asset: string | null];
   'update:selected-floor': [asset: string];
-  'update:selected-wall-frame': [frame: number];
-  'update:selected-room-theme': [theme: { col: number; row: number }];
-  'update:selected-room-template': [id: string];
+  'update:selected-template': [id: string];
+  'update:selected-wall-region': [region: WallRegion];
+  'update:selected-room-theme': [themeId: string];
+  'apply-template': [id: string];
+  'reset-map': [];
+  'export-template': [];
   close: [];
 }>();
 
@@ -43,8 +46,9 @@ const TOOLS: Array<{
 }> = [
   { id: 'tile', label: 'Sol', shortcut: '1', accent: 'violet' },
   { id: 'wall', label: 'Mur', shortcut: '2', accent: 'violet' },
-  { id: 'decor', label: 'Décor', shortcut: '3', accent: 'violet' },
-  { id: 'erase', label: 'Gomme', shortcut: '4', accent: 'rose' },
+  { id: 'room', label: 'Pièce', shortcut: '3', accent: 'violet' },
+  { id: 'decor', label: 'Décor', shortcut: '4', accent: 'violet' },
+  { id: 'erase', label: 'Gomme', shortcut: '5', accent: 'rose' },
 ];
 
 const decorCategories = DECOR_CATEGORY_ORDER;
@@ -125,14 +129,11 @@ function pickDecor(asset: DecorAsset) {
 }
 
 watch(
-  () => [props.tool, props.selectedRoomTemplate] as const,
-  ([tool, selectedRoomTemplate]) => {
+  () => props.tool,
+  (tool) => {
     if (tool === 'decor' && !props.selectedDecor) {
       const first = DECOR_ASSETS.value[0];
       if (first) emit('update:selected-decor', first.id);
-    }
-    if (tool === 'room' && selectedRoomTemplate !== ROOM_CUSTOM_TEMPLATE_ID) {
-      emit('update:selected-room-template', ROOM_CUSTOM_TEMPLATE_ID);
     }
   },
   { immediate: true },
@@ -152,8 +153,9 @@ function onKeydown(e: KeyboardEvent) {
   if (tag === 'INPUT' || tag === 'TEXTAREA') return;
   if (e.key === '1') emit('update:tool', 'tile');
   else if (e.key === '2') emit('update:tool', 'wall');
-  else if (e.key === '3') emit('update:tool', 'decor');
-  else if (e.key === '4') emit('update:tool', 'erase');
+  else if (e.key === '3') emit('update:tool', 'room');
+  else if (e.key === '4') emit('update:tool', 'decor');
+  else if (e.key === '5') emit('update:tool', 'erase');
 }
 
 onMounted(() => {
@@ -208,6 +210,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
             <path
               v-else-if="t.id === 'wall'"
               d="M3 4h18v4H3zm0 6h6v4H3zm8 0h10v4H11zm-8 6h12v4H3zm14 0h4v4h-4z"
+            />
+            <path
+              v-else-if="t.id === 'room'"
+              d="M4 4h16v3H4zm0 13h16v3H4zm0-13v16h3V4zm13 0v16h3V4z"
             />
             <path
               v-else-if="t.id === 'decor'"
@@ -345,17 +351,107 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
           </p>
         </div>
 
-        <!-- Mur -->
+        <!-- Templates (Sol seulement, accessible quand l'outil est Sol) -->
+        <div
+          v-if="tool === 'tile'"
+          class="px-2.5 pb-2.5 border-t"
+          style="border-color: var(--surface-tinted); padding-top: 10px"
+          @mousedown.stop
+        >
+          <p class="mb-2 px-1 text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
+            Templates de Nook
+          </p>
+          <div class="flex flex-col gap-1">
+            <button
+              v-for="tpl in MAP_TEMPLATES"
+              :key="tpl.id"
+              class="rounded px-2 py-1.5 text-left text-[11px]"
+              :style="{
+                background:
+                  selectedTemplate === tpl.id ? 'rgba(99,102,241,0.18)' : 'rgba(255,255,255,0.04)',
+                boxShadow:
+                  selectedTemplate === tpl.id
+                    ? 'inset 0 0 0 1.5px rgba(165,180,252,0.9)'
+                    : 'inset 0 0 0 1px rgba(255,255,255,0.06)',
+              }"
+              @click="
+                emit('update:selected-template', tpl.id);
+                emit('apply-template', tpl.id);
+              "
+            >
+              <div class="font-semibold">{{ tpl.label }}</div>
+              <div class="text-[9px] text-ink-faint">{{ tpl.description }}</div>
+            </button>
+          </div>
+          <p class="mt-2 text-[10px] leading-tight" style="color: var(--ink-faint)">
+            Clique un template pour réinitialiser la map.
+          </p>
+          <button
+            class="mt-2 w-full rounded px-2 py-1.5 text-[11px] font-semibold"
+            style="background-color: rgba(34, 197, 94, 0.4); color: white"
+            title="Copie le template (floors+walls+decor) en TS dans le presse-papiers + console"
+            @click="emit('export-template')"
+          >
+            Exporter la map en code (template)
+          </button>
+          <button
+            class="mt-1.5 w-full rounded px-2 py-1.5 text-[11px] font-semibold"
+            style="background-color: rgba(239, 68, 68, 0.5); color: white"
+            title="Vide complètement la map (murs, sol, décor)"
+            @click="emit('reset-map')"
+          >
+            Reset map (vider tout)
+          </button>
+        </div>
+
+        <!-- Mur (LimeZu sheet picker) -->
         <BuildWallPicker
-          v-if="tool === 'wall' || tool === 'room'"
-          :tool="tool"
-          :selected-wall-frame="selectedWallFrame"
-          :selected-room-theme="selectedRoomTheme"
-          @update:selected-wall-frame="emit('update:selected-wall-frame', $event)"
-          @update:selected-room-theme="emit('update:selected-room-theme', $event)"
-          @update:selected-room-template="emit('update:selected-room-template', $event)"
-          @update:tool="emit('update:tool', $event)"
+          v-if="tool === 'wall'"
+          :selected-wall-region="selectedWallRegion"
+          @update:selected-wall-region="emit('update:selected-wall-region', $event)"
         />
+
+        <!-- Pièce (drag-rect = pose une pièce complète) -->
+        <div v-if="tool === 'room'" class="px-2.5 pb-2.5" @mousedown.stop>
+          <p class="mb-2 px-1 text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
+            Thème de pièce
+          </p>
+          <div class="grid grid-cols-3 gap-1.5 mb-2">
+            <button
+              v-for="theme in ROOM_THEMES"
+              :key="theme.id"
+              class="rounded-md flex flex-col items-center justify-center gap-1 py-1.5 transition-transform active:scale-95"
+              :style="{
+                background:
+                  (selectedRoomTheme ?? 'drywall') === theme.id
+                    ? 'rgba(99,102,241,0.2)'
+                    : 'rgba(255,255,255,0.04)',
+                boxShadow:
+                  (selectedRoomTheme ?? 'drywall') === theme.id
+                    ? 'inset 0 0 0 1.5px rgba(165,180,252,0.95)'
+                    : 'inset 0 0 0 1px rgba(255,255,255,0.06)',
+              }"
+              @click="emit('update:selected-room-theme', theme.id)"
+            >
+              <div
+                :style="{
+                  width: '40px',
+                  height: '40px',
+                  backgroundImage: `url(${WALL_SHEET.url})`,
+                  backgroundRepeat: 'no-repeat',
+                  backgroundSize: `${WALL_SHEET.cols * 40}px auto`,
+                  backgroundPosition: `-${(theme.colOffset + 3) * 40}px -${(theme.rowOffset + 3) * 40}px`,
+                  imageRendering: 'pixelated',
+                }"
+              />
+              <span class="text-[9px] text-ink-muted">{{ theme.label }}</span>
+            </button>
+          </div>
+          <p class="text-[10px] leading-tight" style="color: var(--ink-faint)">
+            Drag un rectangle sur la map (min 3×4) → ça stamp une pièce complète dans le thème
+            choisi.
+          </p>
+        </div>
 
         <!-- Décor -->
         <div v-if="tool === 'decor'" class="px-2.5 pb-2.5" @mousedown.stop>

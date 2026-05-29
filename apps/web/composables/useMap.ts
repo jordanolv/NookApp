@@ -8,13 +8,12 @@ import {
   type WallCell,
 } from '@nookapp/protocol';
 import type { BuildTool } from '~/components/world/NookScene';
+import { DEFAULT_TEMPLATE_ID, getMapTemplate } from '~/components/world/scene/map-templates';
 import {
-  DEFAULT_WALL_FRAME,
-  stampRoomCells,
-  themeOfFrame,
-  type WallThemeBlock,
+  WALL_SHEET,
+  getRoomTheme,
+  DEFAULT_ROOM_THEME_ID,
 } from '~/components/world/scene/wall-catalog';
-import { DEFAULT_ROOM_TEMPLATE_ID, getRoomTemplate } from '~/components/world/scene/room-templates';
 
 const ydoc = new Y.Doc();
 const floorsArray = ydoc.getArray<FloorCell>('floors');
@@ -29,9 +28,14 @@ const buildMode = ref(false);
 const buildTool = ref<BuildTool>('tile');
 const selectedDecor = ref<string | null>(null);
 const selectedFloor = ref<string>('office_floor_light');
-const selectedWallFrame = ref<number>(DEFAULT_WALL_FRAME);
-const selectedRoomTheme = ref<WallThemeBlock>(themeOfFrame(DEFAULT_WALL_FRAME));
-const selectedRoomTemplate = ref<string>(DEFAULT_ROOM_TEMPLATE_ID);
+const selectedTemplate = ref<string>(DEFAULT_TEMPLATE_ID);
+const selectedWallRegion = ref<{ col: number; row: number; w: number; h: number }>({
+  col: 0,
+  row: 0,
+  w: 1,
+  h: 1,
+});
+const selectedRoomTheme = ref<string>(DEFAULT_ROOM_THEME_ID);
 const isSynced = ref(false);
 const isSaving = ref(false);
 const currentMap = shallowRef<MapData>(DEFAULT_MAP);
@@ -103,9 +107,8 @@ export function useMap() {
     buildTool.value = 'tile';
     selectedDecor.value = null;
     selectedFloor.value = 'office_floor_light';
-    selectedWallFrame.value = DEFAULT_WALL_FRAME;
-    selectedRoomTheme.value = themeOfFrame(DEFAULT_WALL_FRAME);
-    selectedRoomTemplate.value = DEFAULT_ROOM_TEMPLATE_ID;
+    selectedTemplate.value = DEFAULT_TEMPLATE_ID;
+    selectedWallRegion.value = { col: 0, row: 0, w: 1, h: 1 };
     if (!isSynced.value) currentMap.value = DEFAULT_MAP;
 
     if (!provider) {
@@ -141,17 +144,12 @@ export function useMap() {
   ) {
     const { minX, maxX, minY, maxY } = normalizeRect(x1, y1, x2, y2);
     ydoc.transact(() => {
-      // Cells occupied by walls — never paint floor there, the wall sprite has
-      // transparent areas that would let the floor show through (visible as a
-      // pale strip below baseboards, etc.).
-      const blockedCells = new Set(wallsArray.toArray().map((w) => `${w.x},${w.y}`));
       const keep = floorsArray
         .toArray()
         .filter((cell) => !inRect(cell.x, cell.y, minX, minY, maxX, maxY));
       if (mode === 'add') {
         for (let x = minX; x <= maxX; x++) {
           for (let y = minY; y <= maxY; y++) {
-            if (blockedCells.has(`${x},${y}`)) continue;
             keep.push({ asset, x, y });
           }
         }
@@ -161,61 +159,150 @@ export function useMap() {
     });
   }
 
-  function paintWallCell(x: number, y: number, frame: number, mode: 'add' | 'remove') {
-    if (x < 0 || y < 0 || x > 199 || y > 199) return;
-    ydoc.transact(() => {
-      const keep = wallsArray.toArray().filter((cell) => cell.x !== x || cell.y !== y);
-      if (mode === 'add') keep.push({ x, y, frame });
-      wallsArray.delete(0, wallsArray.length);
-      if (keep.length) wallsArray.insert(0, keep);
-    });
-  }
+  function paintWallRect(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    region: { col: number; row: number; w: number; h: number },
+    mode: 'add' | 'remove',
+  ) {
+    // Multi-tile brush in add mode → stamp once at (x1, y1), ignore drag end.
+    // Single-tile brush OR remove mode → use the dragged rect (fill / clear).
+    const isMultiTileBrush = mode === 'add' && (region.w > 1 || region.h > 1);
+    const startX = Math.min(x1, x2);
+    const startY = Math.min(y1, y2);
+    const { minX, maxX, minY, maxY } = isMultiTileBrush
+      ? {
+          minX: startX,
+          minY: startY,
+          maxX: startX + region.w - 1,
+          maxY: startY + region.h - 1,
+        }
+      : normalizeRect(x1, y1, x2, y2);
 
-  function stampRoomTemplate(originX: number, originY: number, templateId: string) {
-    const tpl = getRoomTemplate(templateId);
-    if (!tpl) return;
-    ydoc.transact(() => {
-      const stamped = new Map<string, number>();
-      for (const c of tpl.cells) {
-        const x = originX + c.dx;
-        const y = originY + c.dy;
-        if (x < 0 || y < 0 || x > 199 || y > 199) continue;
-        stamped.set(`${x},${y}`, c.frame);
-      }
-      const keep = wallsArray.toArray().filter((cell) => !stamped.has(`${cell.x},${cell.y}`));
-      for (const [key, frame] of stamped) {
-        const [xs, ys] = key.split(',');
-        keep.push({ x: Number(xs), y: Number(ys), frame });
-      }
-      wallsArray.delete(0, wallsArray.length);
-      if (keep.length) wallsArray.insert(0, keep);
-    });
-  }
-
-  function stampCustomRoom(x1: number, y1: number, x2: number, y2: number, themeFrame: number) {
-    const { minX, maxX, minY, maxY } = normalizeRect(x1, y1, x2, y2);
-    const theme = themeOfFrame(themeFrame);
-    const cells = stampRoomCells(minX, minY, maxX - minX + 1, maxY - minY + 1, theme);
-    if (!cells.length) return;
-    ydoc.transact(() => {
-      const stamped = new Map(cells.map((c) => [`${c.x},${c.y}`, c.frame]));
-      const keep = wallsArray.toArray().filter((cell) => !stamped.has(`${cell.x},${cell.y}`));
-      for (const c of cells) keep.push({ x: c.x, y: c.y, frame: c.frame });
-      wallsArray.delete(0, wallsArray.length);
-      if (keep.length) wallsArray.insert(0, keep);
-    });
-  }
-
-  function clearWallsRect(x1: number, y1: number, x2: number, y2: number) {
-    const { minX, maxX, minY, maxY } = normalizeRect(x1, y1, x2, y2);
     ydoc.transact(() => {
       const keep = wallsArray
         .toArray()
         .filter((cell) => !inRect(cell.x, cell.y, minX, minY, maxX, maxY));
-      if (keep.length === wallsArray.length) return;
+      if (mode === 'add') {
+        for (let x = minX; x <= maxX; x += 1) {
+          for (let y = minY; y <= maxY; y += 1) {
+            if (x < 0 || x > 199 || y < 0 || y > 199) continue;
+            const dx = (x - minX) % region.w;
+            const dy = (y - minY) % region.h;
+            const frame = (region.row + dy) * WALL_SHEET.cols + (region.col + dx);
+            keep.push({ x, y, frame });
+          }
+        }
+      }
       wallsArray.delete(0, wallsArray.length);
       if (keep.length) wallsArray.insert(0, keep);
     });
+  }
+
+  // Stamp a rectangular LimeZu room with the given theme.
+  // Theme-relative layout (8×7 block in LimeZu 3D walls sheet):
+  //   theme(2,0)=TL  theme(3,2)=cap_a  theme(4,2)=cap_b  theme(5,0)=TR
+  //   theme(2,1)=L_top                                   theme(5,1)=R_top
+  //   theme(2,2)=L_mid                                   theme(5,2)=R_mid
+  //   theme(2,5)=BL  theme(3,5)=bot_a  theme(4,5)=bot_b  theme(5,5)=BR
+  // Minimum room: w >= 3, h >= 4.
+  function stampRoom(x1: number, y1: number, x2: number, y2: number, themeId: string) {
+    const { minX, maxX, minY, maxY } = normalizeRect(x1, y1, x2, y2);
+    const w = maxX - minX + 1;
+    const h = maxY - minY + 1;
+    if (w < 3 || h < 4) return;
+
+    const theme = getRoomTheme(themeId) ?? getRoomTheme(DEFAULT_ROOM_THEME_ID);
+    if (!theme) return;
+    const f = (col: number, row: number) =>
+      (theme.rowOffset + row) * WALL_SHEET.cols + (theme.colOffset + col);
+
+    const cells: Array<{ x: number; y: number; frame: number }> = [];
+    const push = (x: number, y: number, frame: number) => {
+      if (x < 0 || y < 0 || x > 199 || y > 199) return;
+      cells.push({ x, y, frame });
+    };
+
+    // Top row
+    push(minX, minY, f(2, 0));
+    push(maxX, minY, f(5, 0));
+    for (let i = 1; i < w - 1; i += 1) {
+      push(minX + i, minY, i % 2 === 1 ? f(3, 2) : f(4, 2));
+    }
+    // Top body row
+    push(minX, minY + 1, f(2, 1));
+    push(maxX, minY + 1, f(5, 1));
+    for (let i = 1; i < w - 1; i += 1) {
+      push(minX + i, minY + 1, i % 2 === 1 ? f(3, 3) : f(4, 3));
+    }
+    // Middle rows (sides only)
+    for (let row = minY + 2; row <= maxY - 1; row += 1) {
+      push(minX, row, f(2, 2));
+      push(maxX, row, f(5, 2));
+    }
+    // Bottom row
+    push(minX, maxY, f(2, 5));
+    push(maxX, maxY, f(5, 5));
+    for (let i = 1; i < w - 1; i += 1) {
+      push(minX + i, maxY, i % 2 === 1 ? f(3, 5) : f(4, 5));
+    }
+
+    const stamped = new Set(cells.map((c) => `${c.x},${c.y}`));
+    ydoc.transact(() => {
+      const keep = wallsArray.toArray().filter((cell) => !stamped.has(`${cell.x},${cell.y}`));
+      for (const c of cells) keep.push(c);
+      wallsArray.delete(0, wallsArray.length);
+      if (keep.length) wallsArray.insert(0, keep);
+    });
+  }
+
+  function resetMap() {
+    ydoc.transact(() => {
+      floorsArray.delete(0, floorsArray.length);
+      wallsArray.delete(0, wallsArray.length);
+      decorArray.delete(0, decorArray.length);
+    });
+  }
+
+  function exportMapAsTemplate(): string {
+    const floors = floorsArray.toArray();
+    const walls = wallsArray.toArray();
+    const decor = decorArray.toArray();
+    const lines: string[] = [];
+    lines.push('// Auto-exported template — paste into MAP_TEMPLATES:');
+    lines.push('{');
+    lines.push("  id: 'TODO-id',");
+    lines.push("  label: 'TODO Label',");
+    lines.push("  description: 'TODO description',");
+    lines.push('  build: () => ({');
+    lines.push('    width: 200,');
+    lines.push('    height: 200,');
+    lines.push(`    spawn: { x: ${currentMap.value.spawn.x}, y: ${currentMap.value.spawn.y} },`);
+    lines.push('    layers: {');
+    lines.push('      floors: [');
+    for (const f of floors)
+      lines.push(`        { x: ${f.x}, y: ${f.y}, asset: ${JSON.stringify(f.asset)} },`);
+    lines.push('      ],');
+    lines.push('      walls: [');
+    for (const w of walls) lines.push(`        { x: ${w.x}, y: ${w.y}, frame: ${w.frame} },`);
+    lines.push('      ],');
+    lines.push('      decor: [');
+    for (const d of decor)
+      lines.push(
+        `        { id: ${JSON.stringify(d.id)}, asset: ${JSON.stringify(d.asset)}, x: ${d.x}, y: ${d.y} },`,
+      );
+    lines.push('      ],');
+    lines.push('    },');
+    lines.push('  }),');
+    lines.push('},');
+    const out = lines.join('\n');
+    console.log('[exportMapAsTemplate]\n' + out);
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(out).catch(() => {});
+    }
+    return out;
   }
 
   function placeDecor(asset: string, x: number, y: number) {
@@ -254,25 +341,40 @@ export function useMap() {
     });
   }
 
+  function applyTemplate(templateId: string) {
+    const tpl = getMapTemplate(templateId);
+    if (!tpl) return;
+    const data = tpl.build();
+    ydoc.transact(() => {
+      floorsArray.delete(0, floorsArray.length);
+      wallsArray.delete(0, wallsArray.length);
+      decorArray.delete(0, decorArray.length);
+      if (data.layers.floors.length) floorsArray.insert(0, data.layers.floors);
+      if (data.layers.walls.length) wallsArray.insert(0, data.layers.walls);
+      if (data.layers.decor.length) decorArray.insert(0, data.layers.decor);
+    });
+  }
+
   return {
     currentMap,
     buildMode,
     buildTool,
     selectedDecor,
     selectedFloor,
-    selectedWallFrame,
+    selectedTemplate,
+    selectedWallRegion,
     selectedRoomTheme,
-    selectedRoomTemplate,
     isSynced: readonly(isSynced),
     isSaving: readonly(isSaving),
     loadMap,
     paintRect,
-    paintWallCell,
-    stampRoomTemplate,
-    stampCustomRoom,
-    clearWallsRect,
+    paintWallRect,
     placeDecor,
     removeDecorAt,
     eraseCell,
+    applyTemplate,
+    resetMap,
+    stampRoom,
+    exportMapAsTemplate,
   };
 }

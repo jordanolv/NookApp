@@ -12,7 +12,8 @@ type ColliderOrientation = 'horizontal' | 'vertical' | 'block';
 
 export class WallRenderer {
   private readonly group: Phaser.Physics.Arcade.StaticGroup;
-  private sprites: Phaser.GameObjects.Image[] = [];
+  // cellKey ("x,y") → sprite, so we can update incrementally.
+  private sprites = new Map<string, Phaser.GameObjects.Image>();
 
   constructor(private readonly scene: Phaser.Scene) {
     this.group = this.scene.physics.add.staticGroup();
@@ -23,23 +24,38 @@ export class WallRenderer {
   }
 
   apply(model: MapModel) {
-    for (const sprite of this.sprites) sprite.destroy();
-    this.sprites = [];
-    this.group.clear(true, true);
-
     if (this.scene.textures.exists(WALL_SHEET_TEXTURE_KEY)) {
+      const seen = new Set<string>();
       for (const wall of model.data.layers.walls) {
+        const key = cellKey(wall.x, wall.y);
+        seen.add(key);
         const left = wall.x * TILE_SIZE;
         const top = wall.y * TILE_SIZE;
-        this.sprites.push(
-          this.scene.add
+        const existing = this.sprites.get(key);
+        if (existing) {
+          if (existing.frame.name !== String(wall.frame)) {
+            existing.setFrame(wall.frame);
+          }
+        } else {
+          const sprite = this.scene.add
             .image(left, top, WALL_SHEET_TEXTURE_KEY, wall.frame)
             .setOrigin(0, 0)
-            .setDepth(top + TILE_SIZE),
-        );
+            .setDepth(top + TILE_SIZE);
+          this.sprites.set(key, sprite);
+        }
+      }
+      // Remove sprites for cells no longer in the model.
+      for (const [key, sprite] of this.sprites) {
+        if (!seen.has(key)) {
+          sprite.destroy();
+          this.sprites.delete(key);
+        }
       }
     }
 
+    // Colliders are still fully rebuilt — the run-grouping depends on neighbors
+    // so a single cell change can affect surrounding cell groupings.
+    this.group.clear(true, true);
     this.addSegmentColliders(model);
     this.group.refresh();
   }

@@ -1,260 +1,183 @@
 <script setup lang="ts">
-import { computed, type CSSProperties } from 'vue';
-import {
-  DEFAULT_WALL_FRAME,
-  WALL_SHEET,
-  WALL_SHEET_FRAMES,
-  WALL_THEMES,
-  normalizeWallFrame,
-  stampRoomCells,
-  themeOfFrame,
-  type RoomStampCell,
-  type WallThemeBlock,
-} from './scene/wall-catalog';
+import { computed, ref, type CSSProperties } from 'vue';
+import { WALL_SHEET } from './scene/wall-catalog';
 
-const ROOM_CUSTOM_TEMPLATE_ID = 'custom';
+export interface WallRegion {
+  col: number;
+  row: number;
+  w: number;
+  h: number;
+}
 
 const props = defineProps<{
-  tool: 'wall' | 'room' | string;
-  selectedWallFrame?: number;
-  selectedRoomTheme?: WallThemeBlock;
+  selectedWallRegion?: WallRegion;
 }>();
 
 const emit = defineEmits<{
-  'update:selected-wall-frame': [frame: number];
-  'update:selected-room-theme': [theme: WallThemeBlock];
-  'update:selected-room-template': [id: string];
-  'update:tool': [tool: 'wall' | 'room'];
+  'update:selected-wall-region': [region: WallRegion];
 }>();
 
-const themeCellPx = 28;
-const themeStripWidth = WALL_SHEET.themeWidth * themeCellPx;
-const themeStripHeight = WALL_SHEET.themeHeight * themeCellPx;
-const sheetPxWidth = WALL_SHEET.cols * themeCellPx;
-const roomPreviewCellPx = 20;
-const roomPreviewSize = 5;
+const SHEET_URL = WALL_SHEET.url;
+const SHEET_COLS = WALL_SHEET.cols;
+const SHEET_ROWS = WALL_SHEET.rows;
+const TILE_PX = 32;
+const DISPLAY_TILE = 24;
 
-const activeFrame = computed(() =>
-  normalizeWallFrame(props.selectedWallFrame ?? DEFAULT_WALL_FRAME),
-);
-const activeWallTheme = computed(() => themeOfFrame(activeFrame.value));
-const activeRoomTheme = computed<WallThemeBlock>(
-  () => props.selectedRoomTheme ?? themeOfFrame(DEFAULT_WALL_FRAME),
+const activeRegion = computed<WallRegion>(
+  () => props.selectedWallRegion ?? { col: 0, row: 0, w: 1, h: 1 },
 );
 
-function textureCellStyle(frame: number, cellPx: number): CSSProperties {
-  const col = frame % WALL_SHEET.cols;
-  const row = Math.floor(frame / WALL_SHEET.cols);
+const sheetStyle: CSSProperties = {
+  width: `${SHEET_COLS * DISPLAY_TILE}px`,
+  height: `${SHEET_ROWS * DISPLAY_TILE}px`,
+  backgroundImage: `url(${SHEET_URL})`,
+  backgroundRepeat: 'no-repeat',
+  backgroundSize: `${SHEET_COLS * DISPLAY_TILE}px auto`,
+  imageRendering: 'pixelated',
+  cursor: 'crosshair',
+};
+
+const gridOverlayStyle: CSSProperties = {
+  backgroundImage:
+    'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)',
+  backgroundSize: `${DISPLAY_TILE}px ${DISPLAY_TILE}px`,
+};
+
+const regionHighlightStyle = computed<CSSProperties>(() => {
+  const r = activeRegion.value;
   return {
-    backgroundImage: `url(${WALL_SHEET.url})`,
-    backgroundRepeat: 'no-repeat',
-    backgroundSize: `${WALL_SHEET.cols * cellPx}px auto`,
-    backgroundPosition: `-${col * cellPx}px -${row * cellPx}px`,
-    imageRendering: 'pixelated',
+    left: `${r.col * DISPLAY_TILE}px`,
+    top: `${r.row * DISPLAY_TILE}px`,
+    width: `${r.w * DISPLAY_TILE}px`,
+    height: `${r.h * DISPLAY_TILE}px`,
+    boxShadow: 'inset 0 0 0 2px rgba(255,238,88,0.95)',
+    background: 'rgba(255,238,88,0.15)',
   };
-}
+});
 
-function roomPreviewCellStyle(cell: RoomStampCell): CSSProperties {
+// --- drag selection ---
+const dragStart = ref<{ col: number; row: number } | null>(null);
+const dragCurrent = ref<{ col: number; row: number } | null>(null);
+
+const dragPreviewStyle = computed<CSSProperties | null>(() => {
+  if (!dragStart.value || !dragCurrent.value) return null;
+  const col1 = Math.min(dragStart.value.col, dragCurrent.value.col);
+  const col2 = Math.max(dragStart.value.col, dragCurrent.value.col);
+  const row1 = Math.min(dragStart.value.row, dragCurrent.value.row);
+  const row2 = Math.max(dragStart.value.row, dragCurrent.value.row);
   return {
-    left: `${cell.x * roomPreviewCellPx}px`,
-    top: `${cell.y * roomPreviewCellPx}px`,
-    width: `${roomPreviewCellPx}px`,
-    height: `${roomPreviewCellPx}px`,
-    ...textureCellStyle(cell.frame, roomPreviewCellPx),
+    left: `${col1 * DISPLAY_TILE}px`,
+    top: `${row1 * DISPLAY_TILE}px`,
+    width: `${(col2 - col1 + 1) * DISPLAY_TILE}px`,
+    height: `${(row2 - row1 + 1) * DISPLAY_TILE}px`,
+    boxShadow: 'inset 0 0 0 2px rgba(99,102,241,0.95)',
+    background: 'rgba(99,102,241,0.18)',
   };
-}
+});
 
-function roomPreviewFloorCells() {
-  const cells: Array<{ x: number; y: number }> = [];
-  // Interior spans y=2..h-1 because stampRoomCells renders an extra row below
-  // for the front wall's offset; the preview mirrors that.
-  for (let y = 2; y <= roomPreviewSize - 1; y += 1) {
-    for (let x = 1; x < roomPreviewSize - 1; x += 1) {
-      cells.push({ x, y });
-    }
-  }
-  return cells;
-}
-
-function roomPreviewFloorStyle(cell: { x: number; y: number }): CSSProperties {
-  return {
-    left: `${cell.x * roomPreviewCellPx}px`,
-    top: `${cell.y * roomPreviewCellPx}px`,
-    width: `${roomPreviewCellPx}px`,
-    height: `${roomPreviewCellPx}px`,
-    background: 'rgba(8,8,12,0.78)',
-    boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)',
-  };
-}
-
-function roomPreviewCells(theme: WallThemeBlock) {
-  return stampRoomCells(0, 0, roomPreviewSize, roomPreviewSize, theme);
-}
-
-function pickThemeForRoom(theme: WallThemeBlock) {
-  emit('update:selected-room-theme', { col: theme.col, row: theme.row });
-  emit('update:selected-room-template', ROOM_CUSTOM_TEMPLATE_ID);
-  emit('update:tool', 'room');
-}
-
-function themeBgOffset(themeCol: number, themeRow: number) {
-  return `-${themeCol * themeCellPx}px -${themeRow * themeCellPx}px`;
-}
-
-function frameInTheme(frame: number, theme: { col: number; row: number }) {
-  const col = frame % WALL_SHEET.cols;
-  const row = Math.floor(frame / WALL_SHEET.cols);
-  if (
-    col < theme.col ||
-    col >= theme.col + WALL_SHEET.themeWidth ||
-    row < theme.row ||
-    row >= theme.row + WALL_SHEET.themeHeight
-  )
-    return null;
-  return { col: col - theme.col, row: row - theme.row };
-}
-
-function onThemeStripClick(ev: MouseEvent, theme: { col: number; row: number }) {
-  const target = ev.currentTarget as HTMLElement;
-  const rect = target.getBoundingClientRect();
+function cellFromEvent(ev: MouseEvent): { col: number; row: number } | null {
+  const target = (ev.currentTarget as HTMLElement).querySelector('.sheet-inner');
+  if (!target) return null;
+  const rect = (target as HTMLElement).getBoundingClientRect();
   const localX = ev.clientX - rect.left;
   const localY = ev.clientY - rect.top;
-  const cx = Math.floor(localX / themeCellPx);
-  const cy = Math.floor(localY / themeCellPx);
-  if (cx < 0 || cy < 0 || cx >= WALL_SHEET.themeWidth || cy >= WALL_SHEET.themeHeight) return;
-  const frame = (theme.row + cy) * WALL_SHEET.cols + (theme.col + cx);
-  if (frame < 0 || frame >= WALL_SHEET_FRAMES) return;
-  emit('update:selected-wall-frame', frame);
-  if (props.tool !== 'wall') emit('update:tool', 'wall');
+  const col = Math.floor(localX / DISPLAY_TILE);
+  const row = Math.floor(localY / DISPLAY_TILE);
+  if (col < 0 || col >= SHEET_COLS || row < 0 || row >= SHEET_ROWS) return null;
+  return { col, row };
 }
+
+function onMouseDown(ev: MouseEvent) {
+  const cell = cellFromEvent(ev);
+  if (!cell) return;
+  dragStart.value = cell;
+  dragCurrent.value = cell;
+}
+
+function onMouseMove(ev: MouseEvent) {
+  if (!dragStart.value) return;
+  const cell = cellFromEvent(ev);
+  if (!cell) return;
+  dragCurrent.value = cell;
+}
+
+function onMouseUp(ev: MouseEvent) {
+  if (!dragStart.value) return;
+  const cell = cellFromEvent(ev) ?? dragCurrent.value;
+  if (!cell) {
+    dragStart.value = null;
+    dragCurrent.value = null;
+    return;
+  }
+  const col1 = Math.min(dragStart.value.col, cell.col);
+  const col2 = Math.max(dragStart.value.col, cell.col);
+  const row1 = Math.min(dragStart.value.row, cell.row);
+  const row2 = Math.max(dragStart.value.row, cell.row);
+  emit('update:selected-wall-region', {
+    col: col1,
+    row: row1,
+    w: col2 - col1 + 1,
+    h: row2 - row1 + 1,
+  });
+  dragStart.value = null;
+  dragCurrent.value = null;
+}
+
+// Big preview of the selected region (scaled to fit).
+const previewStyle = computed<CSSProperties>(() => {
+  const r = activeRegion.value;
+  const PREVIEW_MAX = 144;
+  const scale = Math.min(PREVIEW_MAX / (r.w * TILE_PX), PREVIEW_MAX / (r.h * TILE_PX), 4);
+  return {
+    width: `${r.w * TILE_PX * scale}px`,
+    height: `${r.h * TILE_PX * scale}px`,
+    backgroundImage: `url(${SHEET_URL})`,
+    backgroundRepeat: 'no-repeat',
+    backgroundSize: `${SHEET_COLS * TILE_PX * scale}px auto`,
+    backgroundPosition: `-${r.col * TILE_PX * scale}px -${r.row * TILE_PX * scale}px`,
+    imageRendering: 'pixelated',
+    boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.15)',
+  };
+});
 </script>
 
 <template>
-  <div class="px-2.5 pb-2.5" @mousedown.stop>
+  <div class="px-2.5 pb-2.5 flex flex-col gap-2" @mousedown.stop>
     <div
-      class="max-h-80 overflow-y-auto rounded-lg p-2 flex flex-col gap-2"
-      style="background: rgba(0, 0, 0, 0.25)"
+      class="flex items-center gap-3 rounded-md px-2 py-2"
+      style="background: rgba(255, 255, 255, 0.04)"
     >
-      <div
-        v-for="(theme, idx) in WALL_THEMES"
-        :key="idx"
-        class="rounded-lg p-2"
-        :style="{
-          boxShadow:
-            (tool === 'wall' &&
-              activeWallTheme.col === theme.col &&
-              activeWallTheme.row === theme.row) ||
-            (tool === 'room' &&
-              activeRoomTheme.col === theme.col &&
-              activeRoomTheme.row === theme.row)
-              ? 'inset 0 0 0 1.5px rgba(165,180,252,0.9)'
-              : 'inset 0 0 0 1px rgba(255,255,255,0.06)',
-          background:
-            (tool === 'wall' &&
-              activeWallTheme.col === theme.col &&
-              activeWallTheme.row === theme.row) ||
-            (tool === 'room' &&
-              activeRoomTheme.col === theme.col &&
-              activeRoomTheme.row === theme.row)
-              ? 'rgba(99,102,241,0.13)'
-              : 'rgba(255,255,255,0.035)',
-        }"
-      >
-        <div class="mb-2 flex items-center gap-2">
-          <button
-            class="relative shrink-0 rounded-md overflow-hidden transition-transform active:scale-[0.98]"
-            :style="{
-              width: `${roomPreviewSize * roomPreviewCellPx}px`,
-              height: `${(roomPreviewSize + 1) * roomPreviewCellPx}px`,
-              background:
-                'linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), rgba(255,255,255,0.035)',
-              backgroundSize: `${roomPreviewCellPx}px ${roomPreviewCellPx}px`,
-              boxShadow:
-                tool === 'room' &&
-                activeRoomTheme.col === theme.col &&
-                activeRoomTheme.row === theme.row
-                  ? 'inset 0 0 0 2px rgba(165,180,252,0.95), 0 0 0 2px rgba(99,102,241,0.35)'
-                  : 'inset 0 0 0 1px rgba(255,255,255,0.08)',
-            }"
-            title="Créer une pièce préfaite avec ce thème"
-            @click="pickThemeForRoom(theme)"
-          >
-            <span
-              v-for="cell in roomPreviewFloorCells()"
-              :key="`floor-${cell.x},${cell.y}`"
-              class="absolute block"
-              :style="roomPreviewFloorStyle(cell)"
-            />
-            <span
-              v-for="cell in roomPreviewCells(theme)"
-              :key="`${cell.x},${cell.y},${cell.frame}`"
-              class="absolute block"
-              :style="roomPreviewCellStyle(cell)"
-            />
-          </button>
-          <div class="min-w-0 flex-1">
-            <p class="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">
-              Pièce préfaite
-            </p>
-            <p class="mt-1 text-[10px] leading-tight text-ink-faint">
-              Clique la miniature pour créer une pièce avec ce thème.
-            </p>
-          </div>
-        </div>
-
-        <div
-          class="relative cursor-pointer rounded-md overflow-hidden"
-          :style="{
-            width: `${themeStripWidth}px`,
-            height: `${themeStripHeight}px`,
-          }"
-          @click="onThemeStripClick($event, theme)"
+      <div :style="previewStyle" />
+      <div class="flex flex-col gap-1 text-[10px]">
+        <span class="font-semibold uppercase tracking-wide text-ink-muted">Brush sélectionnée</span>
+        <span class="text-ink"
+          >({{ activeRegion.col }}, {{ activeRegion.row }}) — {{ activeRegion.w }}×{{
+            activeRegion.h
+          }}</span
         >
-          <div
-            :style="{
-              backgroundImage: `url(${WALL_SHEET.url})`,
-              backgroundRepeat: 'no-repeat',
-              backgroundSize: `${sheetPxWidth}px auto`,
-              backgroundPosition: themeBgOffset(theme.col, theme.row),
-              imageRendering: 'pixelated',
-              width: `${themeStripWidth}px`,
-              height: `${themeStripHeight}px`,
-            }"
-          />
-          <div
-            class="absolute inset-0 pointer-events-none"
-            :style="{
-              backgroundImage:
-                'linear-gradient(rgba(255,255,255,0.13) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.13) 1px, transparent 1px)',
-              backgroundSize: `${themeCellPx}px ${themeCellPx}px`,
-            }"
-          />
-          <div
-            v-if="tool === 'wall' && frameInTheme(activeFrame, theme)"
-            class="absolute pointer-events-none"
-            :style="{
-              left: `${frameInTheme(activeFrame, theme)!.col * themeCellPx}px`,
-              top: `${frameInTheme(activeFrame, theme)!.row * themeCellPx}px`,
-              width: `${themeCellPx}px`,
-              height: `${themeCellPx}px`,
-              boxShadow: 'inset 0 0 0 2px rgba(255,238,88,0.95)',
-              background: 'rgba(255,238,88,0.18)',
-            }"
-          />
-        </div>
+        <span class="text-ink-faint">Clique ou drag dans la sheet ↓</span>
       </div>
     </div>
-
-    <p
-      v-if="tool === 'room'"
-      class="mt-2 text-[10px] leading-tight"
-      style="color: var(--ink-faint)"
+    <div
+      class="overflow-auto rounded-md select-none"
+      style="background: rgba(0, 0, 0, 0.3); max-height: 360px"
+      @mousedown="onMouseDown"
+      @mousemove="onMouseMove"
+      @mouseup="onMouseUp"
+      @mouseleave="onMouseUp"
     >
-      Glisse un rectangle sur la map. Clique Mur pour revenir à la pose case par case.
-    </p>
-    <p v-else class="mt-2 text-[10px] leading-tight" style="color: var(--ink-faint)">
-      Clique une miniature pour créer une pièce préfaite, ou clique une tuile pour poser des murs
-      case par case.
+      <div class="sheet-inner relative" :style="sheetStyle">
+        <div class="absolute inset-0 pointer-events-none" :style="gridOverlayStyle" />
+        <div class="absolute pointer-events-none" :style="regionHighlightStyle" />
+        <div
+          v-if="dragPreviewStyle"
+          class="absolute pointer-events-none"
+          :style="dragPreviewStyle"
+        />
+      </div>
+    </div>
+    <p class="text-[10px] leading-tight" style="color: var(--ink-faint)">
+      Click+drag pour sélectionner un bloc de tuiles. Drag sur la map pour le tiler dedans.
     </p>
   </div>
 </template>
