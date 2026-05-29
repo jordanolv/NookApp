@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Appearance } from '~/composables/useCharacter';
+import { walkFrames, CG_WALK_FRAME_RATE } from '~/utils/cg-sheet';
 
 const props = defineProps<{
   phase: 'assets' | 'building' | 'syncing';
@@ -7,7 +8,7 @@ const props = defineProps<{
   appearance: Appearance;
 }>();
 
-const WALK_DOWN_FRAMES = [130, 131, 132, 133, 134, 135];
+const WALK_DOWN_FRAMES = walkFrames('down');
 const walkFrame = ref(WALK_DOWN_FRAMES[0]);
 let walkTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -16,7 +17,7 @@ onMounted(() => {
   walkTimer = setInterval(() => {
     i = (i + 1) % WALK_DOWN_FRAMES.length;
     walkFrame.value = WALK_DOWN_FRAMES[i];
-  }, 125);
+  }, 1000 / CG_WALK_FRAME_RATE);
 });
 
 onUnmounted(() => {

@@ -5,6 +5,7 @@ import {
   type CgLayer,
   variantUrl,
 } from '~/composables/useCharacter';
+import { CG_FRAME_W, CG_FRAME_H, frameToCell } from '~/utils/cg-sheet';
 
 const props = withDefaults(
   defineProps<{
@@ -17,11 +18,8 @@ const props = withDefaults(
   { frame: 3, scale: 4 },
 );
 
-const FRAME_W = 16;
-const FRAME_H = 32;
-
-const offsetX = computed(() => -(props.frame % 56) * FRAME_W);
-const offsetY = computed(() => -Math.floor(props.frame / 56) * FRAME_H);
+const offsetX = computed(() => -frameToCell(props.frame).col * CG_FRAME_W);
+const offsetY = computed(() => -frameToCell(props.frame).row * CG_FRAME_H);
 
 const layers = computed(() =>
   CG_LAYER_ORDER.map((layer: CgLayer) => {
@@ -31,13 +29,13 @@ const layers = computed(() =>
 );
 
 const wrapperStyle = computed(() => ({
-  width: `${FRAME_W * props.scale}px`,
-  height: `${FRAME_H * props.scale}px`,
+  width: `${CG_FRAME_W * props.scale}px`,
+  height: `${CG_FRAME_H * props.scale}px`,
 }));
 
 const layerStyle = computed(() => ({
-  width: `${FRAME_W}px`,
-  height: `${FRAME_H}px`,
+  width: `${CG_FRAME_W}px`,
+  height: `${CG_FRAME_H}px`,
   transform: `scale(${props.scale})`,
   transformOrigin: 'top left',
   imageRendering: 'pixelated' as const,
