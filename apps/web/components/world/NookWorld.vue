@@ -23,6 +23,7 @@ import {
 import { useWorldCameraOffset } from '~/composables/useWorldCameraOffset';
 import WorldOverlays from './overlay/WorldOverlays.vue';
 import ZonePicker from './ZonePicker.vue';
+import WorldLoadingOverlay from './WorldLoadingOverlay.vue';
 
 type RectPayload = {
   x1: number;
@@ -67,6 +68,9 @@ const socket = useSocket();
 const canvasRef = ref<HTMLDivElement | null>(null);
 const game = shallowRef<Phaser.Game | null>(null);
 const playerPopup = ref<{ userId: string; name: string; x: number; y: number } | null>(null);
+
+const loadingPhase = ref<'assets' | 'building' | 'syncing' | 'ready'>('assets');
+const assetsProgress = ref(0);
 
 const nameTagOverlays = shallowRef<NameTagOverlay[]>([]);
 const camBubbleOverlays = shallowRef<CamBubbleOverlay[]>([]);
@@ -146,6 +150,12 @@ onMounted(() => {
   cameraOffset.start();
 
   const scene = new NookScene(props.userId, props.playerName, character.appearance.value);
+  scene.onLoadProgress = (value) => {
+    assetsProgress.value = value;
+  };
+  scene.onLoadComplete = () => {
+    if (loadingPhase.value === 'assets') loadingPhase.value = 'building';
+  };
 
   game.value = new Phaser.Game({
     type: Phaser.AUTO,
@@ -172,6 +182,7 @@ onMounted(() => {
       );
       if (p.appearance) scene.setRemoteAppearance(p.userId, p.appearance);
     }
+    loadingPhase.value = 'ready';
   });
 
   const offJoined = socket.onPlayerJoined((state: PlayerState) => {
@@ -210,6 +221,7 @@ onMounted(() => {
 
   scene.onReady = () => {
     _scene = scene;
+    if (loadingPhase.value !== 'ready') loadingPhase.value = 'syncing';
 
     overlaysHandle = useWorldOverlays({
       scene,
@@ -385,5 +397,23 @@ defineExpose({
       @zone-picked="emit('zone-picked', $event)"
       @zone-cancel="emit('zone-cancel')"
     />
+
+    <Transition name="loading-fade">
+      <WorldLoadingOverlay
+        v-if="loadingPhase !== 'ready'"
+        :phase="loadingPhase"
+        :assets-progress="assetsProgress"
+        :appearance="character.appearance.value"
+      />
+    </Transition>
   </div>
 </template>
+
+<style scoped>
+.loading-fade-leave-active {
+  transition: opacity 350ms ease-out;
+}
+.loading-fade-leave-to {
+  opacity: 0;
+}
+</style>

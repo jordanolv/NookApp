@@ -195,6 +195,8 @@ export class NookScene extends Phaser.Scene {
   localUserId: string;
   readonly localUserName: string;
   onReady?: () => void;
+  onLoadProgress?: (value: number) => void;
+  onLoadComplete?: () => void;
 
   constructor(localUserId: string, localUserName: string, initialAppearance?: Appearance) {
     super({ key: 'NookScene' });
@@ -210,6 +212,8 @@ export class NookScene extends Phaser.Scene {
   }
 
   preload() {
+    this.load.on('progress', (value: number) => this.onLoadProgress?.(value));
+    this.load.once('complete', () => this.onLoadComplete?.());
     for (const layer of CG_LAYERS) {
       for (const variant of CG_VARIANTS[layer]) {
         this.load.spritesheet(variant, variantUrl(layer, variant), {
