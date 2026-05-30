@@ -9,11 +9,8 @@ import {
 } from '@nookapp/protocol';
 import type { BuildTool } from '~/components/world/NookScene';
 import { DEFAULT_TEMPLATE_ID, getMapTemplate } from '~/components/world/scene/map-templates';
-import {
-  WALL_SHEET,
-  getRoomTheme,
-  DEFAULT_ROOM_THEME_ID,
-} from '~/components/world/scene/wall-catalog';
+import { stampRoomWalls } from '~/components/world/scene/map-builder';
+import { WALL_SHEET, DEFAULT_ROOM_THEME_ID } from '~/components/world/scene/wall-catalog';
 
 const ydoc = new Y.Doc();
 const floorsArray = ydoc.getArray<FloorCell>('floors');
@@ -201,53 +198,14 @@ export function useMap() {
     });
   }
 
-  // Stamp a rectangular LimeZu room with the given theme.
-  // Theme-relative layout (8×7 block in LimeZu 3D walls sheet):
-  //   theme(2,0)=TL  theme(3,2)=cap_a  theme(4,2)=cap_b  theme(5,0)=TR
-  //   theme(2,1)=L_top                                   theme(5,1)=R_top
-  //   theme(2,2)=L_mid                                   theme(5,2)=R_mid
-  //   theme(2,5)=BL  theme(3,5)=bot_a  theme(4,5)=bot_b  theme(5,5)=BR
-  // Minimum room: w >= 3, h >= 4.
+  // Stamp a rectangular LimeZu room (themed border) into the walls layer.
   function stampRoom(x1: number, y1: number, x2: number, y2: number, themeId: string) {
     const { minX, maxX, minY, maxY } = normalizeRect(x1, y1, x2, y2);
-    const w = maxX - minX + 1;
-    const h = maxY - minY + 1;
-    if (w < 3 || h < 4) return;
-
-    const theme = getRoomTheme(themeId) ?? getRoomTheme(DEFAULT_ROOM_THEME_ID);
-    if (!theme) return;
-    const f = (col: number, row: number) =>
-      (theme.rowOffset + row) * WALL_SHEET.cols + (theme.colOffset + col);
-
-    const cells: Array<{ x: number; y: number; frame: number }> = [];
-    const push = (x: number, y: number, frame: number) => {
-      if (x < 0 || y < 0 || x > 199 || y > 199) return;
-      cells.push({ x, y, frame });
-    };
-
-    // Top row
-    push(minX, minY, f(2, 0));
-    push(maxX, minY, f(5, 0));
-    for (let i = 1; i < w - 1; i += 1) {
-      push(minX + i, minY, i % 2 === 1 ? f(3, 2) : f(4, 2));
-    }
-    // Top body row
-    push(minX, minY + 1, f(2, 1));
-    push(maxX, minY + 1, f(5, 1));
-    for (let i = 1; i < w - 1; i += 1) {
-      push(minX + i, minY + 1, i % 2 === 1 ? f(3, 3) : f(4, 3));
-    }
-    // Middle rows (sides only)
-    for (let row = minY + 2; row <= maxY - 1; row += 1) {
-      push(minX, row, f(2, 2));
-      push(maxX, row, f(5, 2));
-    }
-    // Bottom row
-    push(minX, maxY, f(2, 5));
-    push(maxX, maxY, f(5, 5));
-    for (let i = 1; i < w - 1; i += 1) {
-      push(minX + i, maxY, i % 2 === 1 ? f(3, 5) : f(4, 5));
-    }
+    const cells = stampRoomWalls(
+      { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 },
+      themeId,
+    );
+    if (!cells.length) return;
 
     const stamped = new Set(cells.map((c) => `${c.x},${c.y}`));
     ydoc.transact(() => {
