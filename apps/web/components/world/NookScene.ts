@@ -5,16 +5,19 @@ import { drawGrassBackground } from './scene/background';
 import { BuildOverlay } from './scene/build-overlay';
 import { DISPLAY_SCALE, WORLD_H, WORLD_W } from './scene/constants';
 import { DecorRenderer } from './scene/decor-renderer';
+import { CollisionRenderer } from './scene/collision-renderer';
 import { FloorRenderer } from './scene/floor-renderer';
 import { MapModel } from './scene/map-model';
 import { WallRenderer, WALL_TEXTURE_KEYS } from './scene/wall-renderer';
 import { preloadWorldAssets } from './scene/assets/preload';
+import { DecorTextureLoader } from './scene/assets/decor-loader';
 import { BuildController } from './scene/build/build-controller';
 import { LocalPlayer } from './scene/player/local-player';
 import { RemotePlayerManager } from './scene/player/remote-players';
 import { RoomZoneManager } from './scene/rooms/room-zones';
 import { OverlayEmitter } from './scene/overlays/overlay-emitter';
 import { WorldObjectManager } from './scene/world-objects/world-object-manager';
+import { InteractionManager } from './scene/interactions/interaction-manager';
 import type { BuildTool, RoomZone, WallRegion, WorldObjectSpec } from './scene/types';
 
 export type {
@@ -24,6 +27,7 @@ export type {
   WorldObjectSpec,
   RoomRectPayload,
   WallRectPayload,
+  CollisionRectPayload,
   DecorPlacePayload,
   DecorRemovePayload,
   CellErasePayload,
@@ -47,10 +51,13 @@ export class NookScene extends Phaser.Scene {
   private floorRenderer!: FloorRenderer;
   private wallRenderer!: WallRenderer;
   private decorRenderer!: DecorRenderer;
+  private decorLoader!: DecorTextureLoader;
   private buildOverlay!: BuildOverlay;
   private model: MapModel | null = null;
   private wallCollider?: Phaser.Physics.Arcade.Collider;
   private decorCollider?: Phaser.Physics.Arcade.Collider;
+  private collisionRenderer!: CollisionRenderer;
+  private collisionCollider?: Phaser.Physics.Arcade.Collider;
 
   private localPlayer!: LocalPlayer;
   private remotePlayers!: RemotePlayerManager;
@@ -58,6 +65,7 @@ export class NookScene extends Phaser.Scene {
   private roomZones!: RoomZoneManager;
   private worldObjects!: WorldObjectManager;
   private overlayEmitter!: OverlayEmitter;
+  private interactions!: InteractionManager;
 
   private pendingRestorePosition: { x: number; y: number } | null = null;
 
@@ -100,6 +108,8 @@ export class NookScene extends Phaser.Scene {
     this.floorRenderer = new FloorRenderer(this);
     this.wallRenderer = new WallRenderer(this);
     this.decorRenderer = new DecorRenderer(this);
+    this.decorLoader = new DecorTextureLoader(this);
+    this.collisionRenderer = new CollisionRenderer(this);
     this.buildOverlay = new BuildOverlay(this);
     this.roomZones = new RoomZoneManager(this);
     this.worldObjects = new WorldObjectManager(this);
@@ -118,12 +128,20 @@ export class NookScene extends Phaser.Scene {
 
     this.wallCollider = this.wallRenderer.collideWith(this.localBody);
     this.decorCollider = this.decorRenderer.collideWith(this.localBody);
+    this.collisionCollider = this.collisionRenderer.collideWith(this.localBody);
+
+    this.interactions = new InteractionManager({
+      localPlayer: this.localPlayer,
+      getModel: () => this.model,
+      setDecorCollision: (active) => this.setDecorCollision(active),
+    });
 
     this.overlayEmitter = new OverlayEmitter(this, {
       localPlayer: this.localPlayer,
       remotePlayers: this.remotePlayers,
       worldObjects: this.worldObjects,
       rooms: this.roomZones,
+      interactions: this.interactions,
     });
 
     this.events.on(Phaser.Scenes.Events.POST_UPDATE, this.onPostUpdate, this);
@@ -137,7 +155,15 @@ export class NookScene extends Phaser.Scene {
     this.model = new MapModel(data);
     this.floorRenderer.apply(this.model);
     this.wallRenderer.apply(this.model);
+    this.collisionRenderer.apply(this.model);
+    // Render what's already loaded now, then load any missing decor textures
+    // this map uses and re-render once they arrive.
     this.decorRenderer.apply(this.model);
+    this.decorLoader.ensure(
+      data.layers.decor.map((d) => d.asset),
+      () => this.model && this.decorRenderer.apply(this.model),
+    );
+    this.interactions?.onMapChanged(this.model);
     if (!this.buildOverlay.isActive()) this.localPlayer.unstickFrom(this.model);
   }
 
@@ -183,18 +209,29 @@ export class NookScene extends Phaser.Scene {
     this.buildOverlay.setActive(active);
 
     if (active) {
+      this.interactions.forceStop();
       if (this.wallCollider) this.wallCollider.active = false;
       if (this.decorCollider) this.decorCollider.active = false;
+      if (this.collisionCollider) this.collisionCollider.active = false;
+      this.collisionRenderer.setOutlineVisible(this.buildController.currentTool === 'collision');
     } else {
       this.buildController.onExitBuild();
       if (this.model) this.localPlayer.unstickFrom(this.model);
       if (this.wallCollider) this.wallCollider.active = true;
       if (this.decorCollider) this.decorCollider.active = true;
+      if (this.collisionCollider) this.collisionCollider.active = true;
+      this.collisionRenderer.setOutlineVisible(false);
     }
+  }
+
+  // toggled off while a player sits on a chair so they can occupy its tile
+  setDecorCollision(active: boolean) {
+    if (this.decorCollider) this.decorCollider.active = active;
   }
 
   setBuildTool(tool: BuildTool) {
     this.buildController?.setTool(tool);
+    this.collisionRenderer?.setOutlineVisible(tool === 'collision');
   }
 
   setSelectedFloor(assetId: string) {
@@ -207,6 +244,10 @@ export class NookScene extends Phaser.Scene {
 
   setSelectedDecor(assetId: string | null) {
     this.buildController?.setSelectedDecor(assetId);
+    // Load the texture on demand, then re-set so the ghost rebuilds once ready.
+    if (assetId) {
+      this.decorLoader?.ensure([assetId], () => this.buildController?.setSelectedDecor(assetId));
+    }
   }
 
   // --- Rooms ---
@@ -252,15 +293,21 @@ export class NookScene extends Phaser.Scene {
     }
 
     this.localPlayer.update();
+    this.interactions.update();
 
-    // press E to open the nearest player's profile (not in build mode)
+    // E priority: stand up / sit on an adjacent chair, else open the nearest
+    // player's profile (none of this in build mode).
     if (this.localPlayer.interactPressed() && !this.buildOverlay.isActive()) {
-      const target = this.remotePlayers.nearest(
-        this.localBody.x,
-        this.localBody.y,
-        this.localPlayer.radius,
-      );
-      if (target) this.events.emit('player:interact', target);
+      if (this.interactions.isActive() || this.interactions.hasInteractableInRange()) {
+        this.interactions.tryInteract();
+      } else {
+        const target = this.remotePlayers.nearest(
+          this.localBody.x,
+          this.localBody.y,
+          this.localPlayer.radius,
+        );
+        if (target) this.events.emit('player:interact', target);
+      }
     }
 
     this.remotePlayers.update();

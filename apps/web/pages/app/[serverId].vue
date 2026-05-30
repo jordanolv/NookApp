@@ -29,7 +29,7 @@ const presence = usePresence();
 const { isAdmin, canManageChannels, canManageMap, loadMember } = useMember();
 const interfacePrefs = useInterfacePreferences();
 const classicEnabled = computed(() => interfacePrefs.prefs.value.useClassicInterface);
-const { loadMap, buildMode } = useMap();
+const { loadMap } = useMap();
 
 if (!store.ready) await fetchServers();
 const server = computed(() => store.list.find((s) => s.id === serverId.value) ?? null);
@@ -59,18 +59,6 @@ const rightSections = computed(() => {
     active?: boolean;
     onToggle?: () => void;
   }> = [...PANEL_SECTIONS];
-  if (canManageMap) {
-    sections.push({
-      key: 'build',
-      label: 'Build',
-      icon: Hammer,
-      mode: 'toggle',
-      active: buildMode.value,
-      onToggle: () => {
-        buildMode.value = !buildMode.value;
-      },
-    });
-  }
   return sectionOrder.applyOrder(sections);
 });
 
@@ -239,6 +227,7 @@ const serverBannerUrl = computed(() => resolveUrl(server.value?.bannerUrl) ?? nu
     <LayoutBottomDock
       :server-name="server?.name ?? ''"
       :banner-url="serverBannerUrl"
+      :can-manage-map="canManageMap"
       @open-server-switcher="serverPicker.openSwitcher"
     />
 

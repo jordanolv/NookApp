@@ -6,7 +6,8 @@ export class BuildOverlay {
   private active = false;
 
   constructor(scene: Phaser.Scene) {
-    this.graphics = scene.add.graphics().setDepth(20);
+    // Above world content (decor/walls sort by y) so the grid shows over buildings.
+    this.graphics = scene.add.graphics().setDepth(9990);
     this.graphics.setVisible(false);
   }
 

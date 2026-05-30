@@ -1,6 +1,12 @@
 import { DECOR as GENERATED_DECOR } from './decor.generated';
+import type { DecorCategory } from './categories.generated';
+export {
+  DECOR_CATEGORIES,
+  type DecorCategory,
+  DECOR_CATEGORY_LABELS,
+  DECOR_CATEGORY_ORDER,
+} from './categories.generated';
 
-export type DecorCategory = 'nature' | 'construction' | 'office' | 'props';
 export type FloorGroup = 'base' | 'interior' | 'mauve' | 'mint' | 'slate';
 
 export interface FloorEntry {
@@ -30,20 +36,6 @@ export interface DecorEntry {
 }
 
 const ROOT = '/assets/build';
-
-export const DECOR_CATEGORY_LABELS: Record<DecorCategory, string> = {
-  nature: 'Nature',
-  construction: 'Structure',
-  office: 'Bureau',
-  props: 'Objets',
-};
-
-export const DECOR_CATEGORY_ORDER: ReadonlyArray<DecorCategory> = [
-  'nature',
-  'construction',
-  'office',
-  'props',
-];
 
 export const FLOOR_GROUP_ORDER: ReadonlyArray<FloorGroup> = [
   'base',
@@ -146,4 +138,5 @@ export const DEFAULT_WALL_STYLE = 'drywall';
 // Legacy exports kept empty until callers migrate.
 export const WALLS: ReadonlyArray<WallEntry> = [];
 
-export const DECOR: ReadonlyArray<DecorEntry> = GENERATED_DECOR;
+export const DECOR: ReadonlyArray<DecorEntry> =
+  GENERATED_DECOR as unknown as ReadonlyArray<DecorEntry>;

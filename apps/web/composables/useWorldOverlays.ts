@@ -57,6 +57,8 @@ export function useWorldOverlays(opts: {
   game: Phaser.Game;
   cachedRect: ShallowRef<DOMRect | null>;
   localUserId: string;
+  // translator passed from the component (the scene has no i18n context)
+  t: (key: string) => string;
   out: {
     nameTags: ShallowRef<NameTagOverlay[]>;
     camBubbles: ShallowRef<CamBubbleOverlay[]>;
@@ -173,7 +175,9 @@ export function useWorldOverlays(opts: {
 
     opts.out.objectLabels.value = latestLabels.map((l) => {
       const { x, y } = NookScene.projectToScreen(cam, rect, l.worldX, l.worldY);
-      return { id: l.id, label: l.label, x, y };
+      // the interaction prompt ships an i18n key; everything else is display text
+      const label = l.id === 'interaction-prompt' ? opts.t(l.label) : l.label;
+      return { id: l.id, label, x, y };
     });
 
     const presence = voice.voicePresence.value;

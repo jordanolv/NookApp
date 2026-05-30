@@ -3,6 +3,7 @@ import type { LocalPlayer } from '../player/local-player';
 import type { RemotePlayerManager } from '../player/remote-players';
 import type { RoomZoneManager } from '../rooms/room-zones';
 import type { WorldObjectManager } from '../world-objects/world-object-manager';
+import type { InteractionManager } from '../interactions/interaction-manager';
 import type { NameTagUpdate, ObjectLabelUpdate, VoiceRoomLabelUpdate } from '../types';
 
 interface OverlaySources {
@@ -10,6 +11,7 @@ interface OverlaySources {
   remotePlayers: RemotePlayerManager;
   worldObjects: WorldObjectManager;
   rooms: RoomZoneManager;
+  interactions: InteractionManager;
 }
 
 // Each frame, collects where the HTML overlays (name tags, labels, room pills)
@@ -34,6 +36,7 @@ export class OverlayEmitter {
     const labels = this.objectLabels;
     labels.length = 0;
     this.sources.worldObjects.collectLabels(labels);
+    this.sources.interactions.collectPromptLabel(labels);
     this.scene.events.emit('object-labels', labels);
 
     const rooms = this.roomLabels;

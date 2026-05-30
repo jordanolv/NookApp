@@ -396,5 +396,11 @@
       "label": "Manage server",
       "description": "Edit the server name, banner and settings."
     }
+  },
+  "world": {
+    "interact": {
+      "sit": "Press E to sit",
+      "stand": "Press E to stand"
+    }
   }
 }

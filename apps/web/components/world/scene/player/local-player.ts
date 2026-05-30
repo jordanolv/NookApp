@@ -24,8 +24,9 @@ export class LocalPlayer {
   private readonly keyboard: WorldKeyboard;
   private lastDir: Direction = 'down';
   private cameraOffset = { x: 0, y: 0 };
+  private sitting = false;
   private lastEmitTime = 0;
-  private lastEmitState = { x: 0, y: 0, dir: '', moving: false };
+  private lastEmitState = { x: 0, y: 0, dir: '', moving: false, sitting: false };
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -58,6 +59,16 @@ export class LocalPlayer {
     return this.keyboard.interactPressedEdge();
   }
 
+  isSitting(): boolean {
+    return this.sitting;
+  }
+
+  // true when the player is asking to move (used to stand up off a chair)
+  movementRequested(): boolean {
+    const { x, y } = this.keyboard.vector();
+    return x !== 0 || y !== 0;
+  }
+
   setAppearance(next: Appearance) {
     this.sprite.setAppearance(next);
     this.sprite.reapplyAnim(this.lastDir);
@@ -76,6 +87,11 @@ export class LocalPlayer {
   }
 
   update() {
+    if (this.sitting) {
+      this.halt();
+      this.lerpCamera();
+      return;
+    }
     const { x, y } = this.keyboard.vector();
     let vx = x;
     let vy = y;
@@ -127,12 +143,16 @@ export class LocalPlayer {
     const y = this.body.y;
     const dir = this.lastDir;
     const last = this.lastEmitState;
-    if (last.x === x && last.y === y && last.dir === dir && last.moving === moving) return;
+    if (
+      last.x === x &&
+      last.y === y &&
+      last.dir === dir &&
+      last.moving === moving &&
+      last.sitting === this.sitting
+    ) {
+      return;
+    }
     this.lastEmitTime = now;
-    last.x = x;
-    last.y = y;
-    last.dir = dir;
-    last.moving = moving;
     this.emit(x, y, dir, moving);
   }
 
@@ -140,13 +160,40 @@ export class LocalPlayer {
     this.emit(this.body.x, this.body.y, this.lastDir, false);
   }
 
+  // snap onto a seat and hold a seated pose (movement stays locked until stand)
+  sit(seatX: number, seatY: number, dir: Direction) {
+    this.sitting = true;
+    this.lastDir = dir;
+    (this.body.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+    this.body.setPosition(seatX, seatY);
+    this.sprite.sit(dir);
+    this.emit(seatX, seatY, dir, false);
+  }
+
+  // leave the seat, returning to where the player came from
+  stand(returnX: number, returnY: number) {
+    this.sitting = false;
+    (this.body.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+    this.body.setPosition(returnX, returnY);
+    this.sprite.idle(this.lastDir);
+    this.scene.cameras.main.centerOn(returnX, returnY);
+    this.emit(returnX, returnY, this.lastDir, false);
+  }
+
   private emit(x: number, y: number, dir: Direction, moving: boolean) {
+    const last = this.lastEmitState;
+    last.x = x;
+    last.y = y;
+    last.dir = dir;
+    last.moving = moving;
+    last.sitting = this.sitting;
     this.scene.events.emit('player-moved', {
       userId: this.deps.getUserId(),
       x,
       y,
       dir: dir as PlayerMovedPayload['dir'],
       moving,
+      pose: this.sitting ? 'sit' : undefined,
     } satisfies PlayerMovedPayload);
   }
 

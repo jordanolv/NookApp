@@ -122,7 +122,13 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const room = this.rooms.get(serverId);
     if (room?.has(userId)) {
       const prev = room.get(userId)!;
-      room.set(userId, { ...prev, x: payload.x, y: payload.y, dir: payload.dir });
+      room.set(userId, {
+        ...prev,
+        x: payload.x,
+        y: payload.y,
+        dir: payload.dir,
+        pose: payload.pose,
+      });
     }
 
     client.volatile.to(`server:${serverId}`).emit('player:moved', payload);

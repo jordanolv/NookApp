@@ -39,7 +39,7 @@ export class RectPaintTool {
     private readonly colors: RectPaintColors,
     private readonly options: RectPaintOptions = {},
   ) {
-    this.preview = scene.add.graphics().setDepth(21);
+    this.preview = scene.add.graphics().setDepth(9995);
   }
 
   beginDrag(tx: number, ty: number, isPresent: boolean) {

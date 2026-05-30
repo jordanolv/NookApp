@@ -7,6 +7,7 @@ import type { BuildOverlay } from '../build-overlay';
 import type {
   BuildTool,
   CellErasePayload,
+  CollisionRectPayload,
   DecorPlacePayload,
   DecorRemovePayload,
   RoomRectPayload,
@@ -30,6 +31,7 @@ export class BuildController {
   private readonly tilePaint: RectPaintTool;
   private readonly wallPaint: RectPaintTool;
   private readonly roomPaint: RectPaintTool;
+  private readonly collisionPaint: RectPaintTool;
   private readonly decorGhost: DecorGhost;
   private readonly wallGhost: WallGhost;
 
@@ -40,6 +42,7 @@ export class BuildController {
   ) {
     this.tilePaint = new RectPaintTool(scene, { add: 0x6366f1, remove: 0xef4444 });
     this.wallPaint = new RectPaintTool(scene, { add: 0x9a9a9a, remove: 0xef4444 });
+    this.collisionPaint = new RectPaintTool(scene, { add: 0xef4444, remove: 0x9a9a9a });
     this.roomPaint = new RectPaintTool(
       scene,
       { add: 0x4ec9b0, remove: 0xef4444 },
@@ -59,6 +62,7 @@ export class BuildController {
     this.tilePaint.cancel();
     this.wallPaint.cancel();
     this.roomPaint.cancel();
+    this.collisionPaint.cancel();
     if (tool !== 'decor') this.decorGhost.hide();
     if (tool !== 'wall') this.wallGhost.hide();
   }
@@ -78,6 +82,7 @@ export class BuildController {
 
   onExitBuild() {
     this.tilePaint.cancel();
+    this.collisionPaint.cancel();
     this.decorGhost.hide();
     this.wallGhost.hide();
   }
@@ -100,6 +105,10 @@ export class BuildController {
       this.wallPaint.beginDrag(tx, ty, model.hasWall(tx, ty));
       return;
     }
+    if (this.tool === 'collision') {
+      this.collisionPaint.beginDrag(tx, ty, model.hasCollision(tx, ty));
+      return;
+    }
     if (this.tool === 'room') {
       this.roomPaint.beginDrag(tx, ty, false);
       return;
@@ -118,6 +127,10 @@ export class BuildController {
     }
     if (this.tool === 'tile') {
       this.tilePaint.updateDrag(tx, ty);
+      return;
+    }
+    if (this.tool === 'collision') {
+      this.collisionPaint.updateDrag(tx, ty);
       return;
     }
     if (this.tool === 'wall' && this.isActive()) {
@@ -144,6 +157,11 @@ export class BuildController {
     if (this.tool === 'tile') {
       const result = this.tilePaint.endDrag(tx, ty);
       if (result) this.scene.events.emit('tiles-rect', result);
+      return;
+    }
+    if (this.tool === 'collision') {
+      const result = this.collisionPaint.endDrag(tx, ty);
+      if (result) this.scene.events.emit('collision-rect', result satisfies CollisionRectPayload);
       return;
     }
     if (this.tool === 'wall') {

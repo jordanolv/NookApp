@@ -25,19 +25,23 @@ const mapLayersSchema = z.object({
   floors: z.array(floorCellSchema).max(40000).default([]),
   walls: z.array(wallCellSchema).max(40000).default([]),
   decor: z.array(decorObjectSchema).max(2000).default([]),
+  // Manually painted impassable cells — additive to wall collision, for decor
+  // and buildings that have no wall sprite of their own.
+  collision: z.array(mapCellSchema).max(40000).default([]),
 });
 
 export const mapDataSchema = z.object({
   width: z.number().int().min(1).max(200).default(200),
   height: z.number().int().min(1).max(200).default(200),
   spawn: mapCellSchema.default({ x: 35, y: 35 }),
-  layers: mapLayersSchema.default({ floors: [], walls: [], decor: [] }),
+  layers: mapLayersSchema.default({ floors: [], walls: [], decor: [], collision: [] }),
 });
 
 export type MapData = z.infer<typeof mapDataSchema>;
 export type FloorCell = z.infer<typeof floorCellSchema>;
 export type WallCell = z.infer<typeof wallCellSchema>;
 export type DecorObject = z.infer<typeof decorObjectSchema>;
+export type CollisionCell = z.infer<typeof mapCellSchema>;
 
 export const updateMapInputSchema = z.object({
   data: mapDataSchema,
@@ -62,5 +66,5 @@ export const DEFAULT_MAP: MapData = {
   width: 200,
   height: 200,
   spawn: { x: 35, y: 35 },
-  layers: { floors, walls: [], decor: [] },
+  layers: { floors, walls: [], decor: [], collision: [] },
 };

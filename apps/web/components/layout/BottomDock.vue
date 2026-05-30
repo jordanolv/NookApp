@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   Eye,
+  Hammer,
   Hand,
   Headphones,
   HeadphoneOff,
@@ -21,7 +22,10 @@ import { useHudVisibility } from '~/composables/useHudVisibility';
 defineProps<{
   serverName: string;
   bannerUrl?: string | null;
+  canManageMap?: boolean;
 }>();
+
+const { buildMode } = useMap();
 
 const emit = defineEmits<{
   'open-server-switcher': [event: MouseEvent];
@@ -121,6 +125,20 @@ function restoreOnline() {
     >
       <Eye :size="16" />
     </button>
+
+    <!-- Build mode -->
+    <template v-if="canManageMap">
+      <span class="dock__sep" aria-hidden="true" />
+      <button
+        type="button"
+        class="dock__btn"
+        :class="{ 'dock__btn--active': buildMode }"
+        title="Mode build"
+        @click="buildMode = !buildMode"
+      >
+        <Hammer :size="16" />
+      </button>
+    </template>
 
     <!-- Voice controls (only when in a voice channel) -->
     <template v-if="inCall">

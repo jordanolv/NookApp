@@ -4,6 +4,7 @@ import {
   CG_WALK_FRAME_RATE,
   DIRECTIONS,
   idleFrame,
+  sitFrame,
   walkAnimKey,
   walkFrames,
   type Direction,
@@ -18,6 +19,11 @@ const LAYER_DEPTH_STEP = 0.01;
 // small hitbox at the feet, not the whole sprite
 const BODY_SIZE = { w: 10, h: 6 };
 const BODY_OFFSET = { x: 3, y: 24 };
+
+// while seated, draw the character above the chair it sits on (decor depth is
+// the cell bottom). One tile is enough to clear the chair without leaping over
+// the decor a row further down.
+const SIT_DEPTH_BIAS = 32;
 
 export function ensureWalkAnims(scene: Phaser.Scene, bodyKey: string) {
   for (const dir of DIRECTIONS) {
@@ -37,6 +43,8 @@ export function ensureWalkAnims(scene: Phaser.Scene, bodyKey: string) {
 export class CharacterSprite {
   private readonly layers: (Phaser.GameObjects.Sprite | null)[];
   private appearance: Appearance;
+  private seated = false;
+  private depthBias = 0;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -113,17 +121,30 @@ export class CharacterSprite {
   }
 
   playWalk(dir: Direction) {
+    this.seated = false;
+    this.depthBias = 0;
     this.body.play(walkAnimKey(dir, this.appearance.body), true);
   }
 
   idle(dir: Direction) {
+    this.seated = false;
+    this.depthBias = 0;
     this.body.anims.stop();
     this.body.setFrame(idleFrame(dir));
   }
 
-  // keep walking or stay idle after the outfit changed
+  // static seated pose, drawn above the chair (see SIT_DEPTH_BIAS)
+  sit(dir: Direction) {
+    this.seated = true;
+    this.depthBias = SIT_DEPTH_BIAS;
+    this.body.anims.stop();
+    this.body.setFrame(sitFrame(dir));
+  }
+
+  // re-apply the current pose after the outfit changed
   reapplyAnim(dir: Direction) {
-    if (this.isPlaying) this.playWalk(dir);
+    if (this.seated) this.sit(dir);
+    else if (this.isPlaying) this.playWalk(dir);
     else this.idle(dir);
   }
 
@@ -142,9 +163,9 @@ export class CharacterSprite {
       const layer = this.layers[i];
       if (!layer) continue;
       layer.setFrame(frame).setPosition(sx, sy);
-      layer.setDepth(sy + LAYER_DEPTH_STEP * i);
+      layer.setDepth(sy + this.depthBias + LAYER_DEPTH_STEP * i);
     }
-    this.body.setDepth(sy);
+    this.body.setDepth(sy + this.depthBias);
   }
 
   destroy() {
