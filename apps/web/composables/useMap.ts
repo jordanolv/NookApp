@@ -2,6 +2,7 @@ import * as Y from 'yjs';
 import { HocuspocusProvider } from '@hocuspocus/provider';
 import {
   DEFAULT_MAP,
+  type CollisionCell,
   type DecorObject,
   type FloorCell,
   type MapData,
@@ -16,6 +17,7 @@ const ydoc = new Y.Doc();
 const floorsArray = ydoc.getArray<FloorCell>('floors');
 const wallsArray = ydoc.getArray<WallCell>('walls');
 const decorArray = ydoc.getArray<DecorObject>('decor');
+const collisionArray = ydoc.getArray<CollisionCell>('collision');
 
 let provider: HocuspocusProvider | null = null;
 let pendingMapSyncFrame: number | null = null;
@@ -47,6 +49,7 @@ function syncCurrentMap() {
       floors: floorsArray.toArray(),
       walls: wallsArray.toArray(),
       decor: decorArray.toArray(),
+      collision: collisionArray.toArray(),
     },
   };
 }
@@ -59,6 +62,7 @@ function scheduleCurrentMapSync() {
 floorsArray.observe(() => scheduleCurrentMapSync());
 wallsArray.observe(() => scheduleCurrentMapSync());
 decorArray.observe(() => scheduleCurrentMapSync());
+collisionArray.observe(() => scheduleCurrentMapSync());
 
 function inRect(x: number, y: number, minX: number, minY: number, maxX: number, maxY: number) {
   return x >= minX && x <= maxX && y >= minY && y <= maxY;
@@ -96,6 +100,7 @@ export function useMap() {
         floorsArray.delete(0, floorsArray.length);
         wallsArray.delete(0, wallsArray.length);
         decorArray.delete(0, decorArray.length);
+        collisionArray.delete(0, collisionArray.length);
       });
     }
 
@@ -153,6 +158,31 @@ export function useMap() {
       }
       floorsArray.delete(0, floorsArray.length);
       if (keep.length) floorsArray.insert(0, keep);
+    });
+  }
+
+  function paintCollisionRect(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    mode: 'add' | 'remove',
+  ) {
+    const { minX, maxX, minY, maxY } = normalizeRect(x1, y1, x2, y2);
+    ydoc.transact(() => {
+      const keep = collisionArray
+        .toArray()
+        .filter((cell) => !inRect(cell.x, cell.y, minX, minY, maxX, maxY));
+      if (mode === 'add') {
+        for (let x = minX; x <= maxX; x++) {
+          for (let y = minY; y <= maxY; y++) {
+            if (x < 0 || x > 199 || y < 0 || y > 199) continue;
+            keep.push({ x, y });
+          }
+        }
+      }
+      collisionArray.delete(0, collisionArray.length);
+      if (keep.length) collisionArray.insert(0, keep);
     });
   }
 
@@ -221,6 +251,7 @@ export function useMap() {
       floorsArray.delete(0, floorsArray.length);
       wallsArray.delete(0, wallsArray.length);
       decorArray.delete(0, decorArray.length);
+      collisionArray.delete(0, collisionArray.length);
     });
   }
 
@@ -228,6 +259,7 @@ export function useMap() {
     const floors = floorsArray.toArray();
     const walls = wallsArray.toArray();
     const decor = decorArray.toArray();
+    const collision = collisionArray.toArray();
     const lines: string[] = [];
     lines.push('// Auto-exported template — paste into MAP_TEMPLATES:');
     lines.push('{');
@@ -251,6 +283,9 @@ export function useMap() {
       lines.push(
         `        { id: ${JSON.stringify(d.id)}, asset: ${JSON.stringify(d.asset)}, x: ${d.x}, y: ${d.y} },`,
       );
+    lines.push('      ],');
+    lines.push('      collision: [');
+    for (const c of collision) lines.push(`        { x: ${c.x}, y: ${c.y} },`);
     lines.push('      ],');
     lines.push('    },');
     lines.push('  }),');
@@ -296,6 +331,11 @@ export function useMap() {
         decorArray.delete(0, decorArray.length);
         if (decor.length) decorArray.insert(0, decor);
       }
+      const collision = collisionArray.toArray().filter((c) => c.x !== x || c.y !== y);
+      if (collision.length !== collisionArray.length) {
+        collisionArray.delete(0, collisionArray.length);
+        if (collision.length) collisionArray.insert(0, collision);
+      }
     });
   }
 
@@ -307,9 +347,11 @@ export function useMap() {
       floorsArray.delete(0, floorsArray.length);
       wallsArray.delete(0, wallsArray.length);
       decorArray.delete(0, decorArray.length);
+      collisionArray.delete(0, collisionArray.length);
       if (data.layers.floors.length) floorsArray.insert(0, data.layers.floors);
       if (data.layers.walls.length) wallsArray.insert(0, data.layers.walls);
       if (data.layers.decor.length) decorArray.insert(0, data.layers.decor);
+      if (data.layers.collision.length) collisionArray.insert(0, data.layers.collision);
     });
   }
 
@@ -327,6 +369,7 @@ export function useMap() {
     loadMap,
     paintRect,
     paintWallRect,
+    paintCollisionRect,
     placeDecor,
     removeDecorAt,
     eraseCell,

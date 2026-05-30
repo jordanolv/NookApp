@@ -24,6 +24,7 @@ function buildEmpty(): MapData {
     height: 200,
     spawn: SPAWN,
     layers: {
+      collision: [],
       floors: fillFloor({ x: 32, y: 32, w: 7, h: 7 }, 'office_floor_light'),
       walls: [],
       decor: [],
@@ -39,6 +40,7 @@ function buildOpenSpace(): MapData {
     height: 200,
     spawn: SPAWN,
     layers: {
+      collision: [],
       floors: fillFloor(interior(room), 'office_floor_gray'),
       walls: stampRoomWalls(room, 'drywall'),
       decor: [
@@ -63,6 +65,7 @@ function buildMeetingRooms(): MapData {
     height: 200,
     spawn: SPAWN,
     layers: {
+      collision: [],
       floors: [
         ...fillFloor(interior(a), 'office_floor_blue'),
         ...fillFloor(interior(b), 'office_floor_wood'),
@@ -91,6 +94,7 @@ function buildLounge(): MapData {
     height: 200,
     spawn: SPAWN,
     layers: {
+      collision: [],
       floors: fillFloor(interior(room), 'office_floor_wood'),
       walls: stampRoomWalls(room, 'wood'),
       decor: [
@@ -115,6 +119,7 @@ function buildStarterOffice(): MapData {
     height: 200,
     spawn: SPAWN,
     layers: {
+      collision: [],
       floors: fillFloor(interior(room), 'office_floor_light'),
       walls: stampRoomWalls(room, 'wood'),
       decor: [

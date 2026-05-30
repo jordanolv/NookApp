@@ -13,6 +13,7 @@ interface RemoteRecord {
   lastDir: Direction;
   targetX: number;
   targetY: number;
+  sitting: boolean;
 }
 
 // The other players. They get position updates and glide toward them each frame.
@@ -41,6 +42,21 @@ export class RemotePlayerManager {
     remote.targetY = payload.y;
 
     const dir = payload.dir as Direction;
+    if (payload.pose === 'sit') {
+      if (!remote.sitting || dir !== remote.lastDir) {
+        remote.sprite.sit(dir);
+        remote.sitting = true;
+        remote.lastDir = dir;
+      }
+      return;
+    }
+    // sit is a static frame (not "playing"), so force idle on the sit->stand
+    // edge before the usual walk/idle handling, else the sprite stays seated.
+    if (remote.sitting) {
+      remote.sitting = false;
+      remote.sprite.idle(dir);
+      remote.lastDir = dir;
+    }
     if (payload.moving) {
       if (dir !== remote.lastDir || !remote.sprite.isPlaying) {
         remote.sprite.playWalk(dir);
@@ -99,7 +115,14 @@ export class RemotePlayerManager {
 
   private spawn(userId: string, x: number, y: number, name: string): RemoteRecord {
     const sprite = new CharacterSprite(this.scene, x, y, { ...DEFAULT_APPEARANCE });
-    const remote: RemoteRecord = { sprite, name, lastDir: 'down', targetX: x, targetY: y };
+    const remote: RemoteRecord = {
+      sprite,
+      name,
+      lastDir: 'down',
+      targetX: x,
+      targetY: y,
+      sitting: false,
+    };
     sprite.setInteractive(() =>
       this.scene.events.emit('player:interact', {
         userId,

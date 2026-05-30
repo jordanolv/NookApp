@@ -15,7 +15,9 @@ import { RolesService } from '../roles/roles.service';
 // Drop unknown layer rows so a renamed/removed cell shape doesn't fail the whole parse.
 function sanitizeRawData(raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') return raw;
-  const obj = raw as { layers?: { floors?: unknown; walls?: unknown; decor?: unknown } };
+  const obj = raw as {
+    layers?: { floors?: unknown; walls?: unknown; decor?: unknown; collision?: unknown };
+  };
   if (!obj.layers || typeof obj.layers !== 'object') return raw;
   return {
     ...obj,
@@ -24,6 +26,7 @@ function sanitizeRawData(raw: unknown): unknown {
       floors: Array.isArray(obj.layers.floors) ? obj.layers.floors : [],
       walls: Array.isArray(obj.layers.walls) ? obj.layers.walls : [],
       decor: Array.isArray(obj.layers.decor) ? obj.layers.decor : [],
+      collision: Array.isArray(obj.layers.collision) ? obj.layers.collision : [],
     },
   };
 }

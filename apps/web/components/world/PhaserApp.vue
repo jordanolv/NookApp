@@ -34,6 +34,7 @@ const {
   isSaving: isMapSaving,
   paintRect,
   paintWallRect,
+  paintCollisionRect,
   placeDecor,
   removeDecorAt,
   eraseCell,
@@ -107,6 +108,9 @@ type RectPayload = {
 
 function onTilesRect(r: RectPayload) {
   if (canEdit()) paintRect(r.x1, r.y1, r.x2, r.y2, r.mode, selectedFloor.value);
+}
+function onCollisionRect(r: RectPayload) {
+  if (canEdit()) paintCollisionRect(r.x1, r.y1, r.x2, r.y2, r.mode);
 }
 function onApplyTemplate(id: string) {
   if (!canEdit()) return;
@@ -223,6 +227,7 @@ onUnmounted(() => {
       @zone-cancel="onZoneCancel"
       @tiles-rect="onTilesRect"
       @wall-rect="onWallRect"
+      @collision-rect="onCollisionRect"
       @room-rect="onRoomRect"
       @decor-place="onDecorPlace"
       @decor-remove="onDecorRemove"

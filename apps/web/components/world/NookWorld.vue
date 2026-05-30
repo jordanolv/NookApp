@@ -53,6 +53,7 @@ const emit = defineEmits<{
   'zone-cancel': [];
   'tiles-rect': [rect: RectPayload];
   'wall-rect': [payload: WallRectPayload];
+  'collision-rect': [rect: RectPayload];
   'room-rect': [payload: RoomRectPayload];
   'decor-place': [payload: DecorPlacePayload];
   'decor-remove': [payload: DecorRemovePayload];
@@ -64,6 +65,7 @@ const voice = useVoice();
 const character = useCharacter();
 const presence = usePresence();
 const socket = useSocket();
+const { t } = useI18n();
 
 const canvasRef = ref<HTMLDivElement | null>(null);
 const game = shallowRef<Phaser.Game | null>(null);
@@ -177,7 +179,7 @@ onMounted(() => {
     scene.setRestorePosition(you.x, you.y);
     for (const p of others) {
       scene.updateRemotePlayer(
-        { userId: p.userId, x: p.x, y: p.y, dir: p.dir, moving: false },
+        { userId: p.userId, x: p.x, y: p.y, dir: p.dir, moving: false, pose: p.pose },
         p.name,
       );
       if (p.appearance) scene.setRemoteAppearance(p.userId, p.appearance);
@@ -187,7 +189,14 @@ onMounted(() => {
 
   const offJoined = socket.onPlayerJoined((state: PlayerState) => {
     scene.updateRemotePlayer(
-      { userId: state.userId, x: state.x, y: state.y, dir: state.dir, moving: false },
+      {
+        userId: state.userId,
+        x: state.x,
+        y: state.y,
+        dir: state.dir,
+        moving: false,
+        pose: state.pose,
+      },
       state.name,
     );
     if (state.appearance) scene.setRemoteAppearance(state.userId, state.appearance);
@@ -228,6 +237,7 @@ onMounted(() => {
       game: game.value!,
       cachedRect: cameraOffset.cachedRect,
       localUserId: props.userId,
+      t,
       out: {
         nameTags: nameTagOverlays,
         camBubbles: camBubbleOverlays,
@@ -252,6 +262,7 @@ onMounted(() => {
 
     scene.events.on('tiles-rect', (rect: RectPayload) => emit('tiles-rect', rect));
     scene.events.on('wall-rect', (p: WallRectPayload) => emit('wall-rect', p));
+    scene.events.on('collision-rect', (rect: RectPayload) => emit('collision-rect', rect));
     scene.events.on('room-rect', (p: RoomRectPayload) => emit('room-rect', p));
     scene.events.on('decor-place', (p: DecorPlacePayload) => emit('decor-place', p));
     scene.events.on('decor-remove', (p: DecorRemovePayload) => emit('decor-remove', p));

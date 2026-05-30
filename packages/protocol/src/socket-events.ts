@@ -26,12 +26,18 @@ export const playerAppearanceSchema = z.object({
 });
 export type PlayerAppearance = z.infer<typeof playerAppearanceSchema>;
 
+// Optional pose overlaid on top of position. Absent = standing/walking.
+// Extensible: add further poses to the enum as new interactions land.
+export const playerPoseSchema = z.enum(['sit']);
+export type PlayerPose = z.infer<typeof playerPoseSchema>;
+
 export const playerMovedPayloadSchema = z.object({
   userId: z.string(),
   x: z.number(),
   y: z.number(),
   dir: z.enum(['up', 'down', 'left', 'right']),
   moving: z.boolean(),
+  pose: playerPoseSchema.optional(),
 });
 export type PlayerMovedPayload = z.infer<typeof playerMovedPayloadSchema>;
 
@@ -52,6 +58,7 @@ export const playerStateSchema = z.object({
   y: z.number(),
   dir: z.enum(['up', 'down', 'left', 'right']),
   appearance: playerAppearanceSchema.optional(),
+  pose: playerPoseSchema.optional(),
 });
 export type PlayerState = z.infer<typeof playerStateSchema>;
 

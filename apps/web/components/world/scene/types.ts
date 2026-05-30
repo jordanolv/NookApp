@@ -1,7 +1,7 @@
 // Types shared between the scene and its subsystems (kept here to avoid imports
 // looping back to NookScene).
 
-export type BuildTool = 'tile' | 'wall' | 'room' | 'decor' | 'erase' | 'template';
+export type BuildTool = 'tile' | 'wall' | 'room' | 'decor' | 'collision' | 'erase' | 'template';
 
 export interface WallRegion {
   col: number;
@@ -23,6 +23,14 @@ export interface WallRectPayload {
   x2: number;
   y2: number;
   region: WallRegion;
+  mode: 'add' | 'remove';
+}
+
+export interface CollisionRectPayload {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
   mode: 'add' | 'remove';
 }
 

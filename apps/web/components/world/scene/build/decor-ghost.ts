@@ -27,9 +27,7 @@ export class DecorGhost {
       const cell = asset.cells[i]!;
       const cx = (tx + cell.dx) * TILE_SIZE + TILE_SIZE / 2;
       const cy = (ty + cell.dy) * TILE_SIZE + TILE_SIZE;
-      this.images[i]!.setPosition(cx, cy)
-        .setDepth(cy + 0.5)
-        .setVisible(true);
+      this.images[i]!.setPosition(cx, cy).setDepth(9996).setVisible(true);
     }
   }
 

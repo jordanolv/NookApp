@@ -27,7 +27,7 @@ export class CellPaintTool {
     scene: Phaser.Scene,
     private readonly colors: { add: number; remove: number },
   ) {
-    this.hover = scene.add.graphics().setDepth(21);
+    this.hover = scene.add.graphics().setDepth(9995);
   }
 
   begin(tx: number, ty: number, isPresent: boolean): CellPaintResult | null {

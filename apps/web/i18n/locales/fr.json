@@ -396,5 +396,11 @@
       "label": "Gérer le serveur",
       "description": "Modifier le nom, la bannière et les paramètres du serveur."
     }
+  },
+  "world": {
+    "interact": {
+      "sit": "Appuyer sur E pour s'asseoir",
+      "stand": "Appuyer sur E pour se lever"
+    }
   }
 }
