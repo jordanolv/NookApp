@@ -29,6 +29,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n({ useScope: 'global' });
 const { user } = useAuth();
+const { appearance } = useCharacter();
 const { store } = useServers();
 const voice = useVoice();
 const socket = useSocket();
@@ -76,9 +77,7 @@ const pingLabel = computed(() => {
     </div>
 
     <div class="left-sidebar__user" :title="user?.name ?? ''">
-      <span class="left-sidebar__user-avatar">
-        {{ user?.name?.[0]?.toUpperCase() ?? '?' }}
-      </span>
+      <UserCharacterAvatar :appearance="appearance" :size="36" class="left-sidebar__user-avatar" />
       <span class="left-sidebar__user-meta">
         <span class="left-sidebar__user-name">{{ user?.name }}</span>
         <span class="left-sidebar__user-where">
