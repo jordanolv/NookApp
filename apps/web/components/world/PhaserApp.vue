@@ -38,7 +38,6 @@ const {
   removeDecorAt,
   eraseCell,
   applyTemplate,
-  resetMap,
   stampRoom,
   exportMapAsTemplate,
 } = useMap();
@@ -110,13 +109,9 @@ function onTilesRect(r: RectPayload) {
   if (canEdit()) paintRect(r.x1, r.y1, r.x2, r.y2, r.mode, selectedFloor.value);
 }
 function onApplyTemplate(id: string) {
-  if (canEdit()) applyTemplate(id);
-}
-function onResetMap() {
   if (!canEdit()) return;
-  if (!confirm('Réinitialiser la map ? Tu vas perdre tout ce que tu as posé (murs, sol, décor).'))
-    return;
-  resetMap();
+  if (!confirm('Remplacer la map actuelle par ce modèle ? Tu perdras ce que tu as posé.')) return;
+  applyTemplate(id);
 }
 function onWallRect(p: {
   x1: number;
@@ -330,7 +325,6 @@ onUnmounted(() => {
       @update:selected-wall-region="selectedWallRegion = $event"
       @update:selected-room-theme="selectedRoomTheme = $event"
       @apply-template="onApplyTemplate"
-      @reset-map="onResetMap"
       @export-template="onExportTemplate"
       @close="toggleBuildMode"
     />

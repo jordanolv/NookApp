@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import type { CreateServerInput } from '@nookapp/protocol';
+import { DEFAULT_TEMPLATE_ID } from '~/components/world/scene/map-templates';
 
 definePageMeta({ layout: 'app' });
 
 const { t } = useI18n();
 const { store, fetchServers, createServer } = useServers();
+const { seedServerMap } = useMapTemplates();
 const { user, signOut } = useAuth();
 
 const showCreate = ref(false);
 const createName = ref('');
+const createTemplate = ref(DEFAULT_TEMPLATE_ID);
 const createError = ref('');
 const creating = ref(false);
 const menuOpen = ref(false);
@@ -34,6 +37,11 @@ async function submitCreate() {
   createError.value = '';
   try {
     const server = await createServer({ name } satisfies CreateServerInput);
+    try {
+      await seedServerMap(server.id, createTemplate.value);
+    } catch {
+      // Non-blocking: the server exists; it falls back to the default map.
+    }
     showCreate.value = false;
     createName.value = '';
     await navigateTo(`/app/${server.id}`);
@@ -138,6 +146,12 @@ async function onSignOut() {
                 class="modal__input"
               />
               <p v-if="createError" class="modal__error">{{ createError }}</p>
+            </div>
+            <div class="modal__field">
+              <span class="modal__label">{{ t('nooks.create.templateLabel') }}</span>
+              <div class="modal__templates">
+                <WorldMapTemplateGallery v-model="createTemplate" />
+              </div>
             </div>
             <div class="modal__actions">
               <button
@@ -490,6 +504,13 @@ async function onSignOut() {
   display: flex;
   flex-direction: column;
   gap: 18px;
+}
+
+.modal__templates {
+  max-height: 252px;
+  overflow-y: auto;
+  margin-top: 8px;
+  padding-right: 2px;
 }
 .modal__field {
   display: flex;

@@ -56,6 +56,7 @@
     "create": {
       "title": "Create a Nook",
       "nameLabel": "Server name",
+      "templateLabel": "Map template",
       "namePlaceholder": "My awesome team",
       "nameTooShort": "Name must be at least 2 characters",
       "failed": "Failed to create the Nook",

@@ -9,9 +9,9 @@ import {
   type DecorCategory,
 } from './scene/decor-catalog';
 import { FLOOR_CATALOG_GROUPS, type FloorAsset } from './scene/floor-catalog';
-import { MAP_TEMPLATES } from './scene/map-templates';
 import { ROOM_THEMES, WALL_SHEET } from './scene/wall-catalog';
 import BuildWallPicker, { type WallRegion } from './BuildWallPicker.vue';
+import MapTemplateGallery from './MapTemplateGallery.vue';
 
 const props = defineProps<{
   tool: BuildTool;
@@ -31,7 +31,6 @@ const emit = defineEmits<{
   'update:selected-wall-region': [region: WallRegion];
   'update:selected-room-theme': [themeId: string];
   'apply-template': [id: string];
-  'reset-map': [];
   'export-template': [];
   close: [];
 }>();
@@ -49,6 +48,7 @@ const TOOLS: Array<{
   { id: 'room', label: 'Pièce', shortcut: '3', accent: 'violet' },
   { id: 'decor', label: 'Décor', shortcut: '4', accent: 'violet' },
   { id: 'erase', label: 'Gomme', shortcut: '5', accent: 'rose' },
+  { id: 'template', label: 'Modèles', shortcut: '6', accent: 'violet' },
 ];
 
 const decorCategories = DECOR_CATEGORY_ORDER;
@@ -156,6 +156,7 @@ function onKeydown(e: KeyboardEvent) {
   else if (e.key === '3') emit('update:tool', 'room');
   else if (e.key === '4') emit('update:tool', 'decor');
   else if (e.key === '5') emit('update:tool', 'erase');
+  else if (e.key === '6') emit('update:tool', 'template');
 }
 
 onMounted(() => {
@@ -222,6 +223,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
             <path
               v-else-if="t.id === 'erase'"
               d="M16.24 3.56l4.95 4.94c.78.79.78 2.05 0 2.84L12 20.53a4.008 4.008 0 0 1-5.66 0L2.81 17c-.78-.79-.78-2.05 0-2.84l10.6-10.6c.79-.78 2.05-.78 2.83 0M4.22 15.58l3.54 3.53c.78.79 2.04.79 2.83 0l3.53-3.53l-6.36-6.36l-3.54 3.53c-.78.79-.78 2.05 0 2.83"
+            />
+            <path
+              v-else-if="t.id === 'template'"
+              d="M3 5h8v6H3zm10 0h8v6h-8zM3 13h8v6H3zm10 0h8v6h-8z"
             />
           </svg>
           <span class="text-[10px] font-medium leading-none">{{ t.label }}</span>
@@ -351,40 +356,19 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
           </p>
         </div>
 
-        <!-- Templates (Sol seulement, accessible quand l'outil est Sol) -->
-        <div
-          v-if="tool === 'tile'"
-          class="px-2.5 pb-2.5 border-t"
-          style="border-color: var(--surface-tinted); padding-top: 10px"
-          @mousedown.stop
-        >
+        <!-- Modèles / reset (onglet dédié) -->
+        <div v-if="tool === 'template'" class="px-2.5 py-2.5" @mousedown.stop>
           <p class="mb-2 px-1 text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
-            Templates de Nook
+            Repartir d'un modèle
           </p>
-          <div class="flex flex-col gap-1">
-            <button
-              v-for="tpl in MAP_TEMPLATES"
-              :key="tpl.id"
-              class="rounded px-2 py-1.5 text-left text-[11px]"
-              :style="{
-                background:
-                  selectedTemplate === tpl.id ? 'rgba(99,102,241,0.18)' : 'rgba(255,255,255,0.04)',
-                boxShadow:
-                  selectedTemplate === tpl.id
-                    ? 'inset 0 0 0 1.5px rgba(165,180,252,0.9)'
-                    : 'inset 0 0 0 1px rgba(255,255,255,0.06)',
-              }"
-              @click="
-                emit('update:selected-template', tpl.id);
-                emit('apply-template', tpl.id);
-              "
-            >
-              <div class="font-semibold">{{ tpl.label }}</div>
-              <div class="text-[9px] text-ink-faint">{{ tpl.description }}</div>
-            </button>
-          </div>
+          <MapTemplateGallery
+            compact
+            :model-value="selectedTemplate"
+            @update:model-value="emit('update:selected-template', $event)"
+            @select="emit('apply-template', $event)"
+          />
           <p class="mt-2 text-[10px] leading-tight" style="color: var(--ink-faint)">
-            Clique un template pour réinitialiser la map.
+            Choisis un modèle pour remplacer la map. « Page blanche » vide tout.
           </p>
           <button
             class="mt-2 w-full rounded px-2 py-1.5 text-[11px] font-semibold"
@@ -393,14 +377,6 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
             @click="emit('export-template')"
           >
             Exporter la map en code (template)
-          </button>
-          <button
-            class="mt-1.5 w-full rounded px-2 py-1.5 text-[11px] font-semibold"
-            style="background-color: rgba(239, 68, 68, 0.5); color: white"
-            title="Vide complètement la map (murs, sol, décor)"
-            @click="emit('reset-map')"
-          >
-            Reset map (vider tout)
           </button>
         </div>
 

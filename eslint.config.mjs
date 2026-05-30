@@ -99,6 +99,7 @@ export default [
         useInvites: 'readonly',
         useMember: 'readonly',
         useMap: 'readonly',
+        useMapTemplates: 'readonly',
         useCategories: 'readonly',
         useChannelIcons: 'readonly',
         useServersStore: 'readonly',

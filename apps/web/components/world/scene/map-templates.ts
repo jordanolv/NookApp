@@ -1,164 +1,186 @@
 import type { MapData } from '@nookapp/protocol';
+import { decorAt, fillFloor, stampRoomWalls, type Rect } from './map-builder';
 
 export interface MapTemplate {
   id: string;
   label: string;
   description: string;
+  emoji: string;
+  accent: string;
   build: () => MapData;
 }
 
-// --- Templates ---
+// Spawn is fixed at (35, 35) by syncCurrentMap, so every template is laid out around it.
+const SPAWN = { x: 35, y: 35 } as const;
 
-function buildStarterOffice(): MapData {
+// Floor inset: one cell on the sides, two rows under the top wall band.
+function interior(r: Rect): Rect {
+  return { x: r.x + 1, y: r.y + 2, w: r.w - 2, h: r.h - 3 };
+}
+
+function buildEmpty(): MapData {
   return {
     width: 200,
     height: 200,
-    spawn: { x: 35, y: 35 },
+    spawn: SPAWN,
     layers: {
-      floors: [
-        { x: 31, y: 33, asset: 'office_floor_light' },
-        { x: 32, y: 33, asset: 'office_floor_light' },
-        { x: 33, y: 33, asset: 'office_floor_light' },
-        { x: 34, y: 33, asset: 'office_floor_light' },
-        { x: 35, y: 33, asset: 'office_floor_light' },
-        { x: 36, y: 33, asset: 'office_floor_light' },
-        { x: 37, y: 33, asset: 'office_floor_light' },
-        { x: 38, y: 33, asset: 'office_floor_light' },
-        { x: 39, y: 33, asset: 'office_floor_light' },
-        { x: 40, y: 33, asset: 'office_floor_light' },
-        { x: 31, y: 34, asset: 'office_floor_light' },
-        { x: 32, y: 34, asset: 'office_floor_light' },
-        { x: 33, y: 34, asset: 'office_floor_light' },
-        { x: 34, y: 34, asset: 'office_floor_light' },
-        { x: 35, y: 34, asset: 'office_floor_light' },
-        { x: 36, y: 34, asset: 'office_floor_light' },
-        { x: 37, y: 34, asset: 'office_floor_light' },
-        { x: 38, y: 34, asset: 'office_floor_light' },
-        { x: 39, y: 34, asset: 'office_floor_light' },
-        { x: 40, y: 34, asset: 'office_floor_light' },
-        { x: 31, y: 35, asset: 'office_floor_light' },
-        { x: 32, y: 35, asset: 'office_floor_light' },
-        { x: 33, y: 35, asset: 'office_floor_light' },
-        { x: 34, y: 35, asset: 'office_floor_light' },
-        { x: 35, y: 35, asset: 'office_floor_light' },
-        { x: 36, y: 35, asset: 'office_floor_light' },
-        { x: 37, y: 35, asset: 'office_floor_light' },
-        { x: 38, y: 35, asset: 'office_floor_light' },
-        { x: 39, y: 35, asset: 'office_floor_light' },
-        { x: 40, y: 35, asset: 'office_floor_light' },
-        { x: 31, y: 36, asset: 'office_floor_light' },
-        { x: 32, y: 36, asset: 'office_floor_light' },
-        { x: 33, y: 36, asset: 'office_floor_light' },
-        { x: 34, y: 36, asset: 'office_floor_light' },
-        { x: 35, y: 36, asset: 'office_floor_light' },
-        { x: 36, y: 36, asset: 'office_floor_light' },
-        { x: 37, y: 36, asset: 'office_floor_light' },
-        { x: 38, y: 36, asset: 'office_floor_light' },
-        { x: 39, y: 36, asset: 'office_floor_light' },
-        { x: 40, y: 36, asset: 'office_floor_light' },
-        { x: 31, y: 37, asset: 'office_floor_light' },
-        { x: 32, y: 37, asset: 'office_floor_light' },
-        { x: 33, y: 37, asset: 'office_floor_light' },
-        { x: 34, y: 37, asset: 'office_floor_light' },
-        { x: 35, y: 37, asset: 'office_floor_light' },
-        { x: 36, y: 37, asset: 'office_floor_light' },
-        { x: 37, y: 37, asset: 'office_floor_light' },
-        { x: 38, y: 37, asset: 'office_floor_light' },
-        { x: 39, y: 37, asset: 'office_floor_light' },
-        { x: 40, y: 37, asset: 'office_floor_light' },
-      ],
-      walls: [
-        { x: 30, y: 30, frame: 1 },
-        { x: 41, y: 30, frame: 4 },
-        { x: 31, y: 30, frame: 2 },
-        { x: 32, y: 30, frame: 3 },
-        { x: 33, y: 30, frame: 2 },
-        { x: 34, y: 30, frame: 3 },
-        { x: 35, y: 30, frame: 2 },
-        { x: 36, y: 30, frame: 3 },
-        { x: 37, y: 30, frame: 2 },
-        { x: 38, y: 30, frame: 3 },
-        { x: 39, y: 30, frame: 2 },
-        { x: 40, y: 30, frame: 3 },
-        { x: 30, y: 31, frame: 26 },
-        { x: 41, y: 31, frame: 29 },
-        { x: 31, y: 31, frame: 27 },
-        { x: 32, y: 31, frame: 28 },
-        { x: 33, y: 31, frame: 27 },
-        { x: 34, y: 31, frame: 28 },
-        { x: 35, y: 31, frame: 27 },
-        { x: 36, y: 31, frame: 28 },
-        { x: 37, y: 31, frame: 27 },
-        { x: 38, y: 31, frame: 28 },
-        { x: 39, y: 31, frame: 27 },
-        { x: 40, y: 31, frame: 28 },
-        { x: 30, y: 32, frame: 51 },
-        { x: 41, y: 32, frame: 54 },
-        { x: 31, y: 32, frame: 52 },
-        { x: 32, y: 32, frame: 53 },
-        { x: 33, y: 32, frame: 52 },
-        { x: 34, y: 32, frame: 53 },
-        { x: 35, y: 32, frame: 52 },
-        { x: 36, y: 32, frame: 53 },
-        { x: 37, y: 32, frame: 52 },
-        { x: 38, y: 32, frame: 53 },
-        { x: 39, y: 32, frame: 52 },
-        { x: 40, y: 32, frame: 53 },
-        { x: 30, y: 33, frame: 76 },
-        { x: 41, y: 33, frame: 79 },
-        { x: 30, y: 34, frame: 76 },
-        { x: 41, y: 34, frame: 79 },
-        { x: 30, y: 35, frame: 76 },
-        { x: 41, y: 35, frame: 79 },
-        { x: 30, y: 36, frame: 76 },
-        { x: 41, y: 36, frame: 79 },
-        { x: 30, y: 37, frame: 76 },
-        { x: 41, y: 37, frame: 79 },
-        { x: 33, y: 41, frame: 4802 },
-        { x: 33, y: 40, frame: 4777 },
-        { x: 34, y: 41, frame: 4802 },
-        { x: 35, y: 41, frame: 4802 },
-        { x: 36, y: 41, frame: 4802 },
-        { x: 34, y: 40, frame: 4777 },
-        { x: 35, y: 40, frame: 4777 },
-        { x: 36, y: 40, frame: 4777 },
-        { x: 37, y: 42, frame: 4803 },
-        { x: 37, y: 43, frame: 4803 },
-        { x: 37, y: 44, frame: 4828 },
-        { x: 37, y: 45, frame: 4853 },
-        { x: 32, y: 41, frame: 4801 },
-        { x: 32, y: 40, frame: 4778 },
-        { x: 32, y: 45, frame: 4853 },
-        { x: 32, y: 44, frame: 4828 },
-        { x: 32, y: 43, frame: 4803 },
-        { x: 32, y: 42, frame: 4803 },
-        { x: 36, y: 45, frame: 4910 },
-        { x: 36, y: 44, frame: 4885 },
-        { x: 35, y: 45, frame: 4909 },
-        { x: 35, y: 44, frame: 4884 },
-        { x: 34, y: 45, frame: 4908 },
-        { x: 34, y: 44, frame: 4883 },
-        { x: 33, y: 45, frame: 4907 },
-        { x: 33, y: 44, frame: 4882 },
-        { x: 37, y: 41, frame: 4803 },
-        { x: 37, y: 40, frame: 4778 },
-      ],
+      floors: fillFloor({ x: 32, y: 32, w: 7, h: 7 }, 'office_floor_light'),
+      walls: [],
       decor: [],
     },
   };
 }
 
+function buildOpenSpace(): MapData {
+  const room: Rect = { x: 27, y: 28, w: 18, h: 14 };
+  const deskX = [30, 33, 36, 39];
+  return {
+    width: 200,
+    height: 200,
+    spawn: SPAWN,
+    layers: {
+      floors: fillFloor(interior(room), 'office_floor_gray'),
+      walls: stampRoomWalls(room, 'drywall'),
+      decor: [
+        ...deskX.map((x, i) => decorAt(`desk_pc_${i + 1}`, x, 32)),
+        ...deskX.map((x) => decorAt('chair_blue', x, 33)),
+        ...deskX.map((x, i) => decorAt(`desk_pc_${i + 1}`, x, 37)),
+        ...deskX.map((x) => decorAt('chair_blue', x, 38)),
+        decorAt('plant_tall', 28, 30),
+        decorAt('plant_tall', 43, 30),
+        decorAt('whiteboard', 31, 30),
+        decorAt('vending', 42, 40),
+      ],
+    },
+  };
+}
+
+function buildMeetingRooms(): MapData {
+  const a: Rect = { x: 27, y: 29, w: 10, h: 12 };
+  const b: Rect = { x: 37, y: 29, w: 10, h: 12 };
+  return {
+    width: 200,
+    height: 200,
+    spawn: SPAWN,
+    layers: {
+      floors: [
+        ...fillFloor(interior(a), 'office_floor_blue'),
+        ...fillFloor(interior(b), 'office_floor_wood'),
+      ],
+      walls: [...stampRoomWalls(a, 'light-blue'), ...stampRoomWalls(b, 'wood')],
+      decor: [
+        decorAt('whiteboard', 30, 31),
+        decorAt('free_office_writing_table', 31, 35),
+        decorAt('chair_gray', 30, 35),
+        decorAt('chair_gray', 32, 35),
+        decorAt('chair_gray', 31, 34),
+        decorAt('plant_med', 28, 39),
+        decorAt('sofa_1', 40, 33),
+        decorAt('sofa_2', 42, 33),
+        decorAt('free_office_coffee_maker', 44, 31),
+        decorAt('plant_tall', 44, 39),
+      ],
+    },
+  };
+}
+
+function buildLounge(): MapData {
+  const room: Rect = { x: 29, y: 29, w: 15, h: 13 };
+  return {
+    width: 200,
+    height: 200,
+    spawn: SPAWN,
+    layers: {
+      floors: fillFloor(interior(room), 'office_floor_wood'),
+      walls: stampRoomWalls(room, 'wood'),
+      decor: [
+        decorAt('sofa_1', 31, 33),
+        decorAt('sofa_2', 33, 33),
+        decorAt('plant_tall', 30, 31),
+        decorAt('plant_tall', 42, 31),
+        decorAt('plant_med', 41, 39),
+        decorAt('free_office_coffee_maker', 40, 32),
+        decorAt('poster_1', 36, 30),
+      ],
+    },
+  };
+}
+
+// --- Templates ---
+
+function buildStarterOffice(): MapData {
+  const room: Rect = { x: 30, y: 30, w: 12, h: 11 };
+  return {
+    width: 200,
+    height: 200,
+    spawn: SPAWN,
+    layers: {
+      floors: fillFloor(interior(room), 'office_floor_light'),
+      walls: stampRoomWalls(room, 'wood'),
+      decor: [
+        decorAt('desk_pc_1', 32, 33),
+        decorAt('chair_blue', 32, 34),
+        decorAt('desk_pc_2', 39, 33),
+        decorAt('chair_blue', 39, 34),
+        decorAt('whiteboard', 35, 31),
+        decorAt('plant_tall', 31, 39),
+        decorAt('plant_med', 40, 39),
+      ],
+    },
+  };
+}
+
+export const EMPTY_TEMPLATE_ID = 'empty';
+
 export const MAP_TEMPLATES: ReadonlyArray<MapTemplate> = [
+  {
+    id: EMPTY_TEMPLATE_ID,
+    label: 'Page blanche',
+    description: 'Un petit sol de départ. À toi de tout construire.',
+    emoji: '⬜',
+    accent: '#94a3b8',
+    build: buildEmpty,
+  },
   {
     id: 'starter-office',
     label: 'Bureau de démarrage',
-    description: 'Bureau + alcôve designés à la main avec les murs Gather.',
+    description: 'Petit bureau cosy avec deux postes de travail et un coin plantes.',
+    emoji: '🏢',
+    accent: '#6366f1',
     build: buildStarterOffice,
+  },
+  {
+    id: 'open-space',
+    label: 'Open-space',
+    description: 'Grande salle avec rangées de bureaux et postes de travail.',
+    emoji: '🖥️',
+    accent: '#0ea5e9',
+    build: buildOpenSpace,
+  },
+  {
+    id: 'meeting-rooms',
+    label: 'Salles de réunion',
+    description: 'Deux salles : réunion + coin canapé pour discuter.',
+    emoji: '📊',
+    accent: '#f59e0b',
+    build: buildMeetingRooms,
+  },
+  {
+    id: 'lounge',
+    label: 'Lounge détente',
+    description: 'Salon cosy avec canapés, plantes et machine à café.',
+    emoji: '🛋️',
+    accent: '#22c55e',
+    build: buildLounge,
   },
 ];
 
-export const DEFAULT_TEMPLATE_ID = MAP_TEMPLATES[0]!.id;
+export const DEFAULT_TEMPLATE_ID = 'starter-office';
 
 export function getMapTemplate(id: string): MapTemplate | undefined {
   return MAP_TEMPLATES.find((t) => t.id === id);
+}
+
+export function isEmptyTemplate(id: string): boolean {
+  return id === EMPTY_TEMPLATE_ID;
 }
