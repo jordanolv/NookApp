@@ -1,7 +1,9 @@
-export type NameTagStatus = 'online' | 'idle' | 'muted' | 'dnd';
+export type NameTagStatus = 'online' | 'busy' | 'away' | 'idle' | 'muted' | 'dnd';
 
 export const NAME_TAG_STATUS_COLORS: Record<NameTagStatus, { bg: string; glow: string }> = {
   online: { bg: '#34d399', glow: 'rgba(52,211,153,0.7)' },
+  busy: { bg: '#f87171', glow: 'rgba(248,113,113,0.7)' },
+  away: { bg: '#fbbf24', glow: 'rgba(251,191,36,0.65)' },
   idle: { bg: '#9ca3af', glow: 'rgba(156,163,175,0.6)' },
   muted: { bg: '#fbbf24', glow: 'rgba(251,191,36,0.7)' },
   dnd: { bg: '#f87171', glow: 'rgba(248,113,113,0.75)' },

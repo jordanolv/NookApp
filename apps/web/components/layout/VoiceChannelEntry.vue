@@ -21,7 +21,7 @@ const participants = computed(() => voicePresence.value.get(props.channel.id) ??
 const count = computed(() => participants.value.length);
 const capacity = 8;
 const memberNames = computed(() => participants.value.map((p) => p.name).join(', '));
-const elapsed = computed(() => formatElapsed(props.channel.id));
+const elapsed = computed(() => (count.value > 0 ? formatElapsed(props.channel.id) : ''));
 const subText = computed(() => memberNames.value || elapsed.value);
 
 const channelEditing = useChannelEditing();

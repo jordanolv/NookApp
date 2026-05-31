@@ -39,8 +39,11 @@ const containerStyle = computed(() => ({
   flex-shrink: 0;
   border-radius: 50%;
   overflow: hidden;
-  background: linear-gradient(135deg, var(--accent-warm), var(--accent-rose));
-  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.12);
+  isolation: isolate;
+  background: linear-gradient(180deg, var(--accent-leaf-soft), var(--surface-tinted-strong));
+  box-shadow:
+    inset 0 0 0 1px var(--surface-border),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.08);
 }
 .char-avatar__inner {
   position: absolute;

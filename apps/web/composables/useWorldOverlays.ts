@@ -67,6 +67,7 @@ export function useWorldOverlays(opts: {
   };
 }) {
   const voice = useVoice();
+  const status = useStatus();
   const { localActivity } = useLocalActivity();
 
   const screenRingArcs = new Map<string, Phaser.GameObjects.Arc>();
@@ -112,7 +113,7 @@ export function useWorldOverlays(opts: {
     const localUserId = opts.localUserId;
     const isDeafened = voice.isDeafened.value;
     const isMuted = voice.isMuted.value;
-    const localStatus: NameTagStatus = isDeafened ? 'dnd' : isMuted ? 'muted' : 'online';
+    const localStatus: NameTagStatus = status.effectiveStatus.value;
     const localMediaIcon = isDeafened ? ICON_DEAFENED : isMuted ? ICON_MUTED : '';
     const localCam = voice.isCameraOn.value;
     const localScreen = voice.isScreenSharing.value;
