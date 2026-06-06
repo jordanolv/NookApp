@@ -6,6 +6,7 @@ export const user = pgTable(
     id: text('id').primaryKey(),
     email: text('email').notNull(),
     name: text('name').notNull(),
+    username: text('username').notNull(),
     avatarUrl: text('avatar_url'),
     emailVerified: boolean('email_verified').notNull().default(false),
     image: text('image'),
@@ -15,5 +16,6 @@ export const user = pgTable(
   },
   (t) => ({
     emailUniq: uniqueIndex('user_email_uniq').on(t.email),
+    usernameUniq: uniqueIndex('user_username_uniq').on(t.username),
   }),
 );
