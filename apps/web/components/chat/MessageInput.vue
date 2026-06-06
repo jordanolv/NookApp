@@ -10,6 +10,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   send: [content: string];
+  typing: [];
 }>();
 
 const gifEnabled = computed(() => !!useRuntimeConfig().public.giphyApiKey);
@@ -32,7 +33,10 @@ function resize() {
   el.style.height = 'auto';
   el.style.height = Math.min(el.scrollHeight, 140) + 'px';
 }
-watch(input, () => nextTick(resize));
+watch(input, () => {
+  nextTick(resize);
+  if (input.value.trim()) emit('typing');
+});
 onMounted(resize);
 
 function insertEmoji(emoji: string) {

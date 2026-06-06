@@ -9,6 +9,7 @@ import { MailerModule } from './mailer/mailer.module';
 import { MapsModule } from './maps/maps.module';
 import { MembersModule } from './members/members.module';
 import { MessagesModule } from './messages/messages.module';
+import { DmsModule } from './dms/dms.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { ServersModule } from './servers/servers.module';
 import { UsersModule } from './users/users.module';
@@ -34,6 +35,7 @@ import { StorageModule } from './common/storage';
     ChannelsModule,
     MembersModule,
     MessagesModule,
+    DmsModule,
     MapsModule,
     RealtimeModule,
     VoiceModule,

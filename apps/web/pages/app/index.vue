@@ -8,6 +8,20 @@ const { t } = useI18n();
 const { store, fetchServers, createServer } = useServers();
 const { seedServerMap } = useMapTemplates();
 const { user, signOut } = useAuth();
+const socket = useSocket();
+const dmHub = useDmHub();
+const dmsStore = useDmsStore();
+const dmRealtime = useDmRealtime();
+const dmUnread = computed(() => dmsStore.totalUnread);
+
+let teardownDm: (() => void) | null = null;
+onMounted(() => {
+  socket.connect();
+  teardownDm = dmRealtime.setup();
+});
+onUnmounted(() => {
+  teardownDm?.();
+});
 
 const showCreate = ref(false);
 const createName = ref('');
@@ -73,6 +87,11 @@ async function onSignOut() {
       </div>
 
       <div class="nooks__actions">
+        <button class="nooks__btn nooks__btn--ghost nooks__dm" @click="dmHub.toggle()">
+          💬 Messages
+          <span v-if="dmUnread > 0" class="nooks__dm-badge">{{ dmUnread }}</span>
+        </button>
+
         <button class="nooks__btn nooks__btn--primary" @click="showCreate = true">
           <span aria-hidden="true">+</span>
           {{ t('nooks.newNook') }}
@@ -169,6 +188,8 @@ async function onSignOut() {
         </div>
       </div>
     </Teleport>
+
+    <DmHub />
   </div>
 </template>
 
@@ -284,6 +305,22 @@ async function onSignOut() {
 }
 .nooks__btn--ghost:hover {
   background: var(--surface-raised);
+}
+
+.nooks__dm {
+  position: relative;
+}
+.nooks__dm-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent-rose);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .nooks__user {

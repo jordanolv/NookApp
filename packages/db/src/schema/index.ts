@@ -3,3 +3,4 @@ export * from './servers';
 export * from './channels';
 export * from './roles';
 export * from './maps';
+export * from './dms';

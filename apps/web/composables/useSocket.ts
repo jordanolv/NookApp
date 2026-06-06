@@ -1,5 +1,7 @@
 import { io, type Socket } from 'socket.io-client';
 import type {
+  DirectMessagePublic,
+  DmTypingPayload,
   MessagePublic,
   PlayerAppearance,
   PlayerAppearancePayload,
@@ -89,6 +91,20 @@ export function useSocket() {
     return () => socket?.off('message:sent', cb);
   }
 
+  function onDmMessage(cb: (msg: DirectMessagePublic) => void) {
+    socket?.on('dm:message', cb);
+    return () => socket?.off('dm:message', cb);
+  }
+
+  function emitDmTyping(payload: { conversationId: string; toUserId: string }) {
+    socket?.volatile.emit('dm:typing', payload);
+  }
+
+  function onDmTyping(cb: (payload: DmTypingPayload) => void) {
+    socket?.on('dm:typing', cb);
+    return () => socket?.off('dm:typing', cb);
+  }
+
   function onPlayerJoined(cb: (state: PlayerState) => void) {
     socket?.on('player:joined', cb);
     return () => socket?.off('player:joined', cb);
@@ -153,6 +169,9 @@ export function useSocket() {
     hello,
     onSnapshot,
     onMessage,
+    onDmMessage,
+    emitDmTyping,
+    onDmTyping,
     onPlayerJoined,
     onPlayerLeft,
     emitPlayerMoved,

@@ -15,6 +15,20 @@
       "when": 1779500696231,
       "tag": "0001_organic_virginia_dare",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780190766582,
+      "tag": "0002_brief_dark_beast",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1780710596945,
+      "tag": "0003_pink_stone_men",
+      "breakpoints": true
     }
   ]
 }

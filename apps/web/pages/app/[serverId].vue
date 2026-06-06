@@ -165,8 +165,10 @@ watch(
 );
 
 // ── Lifecycle ──────────────────────────────────────────────────────────
+const dmRealtime = useDmRealtime();
 let teardownVoiceListeners: (() => void) | null = null;
 let teardownMessageCounter: (() => void) | null = null;
+let teardownDmRealtime: (() => void) | null = null;
 
 onMounted(() => {
   socket.connect();
@@ -174,12 +176,14 @@ onMounted(() => {
   teardownMessageCounter = socket.onMessage((msg) => {
     messagesStore.incrementCount(msg.channelId);
   });
+  teardownDmRealtime = dmRealtime.setup();
 });
 
 onUnmounted(async () => {
   if (voice.currentChannelId.value) await voice.leave();
   teardownVoiceListeners?.();
   teardownMessageCounter?.();
+  teardownDmRealtime?.();
   socket.disconnect();
 });
 
@@ -230,6 +234,8 @@ const serverBannerUrl = computed(() => resolveUrl(server.value?.bannerUrl) ?? nu
       :can-manage-map="canManageMap"
       @open-server-switcher="serverPicker.openSwitcher"
     />
+
+    <DmHub />
 
     <UserSettingsModal v-if="showUserSettings" @close="showUserSettings = false" />
 

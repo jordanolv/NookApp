@@ -1,5 +1,6 @@
 export * from './dto/auth';
 export * from './dto/channels';
+export * from './dto/dms';
 export * from './dto/maps';
 export * from './dto/members';
 export * from './dto/messages';

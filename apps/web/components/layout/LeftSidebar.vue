@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Settings } from 'lucide-vue-next';
+import { Settings, SignalHigh, SignalLow, SignalMedium, SignalZero } from 'lucide-vue-next';
 import type { CategoryPublic, ChannelPublic } from '@nookapp/protocol';
 import { useLocalActivity } from '~/composables/useLocalActivity';
+import { useStatus, type Status } from '~/composables/useStatus';
 
 defineProps<{
   channels: ChannelPublic[];
@@ -48,6 +49,61 @@ const pingLabel = computed(() => {
   const ms = socket.latencyMs.value;
   return typeof ms === 'number' ? `${ms} ms` : '— ms';
 });
+
+const pingLevel = computed<'good' | 'ok' | 'bad' | 'unknown'>(() => {
+  const ms = socket.latencyMs.value;
+  if (typeof ms !== 'number') return 'unknown';
+  if (ms < 80) return 'good';
+  if (ms < 200) return 'ok';
+  return 'bad';
+});
+
+const pingIcon = computed(() => {
+  switch (pingLevel.value) {
+    case 'good':
+      return SignalHigh;
+    case 'ok':
+      return SignalMedium;
+    case 'bad':
+      return SignalLow;
+    default:
+      return SignalZero;
+  }
+});
+
+const status = useStatus();
+const statusPopoverOpen = ref(false);
+const STATUS_LABELS: Record<Status, string> = {
+  online: 'En ligne',
+  busy: 'Occupé',
+  away: 'Absent',
+};
+const statusTitle = computed(() => {
+  const label = STATUS_LABELS[status.effectiveStatus.value];
+  if (status.autoOverride.value === 'idle') return `${label} (inactivité)`;
+  if (status.autoOverride.value === 'voice') return `${label} (en vocal)`;
+  return label;
+});
+
+function toggleStatusPopover(e: MouseEvent) {
+  e.stopPropagation();
+  statusPopoverOpen.value = !statusPopoverOpen.value;
+}
+function pickStatus(s: Status) {
+  status.setManualStatus(s);
+  statusPopoverOpen.value = false;
+}
+function onDocumentClick() {
+  statusPopoverOpen.value = false;
+}
+watch(statusPopoverOpen, (open) => {
+  if (typeof window === 'undefined') return;
+  if (open) window.addEventListener('click', onDocumentClick);
+  else window.removeEventListener('click', onDocumentClick);
+});
+onBeforeUnmount(() => {
+  if (typeof window !== 'undefined') window.removeEventListener('click', onDocumentClick);
+});
 </script>
 
 <template>
@@ -76,24 +132,56 @@ const pingLabel = computed(() => {
       />
     </div>
 
-    <div class="left-sidebar__user" :title="user?.name ?? ''">
-      <UserCharacterAvatar :appearance="appearance" :size="36" class="left-sidebar__user-avatar" />
-      <span class="left-sidebar__user-meta">
-        <span class="left-sidebar__user-name">{{ user?.name }}</span>
-        <span class="left-sidebar__user-where">
-          <span v-if="localActivity" class="left-sidebar__user-emoji">{{ localActivity }}</span>
-          {{ userWhere }}
-        </span>
-      </span>
-      <span class="left-sidebar__user-ping" :title="`Latence ${pingLabel}`">{{ pingLabel }}</span>
+    <div class="left-sidebar__user-wrapper">
       <button
         type="button"
-        class="left-sidebar__user-cog"
-        title="Paramètres du compte"
+        class="left-sidebar__user"
+        :title="`${user?.name ?? ''} — Paramètres du compte`"
         @click="emit('open-user-settings')"
       >
-        <Settings :size="14" />
+        <span class="left-sidebar__user-avatar-wrap">
+          <UserCharacterAvatar
+            :appearance="appearance"
+            :size="40"
+            class="left-sidebar__user-avatar"
+          />
+        </span>
+        <span class="left-sidebar__user-meta">
+          <span class="left-sidebar__user-name">{{ user?.name }}</span>
+          <span class="left-sidebar__user-where">
+            <span v-if="localActivity" class="left-sidebar__user-emoji">{{ localActivity }}</span>
+            {{ userWhere }}
+          </span>
+        </span>
+        <span
+          class="left-sidebar__user-ping"
+          :class="`ping--${pingLevel}`"
+          :title="`Latence ${pingLabel}`"
+          :aria-label="`Latence ${pingLabel}`"
+        >
+          <component :is="pingIcon" :size="16" :stroke-width="2.25" />
+        </span>
+        <span class="left-sidebar__user-cog" aria-hidden="true">
+          <Settings :size="14" />
+        </span>
       </button>
+      <button
+        type="button"
+        class="left-sidebar__status-dot"
+        :class="`left-sidebar__status-dot--${status.effectiveStatus.value}`"
+        :title="`Statut : ${statusTitle}`"
+        :aria-label="`Statut : ${statusTitle}`"
+        @click="toggleStatusPopover"
+      />
+      <LayoutUserStatusPopover
+        v-if="statusPopoverOpen"
+        class="left-sidebar__status-popover"
+        :manual-status="status.manualStatus.value"
+        :effective-status="status.effectiveStatus.value"
+        :auto-override="status.autoOverride.value"
+        @pick="pickStatus"
+        @close="statusPopoverOpen = false"
+      />
     </div>
   </aside>
 </template>
@@ -142,35 +230,96 @@ const pingLabel = computed(() => {
   border-radius: 999px;
 }
 
-.left-sidebar__user {
+.left-sidebar__user-wrapper {
+  position: relative;
   margin-top: 8px;
-  padding: 8px;
+}
+.left-sidebar__user {
+  padding: 8px 10px 8px 8px;
   display: flex;
   align-items: center;
   gap: 10px;
+  border: none;
+  width: 100%;
+  text-align: left;
   border-radius: 14px;
   background: var(--surface-tinted);
   color: var(--ink);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
 }
-.left-sidebar__user-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-warm), var(--accent-rose));
-  color: #fff;
-  font-weight: 700;
-  font-size: 14px;
-  display: grid;
-  place-items: center;
-  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.12);
+.left-sidebar__user:hover {
+  background: var(--surface-tinted-strong);
+}
+.left-sidebar__user:active {
+  transform: scale(0.985);
+}
+.left-sidebar__user:focus-visible {
+  outline: 2px solid var(--accent-leaf);
+  outline-offset: 2px;
+}
+
+.left-sidebar__user-avatar-wrap {
+  position: relative;
   flex-shrink: 0;
+  width: 40px;
+  height: 40px;
 }
+
+.left-sidebar__status-dot {
+  position: absolute;
+  bottom: 9px;
+  left: 38px;
+  z-index: 2;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: var(--ink-muted);
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 3px rgba(0, 0, 0, 0.04);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.left-sidebar__status-dot:hover {
+  transform: scale(1.15);
+}
+.left-sidebar__status-dot:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--accent-leaf);
+}
+.left-sidebar__status-dot--online {
+  background: #34d399;
+}
+.left-sidebar__status-dot--busy {
+  background: #f87171;
+}
+.left-sidebar__status-dot--away {
+  background: #fbbf24;
+}
+
+.left-sidebar__status-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 50;
+}
+
 .left-sidebar__user-meta {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  line-height: 1.2;
+  line-height: 1.25;
+  gap: 1px;
 }
 .left-sidebar__user-name {
   font-weight: 700;
@@ -190,58 +339,44 @@ const pingLabel = computed(() => {
 .left-sidebar__user-emoji {
   margin-right: 3px;
 }
+
 .left-sidebar__user-ping {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: var(--surface-tinted-strong);
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--ink-muted);
-  letter-spacing: 0.02em;
+  display: grid;
+  place-items: center;
   flex-shrink: 0;
+  color: var(--ink-muted);
 }
-.left-sidebar__user-ping::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent-leaf);
-  animation: lsb-ping-pulse 2s infinite;
+.left-sidebar__user-ping.ping--good {
+  color: var(--accent-leaf);
 }
-@keyframes lsb-ping-pulse {
-  0% {
-    box-shadow: 0 0 0 0 var(--accent-leaf-soft);
-  }
-  70% {
-    box-shadow: 0 0 0 5px transparent;
-  }
-  100% {
-    box-shadow: 0 0 0 0 transparent;
-  }
+.left-sidebar__user-ping.ping--ok {
+  color: var(--accent-warm);
 }
+.left-sidebar__user-ping.ping--bad {
+  color: var(--accent-rose);
+}
+.left-sidebar__user-ping.ping--unknown {
+  color: var(--ink-muted);
+  opacity: 0.5;
+}
+
 .left-sidebar__user-cog {
   width: 24px;
   height: 24px;
   border-radius: 8px;
-  border: none;
-  background: transparent;
   display: grid;
   place-items: center;
   color: var(--ink-muted);
-  opacity: 0.7;
+  opacity: 0.55;
   flex-shrink: 0;
-  cursor: pointer;
   transition:
-    opacity 0.15s,
-    background 0.15s,
-    color 0.15s;
+    opacity 0.15s ease,
+    color 0.15s ease,
+    transform 0.2s ease;
 }
-.left-sidebar__user-cog:hover {
+.left-sidebar__user:hover .left-sidebar__user-cog {
   opacity: 1;
-  background: var(--surface-tinted-strong);
   color: var(--ink);
+  transform: rotate(35deg);
 }
 </style>

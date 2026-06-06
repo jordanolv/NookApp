@@ -2,6 +2,7 @@ import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { account, session, user, verification, type Database } from '@nookapp/db';
 import type { MailerService } from '../mailer/mailer.service';
+import { generateUniqueUsername } from './username-generator';
 
 export interface AuthFactoryDeps {
   db: Database;
@@ -33,6 +34,20 @@ export function createAuth({ db, mailer, env }: AuthFactoryDeps) {
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     trustedOrigins: [env.WEB_URL],
+    user: {
+      additionalFields: {
+        username: { type: 'string', required: false, input: false },
+      },
+    },
+    databaseHooks: {
+      user: {
+        create: {
+          before: async (u) => ({
+            data: { ...u, username: await generateUniqueUsername(u.name, db) },
+          }),
+        },
+      },
+    },
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
