@@ -188,6 +188,15 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     this.server.to(`server:${serverId}`).emit('voice:left', { userId, channelId });
   }
 
+  @SubscribeMessage('dm:typing')
+  handleDmTyping(client: Socket, payload: { conversationId: string; toUserId: string }) {
+    const userId = client.data.userId as string | undefined;
+    if (!userId || !payload?.toUserId || !payload?.conversationId) return;
+    this.server
+      .to(`user:${payload.toUserId}`)
+      .emit('dm:typing', { conversationId: payload.conversationId, fromUserId: userId });
+  }
+
   @SubscribeMessage('client:ping')
   handleClientPing() {
     return { t: Date.now() };
