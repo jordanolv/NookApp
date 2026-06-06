@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { mkdirSync } from 'node:fs';
+import helmet from 'helmet';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -23,8 +24,14 @@ async function bootstrap() {
   const httpAdapter = app.getHttpAdapter().getInstance();
   const webOrigin = process.env.NUXT_PUBLIC_WEB_URL ?? 'http://localhost:4001';
 
-  // CORS applied on the raw Express app so it covers /api/auth/* (which bypasses
-  // NestJS middleware) as well as all NestJS-managed routes.
+  httpAdapter.set('trust proxy', 1);
+  httpAdapter.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
+
   httpAdapter.use((req: Request, res: Response, next: NextFunction) => {
     const origin = req.headers.origin;
     if (origin === webOrigin) {
@@ -40,8 +47,6 @@ async function bootstrap() {
     next();
   });
 
-  // Better Auth needs to handle its own body parsing and the full request URL —
-  // mount with httpAdapter.all so req.url stays /api/auth/... inside the handler.
   httpAdapter.all('/api/auth/*', toNodeHandler(auth));
 
   const { json, urlencoded } = await import('express');
