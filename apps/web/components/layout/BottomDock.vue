@@ -18,6 +18,8 @@ import {
   VideoOff,
 } from 'lucide-vue-next';
 import { useHudVisibility } from '~/composables/useHudVisibility';
+import { useDmsStore } from '~/stores/dms';
+import { useDmHub } from '~/composables/useDmHub';
 
 defineProps<{
   serverName: string;
@@ -53,7 +55,9 @@ const onlineHidden = hudVis.isHidden('ui:hud:onlineWidgetHidden');
 const inCall = computed(() => !!currentChannelId.value);
 
 const showStatus = ref(false);
-const showDms = ref(false);
+const dmHub = useDmHub();
+const dmsStore = useDmsStore();
+const dmUnread = computed(() => dmsStore.totalUnread);
 const waving = ref(false);
 
 function onWave() {
@@ -96,8 +100,15 @@ function restoreOnline() {
     >
       <Hand :size="16" />
     </button>
-    <button type="button" class="dock__btn" title="Messages privés" @click="showDms = true">
+    <button
+      type="button"
+      class="dock__btn"
+      :class="{ 'dock__btn--active': dmHub.open.value }"
+      :title="$t('dm.title')"
+      @click="dmHub.toggle()"
+    >
       <MessageCircle :size="16" />
+      <span v-if="dmUnread > 0" class="dock__badge">{{ dmUnread }}</span>
     </button>
     <div class="dock__status-wrap">
       <button
@@ -192,8 +203,6 @@ function restoreOnline() {
         <LogOut :size="16" />
       </button>
     </template>
-
-    <WorldHudDmsPlaceholderModal v-if="showDms" @close="showDms = false" />
   </div>
 </template>
 
@@ -298,6 +307,22 @@ function restoreOnline() {
 .dock__btn--active:hover {
   background: var(--accent-leaf-soft);
   color: var(--accent-leaf);
+}
+.dock__badge {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent-rose);
+  border: 1.5px solid var(--surface);
 }
 .dock__btn--danger {
   background: var(--accent-rose-soft);
