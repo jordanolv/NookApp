@@ -31,8 +31,6 @@ defineEmits<{
   'select-channel': [channel: ChannelPublic, e: MouseEvent | KeyboardEvent];
   'edit-channel': [channelId: string];
   'edit-category': [categoryId: string];
-  'open-server-switcher': [e: MouseEvent];
-  'open-server-menu': [e: MouseEvent];
   'create-channel': [opts: { type: 'text' | 'voice'; categoryId: string | null }];
   'open-pinned': [channel: ChannelPublic, kind: HomePinKind];
   'open-user-settings': [];
@@ -55,8 +53,6 @@ defineEmits<{
     @select-channel="(ch, e) => $emit('select-channel', ch, e)"
     @edit-channel="(id) => $emit('edit-channel', id)"
     @edit-category="(id) => $emit('edit-category', id)"
-    @open-server-switcher="(e) => $emit('open-server-switcher', e)"
-    @open-server-menu="(e) => $emit('open-server-menu', e)"
     @create-channel="(opts) => $emit('create-channel', opts)"
     @open-user-settings="$emit('open-user-settings')"
   />

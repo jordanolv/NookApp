@@ -26,14 +26,13 @@ export function useServerPicker() {
     dropdown.value = null;
   }
 
-  function openSwitcher(e: MouseEvent) {
-    anchor.value = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    dropdown.value = 'switcher';
-  }
-
   function openMenu(e: MouseEvent) {
     anchor.value = (e.currentTarget as HTMLElement).getBoundingClientRect();
     dropdown.value = 'menu';
+  }
+
+  function showSwitcher() {
+    dropdown.value = 'switcher';
   }
 
   function switchServer(id: string) {
@@ -41,5 +40,5 @@ export function useServerPicker() {
     navigateTo(`/app/${id}`);
   }
 
-  return { dropdown, anchor, top, left, placement, close, openSwitcher, openMenu, switchServer };
+  return { dropdown, anchor, top, left, placement, close, openMenu, showSwitcher, switchServer };
 }
