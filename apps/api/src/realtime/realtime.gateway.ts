@@ -20,7 +20,12 @@ import { MembersService } from '../members/members.service';
 
 type RoomPlayers = Map<string, PlayerState>;
 
-@WebSocketGateway({ cors: { origin: true, credentials: true } })
+@WebSocketGateway({
+  cors: {
+    origin: process.env.NUXT_PUBLIC_WEB_URL ?? 'http://localhost:4001',
+    credentials: true,
+  },
+})
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server!: Server;

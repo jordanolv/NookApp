@@ -1,6 +1,9 @@
 import { join } from 'node:path';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { HttpThrottlerGuard } from './common/http-throttler.guard';
 import { AuthModule } from './auth/auth.module';
 import { ChannelsModule } from './channels/channels.module';
 import { DatabaseModule } from './database/database.module';
@@ -25,6 +28,7 @@ import { StorageModule } from './common/storage';
       isGlobal: true,
       envFilePath: [join(process.cwd(), '.env'), join(process.cwd(), '..', '..', '.env')],
     }),
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
     StorageModule,
     DatabaseModule,
     MailerModule,
@@ -43,5 +47,6 @@ import { StorageModule } from './common/storage';
     CategoriesModule,
     RolesModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: HttpThrottlerGuard }],
 })
 export class AppModule {}

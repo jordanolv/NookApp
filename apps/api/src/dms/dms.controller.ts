@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiTags } from '@nestjs/swagger';
 import { createDirectMessageInputSchema, openDmInputSchema } from '@nookapp/protocol';
 import { AuthGuard } from '../auth/auth.guard';
@@ -27,6 +28,7 @@ export class DmsController {
     return this.dms.listCandidates(user.id);
   }
 
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @Get('lookup')
   lookup(@CurrentUser() user: AuthSession['user'], @Query('username') username: string) {
     return this.dms.lookupByUsername(username ?? '', user.id);

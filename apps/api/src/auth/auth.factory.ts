@@ -34,6 +34,19 @@ export function createAuth({ db, mailer, env }: AuthFactoryDeps) {
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     trustedOrigins: [env.WEB_URL],
+    rateLimit: {
+      enabled: true,
+      window: 60,
+      max: 60,
+      customRules: {
+        '/sign-in/email': { window: 60, max: 5 },
+        '/sign-up/email': { window: 60, max: 5 },
+        '/forget-password': { window: 60, max: 3 },
+      },
+    },
+    advanced: {
+      ipAddress: { ipAddressHeaders: ['x-forwarded-for'] },
+    },
     user: {
       additionalFields: {
         username: { type: 'string', required: false, input: false },
