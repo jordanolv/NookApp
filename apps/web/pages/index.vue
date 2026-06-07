@@ -70,7 +70,13 @@ const features = computed(() => [
       </article>
     </section>
 
-    <footer class="landing__footer">{{ t('home.footer') }}</footer>
+    <footer class="landing__footer">
+      <span>{{ t('home.footer') }}</span>
+      <nav class="landing__footer-links">
+        <NuxtLink to="/legal/privacy">{{ t('home.legalPrivacy') }}</NuxtLink>
+        <NuxtLink to="/legal/terms">{{ t('home.legalTerms') }}</NuxtLink>
+      </nav>
+    </footer>
   </main>
 </template>
 
@@ -275,5 +281,20 @@ const features = computed(() => [
   color: var(--ink-faint);
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.landing__footer-links {
+  display: flex;
+  gap: 18px;
+}
+.landing__footer-links a {
+  color: var(--ink-muted);
+  transition: color 0.15s;
+}
+.landing__footer-links a:hover {
+  color: var(--ink);
 }
 </style>

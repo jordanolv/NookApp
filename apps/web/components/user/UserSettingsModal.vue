@@ -9,10 +9,14 @@ import {
   type CgLayer,
 } from '~/composables/useCharacter';
 import { useInterfacePreferences } from '~/composables/useInterfacePreferences';
+import { useAuthStore } from '~/stores/auth';
 import { THEME_LIST } from '~/themes';
+import type { OwnedServerSummary } from '@nookapp/protocol';
 
 const emit = defineEmits<{ close: [] }>();
 const { user, refreshUser } = useAuth();
+const authStore = useAuthStore();
+const api = useApi();
 const { authBase } = useRuntimeConfig().public;
 const character = useCharacter();
 const interfacePrefs = useInterfacePreferences();
@@ -92,6 +96,107 @@ async function saveProfile() {
       (e as { data?: { message?: string } })?.data?.message ?? t('settings.user.profile.saveError');
   } finally {
     saving.value = false;
+  }
+}
+
+const emailDraft = ref(user.value?.email ?? '');
+watch(
+  () => user.value?.email,
+  (e) => {
+    if (e && !emailDraft.value) emailDraft.value = e;
+  },
+);
+const changingEmail = ref(false);
+const emailMessage = ref<string | null>(null);
+const emailDirty = computed(
+  () =>
+    emailDraft.value.trim() !== (user.value?.email ?? '').trim() && emailDraft.value.includes('@'),
+);
+
+async function changeEmail() {
+  if (!emailDirty.value || changingEmail.value) return;
+  changingEmail.value = true;
+  emailMessage.value = null;
+  try {
+    await $fetch(`${authBase}/change-email`, {
+      method: 'POST',
+      body: { newEmail: emailDraft.value.trim(), callbackURL: '/app' },
+      credentials: 'include',
+    });
+    emailMessage.value = t('settings.user.profile.emailChangeSent');
+  } catch (e: unknown) {
+    emailMessage.value =
+      (e as { data?: { message?: string } })?.data?.message ?? t('settings.user.profile.saveError');
+  } finally {
+    changingEmail.value = false;
+  }
+}
+
+const exporting = ref(false);
+async function exportData() {
+  exporting.value = true;
+  try {
+    const data = await api.get('/users/me/export');
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'nookapp-data.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  } finally {
+    exporting.value = false;
+  }
+}
+
+const confirmingDelete = ref(false);
+const confirmName = ref('');
+const deleting = ref(false);
+const deleteError = ref<string | null>(null);
+const ownedServers = ref<OwnedServerSummary[] | null>(null);
+const choices = ref<Record<string, string>>({});
+
+const canDelete = computed(
+  () =>
+    ownedServers.value !== null &&
+    confirmName.value.trim() === (user.value?.name ?? '').trim() &&
+    !deleting.value,
+);
+
+async function startDelete() {
+  confirmingDelete.value = true;
+  deleteError.value = null;
+  try {
+    const owned = await api.get<OwnedServerSummary[]>('/users/me/owned-servers');
+    ownedServers.value = owned;
+    choices.value = Object.fromEntries(owned.map((s) => [s.id, s.members[0]?.userId ?? '']));
+  } catch {
+    deleteError.value = t('settings.user.danger.error');
+  }
+}
+
+function cancelDelete() {
+  confirmingDelete.value = false;
+  confirmName.value = '';
+  ownedServers.value = null;
+}
+
+async function deleteAccount() {
+  if (!canDelete.value) return;
+  deleting.value = true;
+  deleteError.value = null;
+  try {
+    const transfers: Record<string, string | null> = {};
+    for (const [serverId, target] of Object.entries(choices.value)) {
+      transfers[serverId] = target || null;
+    }
+    await api.del('/users/me', { body: { transfers } });
+    authStore.setUser(null);
+    await navigateTo('/');
+  } catch (e: unknown) {
+    deleteError.value =
+      (e as { data?: { message?: string } })?.data?.message ?? t('settings.user.danger.error');
+    deleting.value = false;
   }
 }
 </script>
@@ -174,19 +279,41 @@ async function saveProfile() {
           </div>
 
           <div class="space-y-2">
-            <label class="block text-xs font-medium" style="color: var(--ink-soft)">
+            <label
+              class="block text-xs font-medium"
+              style="color: var(--ink-soft)"
+              for="user-email"
+            >
               {{ t('common.email') }}
             </label>
-            <div
-              class="px-3 py-2 rounded-lg text-sm"
-              style="
-                background: var(--surface-tinted);
-                border: 1px solid var(--surface-tinted);
-                color: var(--ink-muted);
-              "
-            >
-              {{ user?.email ?? '—' }}
+            <div class="flex items-center gap-2">
+              <input
+                id="user-email"
+                v-model="emailDraft"
+                type="email"
+                class="flex-1 px-3 py-2 rounded-lg text-sm outline-none transition-colors"
+                style="
+                  background: var(--surface-tinted);
+                  border: 1px solid var(--surface-border);
+                  color: var(--ink);
+                "
+              />
+              <button
+                class="px-3 py-2 rounded-lg text-sm font-medium transition-opacity shrink-0"
+                :disabled="!emailDirty || changingEmail"
+                :style="{
+                  background: emailDirty ? '#5865f2' : 'var(--surface-tinted)',
+                  color: emailDirty ? '#fff' : 'var(--ink-faint)',
+                  cursor: emailDirty && !changingEmail ? 'pointer' : 'not-allowed',
+                }"
+                @click="changeEmail"
+              >
+                {{ changingEmail ? t('common.saving') : t('settings.user.profile.changeEmail') }}
+              </button>
             </div>
+            <p v-if="emailMessage" class="text-[11px]" style="color: var(--ink-muted)">
+              {{ emailMessage }}
+            </p>
           </div>
 
           <div class="space-y-2">
@@ -235,6 +362,125 @@ async function saveProfile() {
             </button>
             <span v-if="saved" class="text-xs" style="color: #22c55e">{{ t('common.saved') }}</span>
             <span v-if="error" class="text-xs" style="color: #ef4444">{{ error }}</span>
+          </div>
+
+          <div class="rounded-xl p-4 mt-8" style="border: 1px solid var(--surface-border)">
+            <h4 class="text-sm font-semibold" style="color: var(--ink)">
+              {{ t('settings.user.data.heading') }}
+            </h4>
+            <p class="text-xs mt-1" style="color: var(--ink-muted)">
+              {{ t('settings.user.data.description') }}
+            </p>
+            <button
+              class="mt-3 px-4 py-2 rounded-lg text-sm font-medium transition-opacity"
+              :disabled="exporting"
+              style="
+                background: var(--surface-tinted);
+                border: 1px solid var(--surface-border);
+                color: var(--ink);
+              "
+              @click="exportData"
+            >
+              {{ exporting ? t('common.saving') : t('settings.user.data.export') }}
+            </button>
+          </div>
+
+          <div class="rounded-xl p-4 mt-4" style="border: 1px solid rgba(239, 68, 68, 0.3)">
+            <h4 class="text-sm font-semibold" style="color: #ef4444">
+              {{ t('settings.user.danger.heading') }}
+            </h4>
+            <p class="text-xs mt-1" style="color: var(--ink-muted)">
+              {{ t('settings.user.danger.description') }}
+            </p>
+
+            <button
+              v-if="!confirmingDelete"
+              class="mt-3 px-4 py-2 rounded-lg text-sm font-medium transition-opacity"
+              style="background: rgba(239, 68, 68, 0.12); color: #ef4444"
+              @click="startDelete"
+            >
+              {{ t('settings.user.danger.deleteButton') }}
+            </button>
+
+            <div v-else class="mt-3 space-y-3">
+              <p class="text-xs" style="color: var(--ink-soft)">
+                {{ t('settings.user.danger.warning') }}
+              </p>
+
+              <div v-if="ownedServers === null" class="text-xs" style="color: var(--ink-muted)">
+                {{ t('common.saving') }}
+              </div>
+
+              <div v-else-if="ownedServers.length" class="space-y-2">
+                <p class="text-xs font-medium" style="color: var(--ink-soft)">
+                  {{ t('settings.user.danger.nooksHeading') }}
+                </p>
+                <div
+                  v-for="srv in ownedServers"
+                  :key="srv.id"
+                  class="flex items-center justify-between gap-3 rounded-lg px-3 py-2"
+                  style="background: var(--surface-tinted)"
+                >
+                  <span class="text-sm truncate" style="color: var(--ink)">{{ srv.name }}</span>
+                  <select
+                    v-if="srv.members.length"
+                    v-model="choices[srv.id]"
+                    class="text-xs rounded-md px-2 py-1 outline-none shrink-0"
+                    style="
+                      background: var(--surface-tinted-strong);
+                      border: 1px solid var(--surface-border);
+                      color: var(--ink);
+                    "
+                  >
+                    <option v-for="m in srv.members" :key="m.userId" :value="m.userId">
+                      {{ t('settings.user.danger.transferTo', { name: m.name }) }}
+                    </option>
+                    <option value="">{{ t('settings.user.danger.deleteNook') }}</option>
+                  </select>
+                  <span v-else class="text-xs shrink-0" style="color: var(--ink-faint)">
+                    {{ t('settings.user.danger.willBeDeleted') }}
+                  </span>
+                </div>
+              </div>
+
+              <label class="block text-xs font-medium" style="color: var(--ink-soft)">
+                {{ t('settings.user.danger.confirmLabel', { name: user?.name ?? '' }) }}
+              </label>
+              <input
+                v-model="confirmName"
+                type="text"
+                class="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                style="
+                  background: var(--surface-tinted);
+                  border: 1px solid var(--surface-border);
+                  color: var(--ink);
+                "
+              />
+              <div class="flex items-center gap-3">
+                <button
+                  class="px-4 py-2 rounded-lg text-sm font-medium transition-opacity"
+                  :disabled="!canDelete"
+                  :style="{
+                    background: canDelete ? '#ef4444' : 'var(--surface-tinted)',
+                    color: canDelete ? '#fff' : 'var(--ink-faint)',
+                    cursor: canDelete ? 'pointer' : 'not-allowed',
+                  }"
+                  @click="deleteAccount"
+                >
+                  {{ deleting ? t('common.saving') : t('settings.user.danger.confirmButton') }}
+                </button>
+                <button
+                  class="px-4 py-2 rounded-lg text-sm transition-colors"
+                  style="color: var(--ink-muted)"
+                  @click="cancelDelete"
+                >
+                  {{ t('common.cancel') }}
+                </button>
+                <span v-if="deleteError" class="text-xs" style="color: #ef4444">{{
+                  deleteError
+                }}</span>
+              </div>
+            </div>
           </div>
         </section>
 

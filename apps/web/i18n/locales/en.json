@@ -40,7 +40,9 @@
         "body": "Mini-games, music bots, collectible cards — toggle what you want, per Nook."
       }
     },
-    "footer": "Built for small teams."
+    "footer": "Built for small teams.",
+    "legalPrivacy": "Privacy",
+    "legalTerms": "Terms"
   },
   "nooks": {
     "title": "Your Nooks",
@@ -121,7 +123,10 @@
       "passwordHint": "At least 12 characters",
       "submit": "Create account",
       "submitLoading": "Creating account…",
-      "failed": "Registration failed"
+      "failed": "Registration failed",
+      "legalNotice": "By creating an account, you agree to our",
+      "legalTerms": "Terms of Use",
+      "legalPrivacy": "Privacy Policy"
     },
     "verify": {
       "title": "Verify email — NookApp",
@@ -149,7 +154,9 @@
         "displayNameHint": "2 to 32 characters.",
         "language": "Language",
         "languageHint": "Changes the interface language on this device.",
-        "saveError": "Could not save."
+        "saveError": "Could not save.",
+        "changeEmail": "Change",
+        "emailChangeSent": "A confirmation link was sent to your current address."
       },
       "character": {
         "heading": "Character",
@@ -187,6 +194,24 @@
           "title": "Swap sidebars",
           "hint": "Move the channels list to the right and the tools rail to the left."
         }
+      },
+      "danger": {
+        "heading": "Danger zone",
+        "description": "Deleting your account is permanent and immediate.",
+        "deleteButton": "Delete my account",
+        "warning": "This cannot be undone. Your messages and data will be erased.",
+        "nooksHeading": "What happens to the Nooks you own?",
+        "transferTo": "Transfer to {name}",
+        "deleteNook": "Delete this Nook",
+        "willBeDeleted": "Will be deleted (no other member)",
+        "confirmLabel": "Type \"{name}\" to confirm",
+        "confirmButton": "Delete permanently",
+        "error": "Could not delete the account."
+      },
+      "data": {
+        "heading": "My data",
+        "description": "Download a copy of your personal data (profile, messages, Nooks) as JSON.",
+        "export": "Export my data"
       }
     }
   },

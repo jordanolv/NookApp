@@ -7,10 +7,12 @@ const { signUp } = useAuth();
 const name = ref('');
 const email = ref('');
 const password = ref('');
+const consent = ref(false);
 const error = ref('');
 const loading = ref(false);
 
 async function onSubmit() {
+  if (!consent.value) return;
   error.value = '';
   loading.value = true;
   try {
@@ -90,7 +92,21 @@ async function onSubmit() {
 
         <p v-if="error" class="auth__error">{{ error }}</p>
 
-        <button type="submit" :disabled="loading" class="auth__btn auth__btn--primary">
+        <label class="auth__consent">
+          <input v-model="consent" type="checkbox" class="auth__consent-box" />
+          <span>
+            {{ t('auth.register.legalNotice') }}
+            <NuxtLink to="/legal/terms" class="auth__link">{{
+              t('auth.register.legalTerms')
+            }}</NuxtLink>
+            ·
+            <NuxtLink to="/legal/privacy" class="auth__link">{{
+              t('auth.register.legalPrivacy')
+            }}</NuxtLink>
+          </span>
+        </label>
+
+        <button type="submit" :disabled="loading || !consent" class="auth__btn auth__btn--primary">
           {{ loading ? t('auth.register.submitLoading') : t('auth.register.submit') }}
         </button>
       </form>
@@ -99,6 +115,19 @@ async function onSubmit() {
 </template>
 
 <style scoped>
+.auth__consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+  line-height: 1.5;
+  cursor: pointer;
+}
+.auth__consent-box {
+  margin-top: 2px;
+  accent-color: #5865f2;
+}
 .auth {
   position: relative;
   min-height: 100vh;
