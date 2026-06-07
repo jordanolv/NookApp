@@ -30,7 +30,7 @@ defineProps<{
 const { buildMode } = useMap();
 
 const emit = defineEmits<{
-  'open-server-switcher': [event: MouseEvent];
+  'open-server-menu': [event: MouseEvent];
   wave: [];
 }>();
 
@@ -79,7 +79,7 @@ function restoreOnline() {
       type="button"
       class="dock__nook"
       :title="serverName || ''"
-      @click="emit('open-server-switcher', $event)"
+      @click="emit('open-server-menu', $event)"
     >
       <img v-if="bannerUrl" :src="bannerUrl" :alt="serverName" class="dock__nook-img" />
       <span v-else class="dock__nook-fallback">

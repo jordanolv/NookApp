@@ -24,6 +24,7 @@ export default defineNuxtConfig({
   },
   routeRules: {
     '/': { prerender: true },
+    '/legal/**': { prerender: true },
     '/auth/**': { ssr: true },
     '/app/**': { ssr: false },
   },

@@ -217,8 +217,6 @@ const serverBannerUrl = computed(() => resolveUrl(server.value?.bannerUrl) ?? nu
       @select-channel="handleChannelClick"
       @edit-channel="openChannelEdit"
       @edit-category="openCategoryEdit"
-      @open-server-switcher="serverPicker.openSwitcher"
-      @open-server-menu="serverPicker.openMenu"
       @create-channel="onInlineCreateChannel"
       @open-pinned="openHomePinnedItem"
       @open-user-settings="showUserSettings = true"
@@ -232,7 +230,7 @@ const serverBannerUrl = computed(() => resolveUrl(server.value?.bannerUrl) ?? nu
       :server-name="server?.name ?? ''"
       :banner-url="serverBannerUrl"
       :can-manage-map="canManageMap"
-      @open-server-switcher="serverPicker.openSwitcher"
+      @open-server-menu="serverPicker.openMenu"
     />
 
     <DmHub />
@@ -286,6 +284,7 @@ const serverBannerUrl = computed(() => resolveUrl(server.value?.bannerUrl) ?? nu
       :is-admin="isAdmin"
       @close="serverPicker.close"
       @switch-server="serverPicker.switchServer"
+      @switch-nooks="serverPicker.showSwitcher"
       @invite="invite.open"
       @open-settings="showServerSettings = true"
       @open-plugins="showPlugins = true"

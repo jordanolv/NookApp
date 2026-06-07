@@ -40,7 +40,9 @@
         "body": "Mini-jeux, bots musique, cartes à collectionner — activez ce qui vous plaît, par Nook."
       }
     },
-    "footer": "Construit pour les petites équipes."
+    "footer": "Construit pour les petites équipes.",
+    "legalPrivacy": "Confidentialité",
+    "legalTerms": "Conditions"
   },
   "nooks": {
     "title": "Mes Nooks",
@@ -121,7 +123,10 @@
       "passwordHint": "Au moins 12 caractères",
       "submit": "Créer le compte",
       "submitLoading": "Création du compte…",
-      "failed": "L'inscription a échoué"
+      "failed": "L'inscription a échoué",
+      "legalNotice": "En créant un compte, tu acceptes nos",
+      "legalTerms": "Conditions d'utilisation",
+      "legalPrivacy": "Politique de confidentialité"
     },
     "verify": {
       "title": "Vérification email — NookApp",
@@ -149,7 +154,9 @@
         "displayNameHint": "2 à 32 caractères.",
         "language": "Langue",
         "languageHint": "Change la langue de l'interface sur cet appareil.",
-        "saveError": "Impossible de sauvegarder."
+        "saveError": "Impossible de sauvegarder.",
+        "changeEmail": "Changer",
+        "emailChangeSent": "Un lien de confirmation a été envoyé à ton adresse actuelle."
       },
       "character": {
         "heading": "Personnage",
@@ -187,6 +194,24 @@
           "title": "Inverser les barres latérales",
           "hint": "Place la liste des canaux à droite et la barre d'outils à gauche."
         }
+      },
+      "danger": {
+        "heading": "Zone de danger",
+        "description": "Supprimer ton compte est définitif et immédiat.",
+        "deleteButton": "Supprimer mon compte",
+        "warning": "Cette action est irréversible. Tes messages et tes données seront effacés.",
+        "nooksHeading": "Que faire des Nooks que tu possèdes ?",
+        "transferTo": "Transférer à {name}",
+        "deleteNook": "Supprimer ce Nook",
+        "willBeDeleted": "Sera supprimé (aucun autre membre)",
+        "confirmLabel": "Tape « {name} » pour confirmer",
+        "confirmButton": "Supprimer définitivement",
+        "error": "Impossible de supprimer le compte."
+      },
+      "data": {
+        "heading": "Mes données",
+        "description": "Télécharge une copie de tes données personnelles (profil, messages, Nooks) au format JSON.",
+        "export": "Exporter mes données"
       }
     }
   },

@@ -51,6 +51,24 @@ export function createAuth({ db, mailer, env }: AuthFactoryDeps) {
       additionalFields: {
         username: { type: 'string', required: false, input: false },
       },
+      changeEmail: {
+        enabled: true,
+        sendChangeEmailVerification: async ({
+          user,
+          newEmail,
+          url,
+        }: {
+          user: { email: string; name: string };
+          newEmail: string;
+          url: string;
+        }) => {
+          await mailer.sendChangeEmail(user.email, {
+            name: user.name,
+            newEmail,
+            confirmUrl: url,
+          });
+        },
+      },
     },
     databaseHooks: {
       user: {

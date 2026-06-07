@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Home, Mail, Settings, Check, Puzzle } from 'lucide-vue-next';
+import { Home, Mail, Settings, Check, Puzzle, Repeat } from 'lucide-vue-next';
 import type { ServerPublic } from '@nookapp/protocol';
 
 defineProps<{
@@ -16,6 +16,7 @@ defineProps<{
 defineEmits<{
   close: [];
   'switch-server': [id: string];
+  'switch-nooks': [];
   invite: [];
   'open-settings': [];
   'open-plugins': [];
@@ -69,6 +70,13 @@ const { t } = useI18n();
       :style="{ top: top + 'px', left: left + 'px' }"
     >
       <p class="picker__hint picker__hint--truncate">{{ currentServerName }}</p>
+
+      <button class="picker__row" @click="$emit('switch-nooks')">
+        <span class="picker__icon"><Repeat :size="13" :stroke-width="2" /></span>
+        <span class="picker__label">{{ t('serverPicker.switchNook') }}</span>
+      </button>
+
+      <div class="picker__sep" />
 
       <button
         class="picker__row"
