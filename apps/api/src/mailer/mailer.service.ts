@@ -6,6 +6,10 @@ import {
   type ResetPasswordParams,
 } from './templates/reset-password.template';
 import { renderChangeEmail, type ChangeEmailParams } from './templates/change-email.template';
+import {
+  renderAlreadyRegisteredEmail,
+  type AlreadyRegisteredParams,
+} from './templates/already-registered.template';
 
 @Injectable()
 export class MailerService {
@@ -27,6 +31,11 @@ export class MailerService {
 
   sendChangeEmail(to: string, params: ChangeEmailParams): Promise<void> {
     const { subject, html, text } = renderChangeEmail(params);
+    return this.driver.send({ to, subject, html, text });
+  }
+
+  sendAlreadyRegistered(to: string, params: AlreadyRegisteredParams): Promise<void> {
+    const { subject, html, text } = renderAlreadyRegisteredEmail(params);
     return this.driver.send({ to, subject, html, text });
   }
 }

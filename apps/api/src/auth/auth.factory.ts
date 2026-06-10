@@ -1,5 +1,7 @@
 import { betterAuth } from 'better-auth';
+import { createAuthMiddleware } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { eq } from 'drizzle-orm';
 import { account, session, user, verification, type Database } from '@nookapp/db';
 import type { MailerService } from '../mailer/mailer.service';
 import { generateUniqueUsername } from './username-generator';
@@ -34,6 +36,28 @@ export function createAuth({ db, mailer, env }: AuthFactoryDeps) {
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     trustedOrigins: [env.WEB_URL],
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== '/sign-up/email') return;
+        const email = typeof ctx.body?.email === 'string' ? ctx.body.email.toLowerCase() : null;
+        if (!email) return;
+        const [existing] = await db
+          .select({ name: user.name })
+          .from(user)
+          .where(eq(user.email, email))
+          .limit(1);
+        if (!existing) return;
+        try {
+          await mailer.sendAlreadyRegistered(email, {
+            name: existing.name,
+            loginUrl: `${env.WEB_URL}/auth/login`,
+            resetUrl: `${env.WEB_URL}/auth/forgot-password`,
+          });
+        } catch {
+          // never block sign-up on a notification failure
+        }
+      }),
+    },
     rateLimit: {
       enabled: true,
       window: 60,
