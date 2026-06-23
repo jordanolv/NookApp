@@ -27,10 +27,10 @@ export function useAuth() {
     await refreshUser();
   }
 
-  async function signUp(name: string, email: string, password: string) {
+  async function signUp(name: string, username: string, email: string, password: string) {
     await $fetch(`${authBase}/sign-up/email`, {
       method: 'POST',
-      body: { name, email, password },
+      body: { name, username, email, password },
       credentials: 'include',
     });
   }

@@ -120,6 +120,8 @@
       "heading": "Create your account",
       "alreadyHaveAccount": "Already have one?",
       "displayName": "Display name",
+      "username": "Username",
+      "usernameHint": "3 to 20 characters: lowercase letters, numbers and _",
       "passwordHint": "At least 12 characters",
       "submit": "Create account",
       "submitLoading": "Creating account…",
