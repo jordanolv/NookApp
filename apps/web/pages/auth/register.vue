@@ -5,6 +5,7 @@ useHead(() => ({ title: t('auth.register.title') }));
 
 const { signUp } = useAuth();
 const name = ref('');
+const username = ref('');
 const email = ref('');
 const password = ref('');
 const consent = ref(false);
@@ -16,7 +17,7 @@ async function onSubmit() {
   error.value = '';
   loading.value = true;
   try {
-    await signUp(name.value, email.value, password.value);
+    await signUp(name.value, username.value, email.value, password.value);
     await navigateTo(`/auth/verify?email=${encodeURIComponent(email.value)}`);
   } catch (e: unknown) {
     console.error('[register] error:', e);
@@ -62,6 +63,23 @@ async function onSubmit() {
             autocomplete="name"
             class="auth__input"
           />
+        </div>
+
+        <div class="auth__field">
+          <label class="auth__label" for="username">{{ t('auth.register.username') }}</label>
+          <input
+            id="username"
+            v-model="username"
+            type="text"
+            required
+            minlength="3"
+            maxlength="20"
+            pattern="[a-z0-9_]+"
+            autocomplete="username"
+            class="auth__input"
+            @input="username = username.toLowerCase().trim()"
+          />
+          <p class="auth__hint">{{ t('auth.register.usernameHint') }}</p>
         </div>
 
         <div class="auth__field">

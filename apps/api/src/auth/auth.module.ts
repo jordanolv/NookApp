@@ -21,8 +21,6 @@ import { AUTH } from './auth.types';
             BETTER_AUTH_SECRET: requireEnv(config, 'BETTER_AUTH_SECRET'),
             BETTER_AUTH_URL: config.get<string>('BETTER_AUTH_URL', 'http://localhost:4000'),
             WEB_URL: config.get<string>('NUXT_PUBLIC_WEB_URL', 'http://localhost:4001'),
-            DISCORD_CLIENT_ID: config.get<string>('DISCORD_CLIENT_ID'),
-            DISCORD_CLIENT_SECRET: config.get<string>('DISCORD_CLIENT_SECRET'),
           },
         }),
     },

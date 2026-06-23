@@ -1,10 +1,10 @@
 import { betterAuth } from 'better-auth';
-import { createAuthMiddleware } from 'better-auth/api';
+import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { eq } from 'drizzle-orm';
+import { usernameSchema } from '@nookapp/protocol';
 import { account, session, user, verification, type Database } from '@nookapp/db';
 import type { MailerService } from '../mailer/mailer.service';
-import { generateUniqueUsername } from './username-generator';
 
 export interface AuthFactoryDeps {
   db: Database;
@@ -13,16 +13,12 @@ export interface AuthFactoryDeps {
     BETTER_AUTH_SECRET: string;
     BETTER_AUTH_URL: string;
     WEB_URL: string;
-    DISCORD_CLIENT_ID?: string;
-    DISCORD_CLIENT_SECRET?: string;
   };
 }
 
 export type Auth = ReturnType<typeof createAuth>;
 
 export function createAuth({ db, mailer, env }: AuthFactoryDeps) {
-  const discordEnabled = Boolean(env.DISCORD_CLIENT_ID && env.DISCORD_CLIENT_SECRET);
-
   return betterAuth({
     database: drizzleAdapter(db, {
       provider: 'pg',
@@ -39,6 +35,29 @@ export function createAuth({ db, mailer, env }: AuthFactoryDeps) {
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
         if (ctx.path !== '/sign-up/email') return;
+
+        const parsed = usernameSchema.safeParse(
+          typeof ctx.body?.username === 'string' ? ctx.body.username.toLowerCase().trim() : '',
+        );
+        if (!parsed.success) {
+          throw new APIError('UNPROCESSABLE_ENTITY', {
+            code: 'INVALID_USERNAME',
+            message: parsed.error.issues[0]?.message ?? 'Invalid username',
+          });
+        }
+        const [usernameTaken] = await db
+          .select({ id: user.id })
+          .from(user)
+          .where(eq(user.username, parsed.data))
+          .limit(1);
+        if (usernameTaken) {
+          throw new APIError('UNPROCESSABLE_ENTITY', {
+            code: 'USERNAME_TAKEN',
+            message: 'This username is already taken',
+          });
+        }
+        ctx.body.username = parsed.data;
+
         const email = typeof ctx.body?.email === 'string' ? ctx.body.email.toLowerCase() : null;
         if (!email) return;
         const [existing] = await db
@@ -47,15 +66,13 @@ export function createAuth({ db, mailer, env }: AuthFactoryDeps) {
           .where(eq(user.email, email))
           .limit(1);
         if (!existing) return;
-        try {
-          await mailer.sendAlreadyRegistered(email, {
+        await mailer
+          .sendAlreadyRegistered(email, {
             name: existing.name,
             loginUrl: `${env.WEB_URL}/auth/login`,
             resetUrl: `${env.WEB_URL}/auth/forgot-password`,
-          });
-        } catch {
-          // never block sign-up on a notification failure
-        }
+          })
+          .catch(() => undefined);
       }),
     },
     rateLimit: {
@@ -73,7 +90,7 @@ export function createAuth({ db, mailer, env }: AuthFactoryDeps) {
     },
     user: {
       additionalFields: {
-        username: { type: 'string', required: false, input: false },
+        username: { type: 'string', required: false, input: true },
       },
       changeEmail: {
         enabled: true,
@@ -91,15 +108,6 @@ export function createAuth({ db, mailer, env }: AuthFactoryDeps) {
             newEmail,
             confirmUrl: url,
           });
-        },
-      },
-    },
-    databaseHooks: {
-      user: {
-        create: {
-          before: async (u) => ({
-            data: { ...u, username: await generateUniqueUsername(u.name, db) },
-          }),
         },
       },
     },
@@ -125,15 +133,5 @@ export function createAuth({ db, mailer, env }: AuthFactoryDeps) {
         });
       },
     },
-    ...(discordEnabled
-      ? {
-          socialProviders: {
-            discord: {
-              clientId: env.DISCORD_CLIENT_ID!,
-              clientSecret: env.DISCORD_CLIENT_SECRET!,
-            },
-          },
-        }
-      : {}),
   });
 }
