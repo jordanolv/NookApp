@@ -21,24 +21,24 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@hocuspocus/provider": "^4.0.0",
+    "@hocuspocus/provider": "^4.3.0",
     "@nookapp/protocol": "workspace:*",
-    "@nuxtjs/i18n": "^10.3.0",
-    "@pinia/nuxt": "^0.7.0",
+    "@nuxtjs/i18n": "^10.4.0",
+    "@pinia/nuxt": "^0.11.3",
     "@vueuse/core": "^11.1.0",
-    "livekit-client": "^2.18.8",
+    "livekit-client": "^2.20.0",
     "lucide-vue-next": "^1.0.0",
-    "marked": "^18.0.3",
+    "marked": "^18.0.5",
     "nuxt": "^3.13.2",
     "phaser": "^3.90.0",
     "pinia": "^2.2.4",
     "reka-ui": "^1.0.0-alpha.10",
     "socket.io-client": "^4.8.3",
-    "vue": "^3.5.12",
+    "vue": "^3.5.39",
     "vue-draggable-plus": "^0.6.1",
     "vue-router": "^4.4.5",
-    "yjs": "^13.6.30",
-    "zod": "^4.4.2"
+    "yjs": "^13.6.31",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@nuxtjs/tailwindcss": "^6.12.2",
