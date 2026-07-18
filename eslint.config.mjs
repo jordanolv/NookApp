@@ -29,6 +29,9 @@ export default [
       'packages/db/drizzle/**',
       'apps/web/.data/**',
       '**/*.d.ts',
+      // Artefact genere par scripts/generate-world-assets-manifest.mjs, deja
+      // gitignore. Le linter ne doit pas dependre de sa presence locale.
+      'apps/web/components/world/scene/assets/decor.generated.ts',
     ],
   },
   js.configs.recommended,
