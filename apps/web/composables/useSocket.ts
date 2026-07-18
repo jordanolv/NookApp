@@ -2,6 +2,7 @@ import { io, type Socket } from 'socket.io-client';
 import type {
   DirectMessagePublic,
   DmTypingPayload,
+  MessageDeletedPayload,
   MessagePublic,
   PlayerAppearance,
   PlayerAppearancePayload,
@@ -91,6 +92,16 @@ export function useSocket() {
     return () => socket?.off('message:sent', cb);
   }
 
+  function onMessageUpdated(cb: (msg: MessagePublic) => void) {
+    socket?.on('message:updated', cb);
+    return () => socket?.off('message:updated', cb);
+  }
+
+  function onMessageDeleted(cb: (payload: MessageDeletedPayload) => void) {
+    socket?.on('message:deleted', cb);
+    return () => socket?.off('message:deleted', cb);
+  }
+
   function onDmMessage(cb: (msg: DirectMessagePublic) => void) {
     socket?.on('dm:message', cb);
     return () => socket?.off('dm:message', cb);
@@ -169,6 +180,8 @@ export function useSocket() {
     hello,
     onSnapshot,
     onMessage,
+    onMessageUpdated,
+    onMessageDeleted,
     onDmMessage,
     emitDmTyping,
     onDmTyping,
