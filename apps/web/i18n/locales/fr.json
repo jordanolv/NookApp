@@ -361,7 +361,17 @@
       "owner": "Owner",
       "assignRoles": "Assigner des rôles ▾",
       "hideRoles": "Masquer ▴",
-      "roleUpdateError": "Impossible de modifier les rôles"
+      "roleUpdateError": "Impossible de modifier les rôles",
+      "kick": "Exclure",
+      "ban": "Bannir",
+      "kickConfirm": "Exclure {name} de ce serveur ?",
+      "banConfirm": "Bannir {name} ? Le membre sera retiré et ne pourra plus revenir.",
+      "banReasonPrompt": "Raison (optionnel) :",
+      "actionError": "Action échouée",
+      "bannedTitle": "Bannis · {count}",
+      "unban": "Débannir",
+      "noBans": "Aucun membre banni",
+      "bannedBy": "Banni"
     },
     "roles": {
       "loading": "Chargement…",

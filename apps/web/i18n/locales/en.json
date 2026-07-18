@@ -361,7 +361,17 @@
       "owner": "Owner",
       "assignRoles": "Assign roles ▾",
       "hideRoles": "Hide ▴",
-      "roleUpdateError": "Could not update roles"
+      "roleUpdateError": "Could not update roles",
+      "kick": "Kick",
+      "ban": "Ban",
+      "kickConfirm": "Kick {name} from this server?",
+      "banConfirm": "Ban {name}? They will be removed and cannot rejoin.",
+      "banReasonPrompt": "Reason (optional):",
+      "actionError": "Action failed",
+      "bannedTitle": "Banned · {count}",
+      "unban": "Unban",
+      "noBans": "No banned users",
+      "bannedBy": "Banned"
     },
     "roles": {
       "loading": "Loading…",

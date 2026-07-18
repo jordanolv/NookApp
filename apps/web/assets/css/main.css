@@ -21,3 +21,40 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* a11y — lien d'évitement (RGAA 12.13 / OPQUAST 9). Masqué jusqu'au focus clavier. */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 1000;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--ink-inverse);
+  font-weight: 600;
+  transform: translateY(-150%);
+  transition: transform 0.15s ease;
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+/* a11y — focus clavier toujours visible (RGAA 10.7). */
+:focus-visible {
+  outline: 2px solid var(--accent-leaf, #4ade80);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* a11y — respect de la préférence système "réduire les animations" (RGAA 13.8). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

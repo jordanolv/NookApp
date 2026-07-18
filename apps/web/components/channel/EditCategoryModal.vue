@@ -116,6 +116,9 @@ async function remove() {
       @click.self="emit('close')"
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Modifier la catégorie"
         class="w-full max-w-sm rounded-2xl overflow-hidden flex flex-col"
         style="
           background: var(--surface-strong);

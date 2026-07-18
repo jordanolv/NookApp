@@ -149,7 +149,7 @@ async function onSignOut() {
 
     <Teleport to="body">
       <div v-if="showCreate" class="modal" @click.self="showCreate = false">
-        <div class="modal__panel">
+        <div class="modal__panel" role="dialog" aria-modal="true" aria-label="Créer un Nook">
           <h2 class="modal__title">{{ t('nooks.create.title') }}</h2>
           <form class="modal__form" @submit.prevent="submitCreate">
             <div class="modal__field">

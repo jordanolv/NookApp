@@ -1,5 +1,5 @@
 <template>
-  <div class="app-shell">
+  <div id="main-content" class="app-shell" tabindex="-1">
     <slot />
   </div>
 </template>

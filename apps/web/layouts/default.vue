@@ -5,6 +5,8 @@
       <ThemeToggle />
       <LocaleSwitcher />
     </div>
-    <slot />
+    <div id="main-content" tabindex="-1">
+      <slot />
+    </div>
   </div>
 </template>

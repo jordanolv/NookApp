@@ -16,7 +16,7 @@ defineEmits<{
 <template>
   <Teleport to="body">
     <div v-if="open" class="veil" @click.self="$emit('close')">
-      <div class="modal">
+      <div class="modal" role="dialog" aria-modal="true" aria-label="Inviter des membres">
         <header class="modal__head">
           <h2>Invite people to {{ serverName }}</h2>
           <button class="modal__close" @click="$emit('close')">✕</button>
