@@ -7,6 +7,7 @@ import { MembersService } from './members.service';
 
 const mockDb = {
   select: jest.fn(),
+  insert: jest.fn(),
   delete: jest.fn(),
 };
 
@@ -88,6 +89,48 @@ describe('MembersService', () => {
       mockDb.select.mockReturnValueOnce(srvChain);
 
       await expect(service.kickMember('s1', 'u2', 'u1')).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('banMember', () => {
+    it('refuses banning without ManageMembers permission', async () => {
+      mockRoles.resolveAuthz.mockResolvedValueOnce({
+        memberId: 'm1',
+        isOwner: false,
+        permissions: 0,
+        roleIds: [],
+        topPosition: 0,
+      });
+      await expect(service.banMember('s1', 'u2', 'u1', {})).rejects.toThrow(ForbiddenException);
+    });
+
+    it('records the ban and removes the member when authorized', async () => {
+      mockRoles.resolveAuthz.mockResolvedValueOnce({
+        memberId: 'm1',
+        isOwner: true,
+        permissions: 0,
+        roleIds: [],
+        topPosition: 99,
+      });
+      const srvChain = {
+        from: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockResolvedValue([{ ownerId: 'u1' }]),
+      };
+      mockDb.select.mockReturnValueOnce(srvChain);
+      const insertChain = {
+        values: jest.fn().mockReturnThis(),
+        onConflictDoUpdate: jest.fn().mockResolvedValue(undefined),
+      };
+      mockDb.insert.mockReturnValue(insertChain);
+      const deleteChain = { where: jest.fn().mockResolvedValue(undefined) };
+      mockDb.delete.mockReturnValue(deleteChain);
+
+      await expect(
+        service.banMember('s1', 'u2', 'u1', { reason: 'spam' }),
+      ).resolves.toBeUndefined();
+      expect(mockDb.insert).toHaveBeenCalled();
+      expect(mockDb.delete).toHaveBeenCalled();
     });
   });
 });

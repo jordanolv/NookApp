@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MemberPublic, RolePublic } from '@nookapp/protocol';
+import type { MemberPublic, RolePublic, ServerBan } from '@nookapp/protocol';
 import { useRoles } from '~/composables/useRoles';
 
 const props = defineProps<{ serverId: string }>();
@@ -7,12 +7,65 @@ const props = defineProps<{ serverId: string }>();
 const api = useApi();
 const rolesApi = useRoles();
 const { t } = useI18n();
+const { canManageMembers, currentMember } = useMember();
 
 const members = ref<MemberPublic[]>([]);
 const roles = ref<RolePublic[]>([]);
+const bans = ref<ServerBan[]>([]);
 const loading = ref(false);
 const savingMemberId = ref<string | null>(null);
 const error = ref<string | null>(null);
+
+const selfUserId = computed(() => currentMember.value?.userId ?? null);
+
+function canModerate(m: MemberPublic): boolean {
+  return canManageMembers.value && !m.isOwner && m.userId !== selfUserId.value;
+}
+
+async function loadBans() {
+  if (!canManageMembers.value) return;
+  bans.value = await api.get<ServerBan[]>(`/servers/${props.serverId}/members/bans/list`);
+}
+
+async function kick(m: MemberPublic) {
+  if (!window.confirm(t('serverSettings.members.kickConfirm', { name: m.user.name }))) return;
+  savingMemberId.value = m.id;
+  error.value = null;
+  try {
+    await api.del(`/servers/${props.serverId}/members/${m.userId}`);
+    members.value = members.value.filter((x) => x.id !== m.id);
+  } catch (e) {
+    error.value = (e as Error).message ?? t('serverSettings.members.actionError');
+  } finally {
+    savingMemberId.value = null;
+  }
+}
+
+async function ban(m: MemberPublic) {
+  if (!window.confirm(t('serverSettings.members.banConfirm', { name: m.user.name }))) return;
+  const reason = window.prompt(t('serverSettings.members.banReasonPrompt')) ?? undefined;
+  savingMemberId.value = m.id;
+  error.value = null;
+  try {
+    await api.post(`/servers/${props.serverId}/members/${m.userId}/ban`, { reason });
+    members.value = members.value.filter((x) => x.id !== m.id);
+    await loadBans();
+  } catch (e) {
+    error.value = (e as Error).message ?? t('serverSettings.members.actionError');
+  } finally {
+    savingMemberId.value = null;
+  }
+}
+
+async function unban(b: ServerBan) {
+  error.value = null;
+  try {
+    await api.del(`/servers/${props.serverId}/members/bans/${b.userId}`);
+    bans.value = bans.value.filter((x) => x.userId !== b.userId);
+  } catch (e) {
+    error.value = (e as Error).message ?? t('serverSettings.members.actionError');
+  }
+}
 
 const assignableRoles = computed(() => roles.value.filter((r) => !r.isEveryone));
 
@@ -32,6 +85,7 @@ async function refresh() {
     ]);
     members.value = m;
     roles.value = r;
+    await loadBans();
   } catch (e) {
     error.value = (e as Error).message ?? t('serverSettings.members.loadError');
   } finally {
@@ -156,9 +210,60 @@ onMounted(refresh);
                 </button>
               </div>
             </details>
+
+            <div v-if="canModerate(m)" class="mt-2 flex gap-2">
+              <button
+                class="text-[11px] px-2 py-0.5 rounded border border-surface-border text-ink-soft hover:bg-surface-tinted disabled:opacity-50"
+                :disabled="savingMemberId === m.id"
+                @click="kick(m)"
+              >
+                {{ t('serverSettings.members.kick') }}
+              </button>
+              <button
+                class="text-[11px] px-2 py-0.5 rounded border border-red-500/40 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+                :disabled="savingMemberId === m.id"
+                @click="ban(m)"
+              >
+                {{ t('serverSettings.members.ban') }}
+              </button>
+            </div>
           </div>
         </li>
       </ul>
+
+      <div v-if="canManageMembers" class="mt-6">
+        <h3 class="text-sm font-medium text-ink mb-2">
+          {{ t('serverSettings.members.bannedTitle', { count: bans.length }) }}
+        </h3>
+        <p v-if="!bans.length" class="text-xs text-ink-muted">
+          {{ t('serverSettings.members.noBans') }}
+        </p>
+        <ul v-else class="space-y-2">
+          <li
+            v-for="b in bans"
+            :key="b.userId"
+            class="flex items-center gap-3 p-3 rounded border border-surface-border"
+            style="background: rgba(0, 0, 0, 0.15)"
+          >
+            <div
+              class="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-medium"
+              style="background: var(--surface-border); color: var(--ink-soft)"
+            >
+              {{ b.user.name.slice(0, 1).toUpperCase() }}
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm text-ink truncate">{{ b.user.name }}</div>
+              <div v-if="b.reason" class="text-xs text-ink-muted truncate">{{ b.reason }}</div>
+            </div>
+            <button
+              class="text-[11px] px-2 py-0.5 rounded border border-surface-border text-ink-soft hover:bg-surface-tinted"
+              @click="unban(b)"
+            >
+              {{ t('serverSettings.members.unban') }}
+            </button>
+          </li>
+        </ul>
+      </div>
     </div>
   </div>
 </template>

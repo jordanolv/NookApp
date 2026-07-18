@@ -80,6 +80,12 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     let { x, y } = payload;
     const userId = client.data.userId as string;
 
+    const isMember = await this.members.isMember(serverId, userId);
+    if (!isMember) {
+      client.emit('player:error', { code: 'forbidden', message: 'Not a member of this server' });
+      return;
+    }
+
     client.join(`server:${serverId}`);
     client.data.serverId = serverId;
     client.data.name = name;

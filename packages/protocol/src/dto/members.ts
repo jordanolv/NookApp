@@ -18,3 +18,17 @@ export const memberPublicSchema = z.object({
   user: memberUserSchema,
 });
 export type MemberPublic = z.infer<typeof memberPublicSchema>;
+
+export const banMemberInputSchema = z.object({
+  reason: z.string().max(500).optional(),
+});
+export type BanMemberInput = z.infer<typeof banMemberInputSchema>;
+
+export const serverBanSchema = z.object({
+  userId: z.string(),
+  reason: z.string().nullable(),
+  bannedBy: z.string().nullable(),
+  createdAt: z.string().datetime(),
+  user: memberUserSchema,
+});
+export type ServerBan = z.infer<typeof serverBanSchema>;

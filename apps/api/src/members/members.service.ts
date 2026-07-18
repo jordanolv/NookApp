@@ -1,7 +1,14 @@
+import { randomUUID } from 'node:crypto';
 import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
-import { member, server, user, type Database } from '@nookapp/db';
-import { hasPermission, PERMISSIONS, type MemberPublic } from '@nookapp/protocol';
+import { member, server, serverBan, user, type Database } from '@nookapp/db';
+import {
+  hasPermission,
+  PERMISSIONS,
+  type BanMemberInput,
+  type MemberPublic,
+  type ServerBan,
+} from '@nookapp/protocol';
 import { DB } from '../database/database.module';
 import { RolesService } from '../roles/roles.service';
 
@@ -62,6 +69,15 @@ export class MembersService {
     };
   }
 
+  async isMember(serverId: string, userId: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ id: member.id })
+      .from(member)
+      .where(and(eq(member.serverId, serverId), eq(member.userId, userId)))
+      .limit(1);
+    return Boolean(row);
+  }
+
   async getLastPosition(
     serverId: string,
     userId: string,
@@ -83,8 +99,94 @@ export class MembersService {
   }
 
   async kickMember(serverId: string, targetUserId: string, requesterId: string): Promise<void> {
+    await this.assertCanModerate(serverId, targetUserId, requesterId, 'kick');
+
+    const result = await this.db
+      .delete(member)
+      .where(and(eq(member.serverId, serverId), eq(member.userId, targetUserId)))
+      .returning();
+    if (!result.length) throw new NotFoundException('Member not found');
+  }
+
+  async banMember(
+    serverId: string,
+    targetUserId: string,
+    requesterId: string,
+    input: BanMemberInput,
+  ): Promise<void> {
+    await this.assertCanModerate(serverId, targetUserId, requesterId, 'ban');
+
+    await this.db
+      .insert(serverBan)
+      .values({
+        id: randomUUID(),
+        serverId,
+        userId: targetUserId,
+        reason: input.reason ?? null,
+        bannedBy: requesterId,
+      })
+      .onConflictDoUpdate({
+        target: [serverBan.serverId, serverBan.userId],
+        set: { reason: input.reason ?? null, bannedBy: requesterId },
+      });
+
+    await this.db
+      .delete(member)
+      .where(and(eq(member.serverId, serverId), eq(member.userId, targetUserId)));
+  }
+
+  async unbanMember(serverId: string, targetUserId: string, requesterId: string): Promise<void> {
+    const authz = await this.rolesService.resolveAuthz(serverId, requesterId);
+    if (!authz.isOwner && !hasPermission(authz.permissions, PERMISSIONS.ManageMembers)) {
+      throw new ForbiddenException('Missing ManageMembers permission');
+    }
+    await this.db
+      .delete(serverBan)
+      .where(and(eq(serverBan.serverId, serverId), eq(serverBan.userId, targetUserId)));
+  }
+
+  async listBans(serverId: string, requesterId: string): Promise<ServerBan[]> {
+    const authz = await this.rolesService.resolveAuthz(serverId, requesterId);
+    if (!authz.isOwner && !hasPermission(authz.permissions, PERMISSIONS.ManageMembers)) {
+      throw new ForbiddenException('Missing ManageMembers permission');
+    }
+    const rows = await this.db
+      .select({
+        userId: serverBan.userId,
+        reason: serverBan.reason,
+        bannedBy: serverBan.bannedBy,
+        createdAt: serverBan.createdAt,
+        user: { id: user.id, name: user.name, avatarUrl: user.avatarUrl },
+      })
+      .from(serverBan)
+      .innerJoin(user, eq(serverBan.userId, user.id))
+      .where(eq(serverBan.serverId, serverId));
+    return rows.map((r) => ({
+      userId: r.userId,
+      reason: r.reason,
+      bannedBy: r.bannedBy,
+      createdAt: r.createdAt.toISOString(),
+      user: { id: r.user.id, name: r.user.name, avatarUrl: r.user.avatarUrl ?? null },
+    }));
+  }
+
+  async isBanned(serverId: string, userId: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ userId: serverBan.userId })
+      .from(serverBan)
+      .where(and(eq(serverBan.serverId, serverId), eq(serverBan.userId, userId)))
+      .limit(1);
+    return Boolean(row);
+  }
+
+  private async assertCanModerate(
+    serverId: string,
+    targetUserId: string,
+    requesterId: string,
+    action: 'kick' | 'ban',
+  ): Promise<void> {
     if (targetUserId === requesterId) {
-      throw new ForbiddenException('Cannot kick yourself');
+      throw new ForbiddenException(`Cannot ${action} yourself`);
     }
 
     const requesterAuthz = await this.rolesService.resolveAuthz(serverId, requesterId);
@@ -102,18 +204,12 @@ export class MembersService {
       .limit(1);
     if (!srv) throw new NotFoundException('Server not found');
     if (srv.ownerId === targetUserId) {
-      throw new ForbiddenException('Cannot kick the server owner');
+      throw new ForbiddenException(`Cannot ${action} the server owner`);
     }
 
     const targetAuthz = await this.rolesService.resolveAuthz(serverId, targetUserId);
     if (!requesterAuthz.isOwner && targetAuthz.topPosition >= requesterAuthz.topPosition) {
-      throw new ForbiddenException('Cannot kick a member ranked at or above you');
+      throw new ForbiddenException(`Cannot ${action} a member ranked at or above you`);
     }
-
-    const result = await this.db
-      .delete(member)
-      .where(and(eq(member.serverId, serverId), eq(member.userId, targetUserId)))
-      .returning();
-    if (!result.length) throw new NotFoundException('Member not found');
   }
 }

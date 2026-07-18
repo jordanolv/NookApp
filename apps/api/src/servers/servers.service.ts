@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { and, eq, sql } from 'drizzle-orm';
-import { channel, member, server, serverInvite, type Database } from '@nookapp/db';
+import { channel, member, server, serverBan, serverInvite, type Database } from '@nookapp/db';
 import {
   hasPermission,
   PERMISSIONS,
@@ -194,6 +194,13 @@ export class ServersService {
     if (invite.maxUses !== null && invite.uses >= invite.maxUses) {
       throw new ForbiddenException('Invite has reached its maximum uses');
     }
+
+    const [banned] = await this.db
+      .select({ userId: serverBan.userId })
+      .from(serverBan)
+      .where(and(eq(serverBan.serverId, invite.serverId), eq(serverBan.userId, userId)))
+      .limit(1);
+    if (banned) throw new ForbiddenException('You are banned from this server');
 
     const [existing] = await this.db
       .select({ id: member.id })

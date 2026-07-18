@@ -85,7 +85,10 @@ describe('ServersService', () => {
         where: jest.fn().mockReturnThis(),
         limit: jest.fn().mockImplementation(() => {
           callCount++;
-          return Promise.resolve(callCount === 1 ? [invite] : [{ id: 'm1' }]);
+          // 1: invite lookup, 2: ban check (not banned), 3: existing-member check
+          if (callCount === 1) return Promise.resolve([invite]);
+          if (callCount === 2) return Promise.resolve([]);
+          return Promise.resolve([{ id: 'm1' }]);
         }),
       };
       mockDb.select.mockReturnValue(chain);
