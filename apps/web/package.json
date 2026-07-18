@@ -25,6 +25,7 @@
     "@nookapp/protocol": "workspace:*",
     "@nuxtjs/i18n": "^10.3.0",
     "@pinia/nuxt": "^0.7.0",
+    "@sentry/nuxt": "^10.66.0",
     "@vueuse/core": "^11.1.0",
     "livekit-client": "^2.18.8",
     "lucide-vue-next": "^1.0.0",
@@ -47,6 +48,7 @@
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",
     "typescript": "^5.6.3",
-    "vitest": "^2.1.3"
+    "vitest": "^2.1.3",
+    "vue-tsc": "^3.3.7"
   }
 }

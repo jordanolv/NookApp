@@ -1,6 +1,6 @@
 {
   "name": "nookapp",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "packageManager": "pnpm@10.18.2",
   "engines": {
@@ -23,8 +23,13 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{ts,tsx,vue,mts,cts}": ["eslint --fix", "prettier --write"],
-    "*.{json,md,yml,yaml,css}": ["prettier --write"]
+    "*.{ts,tsx,vue,mts,cts}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,css}": [
+      "prettier --write"
+    ]
   },
   "pnpm": {
     "onlyBuiltDependencies": [
