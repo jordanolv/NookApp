@@ -9,9 +9,13 @@ const props = defineProps<{
 const route = useRoute();
 const serverId = computed(() => route.params.serverId as string);
 const { store } = useServers();
-const { fetchMessages, sendMessage } = useMessages();
+const { fetchMessages, sendMessage, editMessage, deleteMessage } = useMessages();
 const messagesStore = useMessagesStore();
 const socket = useSocket();
+const auth = useAuthStore();
+
+const editingId = ref<string | null>(null);
+const editDraft = ref('');
 
 const channel = computed(() => store.channels.find((c) => c.id === props.channelId) ?? null);
 const messages = computed(() => messagesStore.forChannel(props.channelId));
@@ -36,14 +40,53 @@ watch(
 );
 
 onMounted(() => {
-  const off = socket.onMessage((msg) => {
+  const offSent = socket.onMessage((msg) => {
     if (msg.channelId === props.channelId) {
       messagesStore.appendMessage(props.channelId, msg);
       scrollToBottom();
     }
   });
-  onUnmounted(off);
+  const offUpdated = socket.onMessageUpdated((msg) => {
+    if (msg.channelId === props.channelId) messagesStore.updateMessage(props.channelId, msg);
+  });
+  const offDeleted = socket.onMessageDeleted((payload) => {
+    if (payload.channelId === props.channelId) {
+      messagesStore.removeMessage(props.channelId, payload.id);
+      if (editingId.value === payload.id) cancelEdit();
+    }
+  });
+  onUnmounted(() => {
+    offSent();
+    offUpdated();
+    offDeleted();
+  });
 });
+
+function canManage(authorId: string): boolean {
+  return auth.user?.id === authorId;
+}
+
+function startEdit(msg: { id: string; content: string }) {
+  editingId.value = msg.id;
+  editDraft.value = msg.content;
+}
+
+function cancelEdit() {
+  editingId.value = null;
+  editDraft.value = '';
+}
+
+async function saveEdit(messageId: string) {
+  const content = editDraft.value.trim();
+  if (!content) return;
+  await editMessage(serverId.value, props.channelId, messageId, { content });
+  cancelEdit();
+}
+
+async function onDelete(messageId: string) {
+  if (!window.confirm('Supprimer ce message ?')) return;
+  await deleteMessage(serverId.value, props.channelId, messageId);
+}
 
 async function onSend(content: string) {
   if (sending.value) return;
@@ -104,7 +147,7 @@ function showHeader(i: number): boolean {
         <div
           v-for="(msg, i) in messages"
           :key="msg.id"
-          class="flex gap-2.5 group rounded-xl px-2 py-0 transition-colors"
+          class="relative flex gap-2.5 group rounded-xl px-2 py-0 transition-colors"
           :class="{ 'mt-1.5': i > 0 && showHeader(i) }"
           :style="{ color: 'var(--ink-soft)' }"
         >
@@ -128,11 +171,68 @@ function showHeader(i: number): boolean {
                 formatTime(msg.createdAt)
               }}</span>
             </div>
+            <div v-if="editingId === msg.id" class="flex flex-col gap-1.5 mt-0.5">
+              <textarea
+                v-model="editDraft"
+                rows="2"
+                class="text-sm rounded-lg px-2.5 py-1.5 resize-none outline-none"
+                :style="{
+                  background: 'var(--surface-tinted-strong)',
+                  color: 'var(--ink)',
+                  border: '1px solid var(--surface-border)',
+                }"
+                @keydown.enter.exact.prevent="saveEdit(msg.id)"
+                @keydown.esc.prevent="cancelEdit"
+              />
+              <div class="flex gap-2 text-xs">
+                <button
+                  class="font-medium"
+                  :style="{ color: 'var(--accent-violet)' }"
+                  @click="saveEdit(msg.id)"
+                >
+                  Enregistrer
+                </button>
+                <button :style="{ color: 'var(--ink-muted)' }" @click="cancelEdit">Annuler</button>
+              </div>
+            </div>
             <div
+              v-else
               class="text-sm break-words leading-relaxed message-content"
               :style="{ color: 'var(--ink-soft)' }"
               v-html="renderContent(msg.content)"
             />
+            <span
+              v-if="msg.editedAt && editingId !== msg.id"
+              class="text-[10px] mt-0.5"
+              :style="{ color: 'var(--ink-faint)' }"
+            >
+              (modifié)
+            </span>
+          </div>
+          <div
+            v-if="canManage(msg.authorId) && editingId !== msg.id"
+            class="absolute right-2 -top-2 hidden group-hover:flex gap-0.5 rounded-lg px-0.5 py-0.5"
+            :style="{
+              background: 'var(--surface-raised)',
+              border: '1px solid var(--surface-border)',
+            }"
+          >
+            <button
+              class="px-1.5 py-0.5 text-xs rounded-md"
+              :style="{ color: 'var(--ink-muted)' }"
+              title="Modifier"
+              @click="startEdit(msg)"
+            >
+              ✏️
+            </button>
+            <button
+              class="px-1.5 py-0.5 text-xs rounded-md"
+              :style="{ color: 'var(--accent-danger, #e5484d)' }"
+              title="Supprimer"
+              @click="onDelete(msg.id)"
+            >
+              🗑️
+            </button>
           </div>
         </div>
       </template>

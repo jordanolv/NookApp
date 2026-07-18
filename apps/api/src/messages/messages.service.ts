@@ -1,9 +1,16 @@
 import { randomUUID } from 'node:crypto';
-import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, count, desc, eq, lt } from 'drizzle-orm';
 import { channel, member, message, type Database } from '@nookapp/db';
-import type { CreateMessageInput, MessagePublic } from '@nookapp/protocol';
+import {
+  hasPermission,
+  PERMISSIONS,
+  type CreateMessageInput,
+  type MessagePublic,
+  type UpdateMessageInput,
+} from '@nookapp/protocol';
 import { DB } from '../database/database.module';
+import { RolesService } from '../roles/roles.service';
 
 function toMessagePublic(row: typeof message.$inferSelect): MessagePublic {
   return {
@@ -18,7 +25,10 @@ function toMessagePublic(row: typeof message.$inferSelect): MessagePublic {
 
 @Injectable()
 export class MessagesService {
-  constructor(@Inject(DB) private readonly db: Database) {}
+  constructor(
+    @Inject(DB) private readonly db: Database,
+    private readonly rolesService: RolesService,
+  ) {}
 
   async listMessages(
     serverId: string,
@@ -76,6 +86,58 @@ export class MessagesService {
       .returning();
 
     return toMessagePublic(created);
+  }
+
+  async updateMessage(
+    serverId: string,
+    channelId: string,
+    messageId: string,
+    userId: string,
+    input: UpdateMessageInput,
+  ): Promise<MessagePublic> {
+    await this.requireChannelMember(serverId, channelId, userId);
+    const existing = await this.requireMessage(channelId, messageId);
+
+    if (existing.authorId !== userId) {
+      throw new ForbiddenException('Can only edit your own messages');
+    }
+
+    const [updated] = await this.db
+      .update(message)
+      .set({ content: input.content, editedAt: new Date() })
+      .where(eq(message.id, messageId))
+      .returning();
+
+    return toMessagePublic(updated);
+  }
+
+  async deleteMessage(
+    serverId: string,
+    channelId: string,
+    messageId: string,
+    userId: string,
+  ): Promise<void> {
+    await this.requireChannelMember(serverId, channelId, userId);
+    const existing = await this.requireMessage(channelId, messageId);
+
+    if (existing.authorId !== userId) {
+      const authz = await this.rolesService.resolveAuthz(serverId, userId);
+      if (!authz.isOwner && !hasPermission(authz.permissions, PERMISSIONS.ManageMessages)) {
+        throw new ForbiddenException('Missing ManageMessages permission');
+      }
+    }
+
+    await this.db.delete(message).where(eq(message.id, messageId));
+  }
+
+  private async requireMessage(channelId: string, messageId: string) {
+    const [row] = await this.db
+      .select()
+      .from(message)
+      .where(and(eq(message.id, messageId), eq(message.channelId, channelId)))
+      .limit(1);
+    if (!row) throw new NotFoundException('Message not found');
+    return row;
   }
 
   private async requireChannelMember(serverId: string, channelId: string, userId: string) {

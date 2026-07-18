@@ -8,6 +8,7 @@ export const SOCKET_EVENTS = {
   PlayerSnapshot: 'player:snapshot',
   PlayerAppearance: 'player:appearance',
   MessageSent: 'message:sent',
+  MessageUpdated: 'message:updated',
   MessageDeleted: 'message:deleted',
   DmMessage: 'dm:message',
   DmTyping: 'dm:typing',
@@ -96,6 +97,12 @@ export const messageSentPayloadSchema = z.object({
   createdAt: z.string().datetime(),
 });
 export type MessageSentPayload = z.infer<typeof messageSentPayloadSchema>;
+
+export const messageDeletedPayloadSchema = z.object({
+  id: z.string(),
+  channelId: z.string(),
+});
+export type MessageDeletedPayload = z.infer<typeof messageDeletedPayloadSchema>;
 
 export const dmTypingPayloadSchema = z.object({
   conversationId: z.string(),

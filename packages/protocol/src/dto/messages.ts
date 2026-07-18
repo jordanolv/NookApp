@@ -5,6 +5,11 @@ export const createMessageInputSchema = z.object({
 });
 export type CreateMessageInput = z.infer<typeof createMessageInputSchema>;
 
+export const updateMessageInputSchema = z.object({
+  content: z.string().min(1).max(4000),
+});
+export type UpdateMessageInput = z.infer<typeof updateMessageInputSchema>;
+
 export const messagePublicSchema = z.object({
   id: z.string(),
   channelId: z.string(),

@@ -25,6 +25,18 @@ export const useMessagesStore = defineStore('messages', {
       if (!this.byChannel[channelId]) this.byChannel[channelId] = [];
       this.byChannel[channelId].push(message);
     },
+    updateMessage(channelId: string, message: MessagePublic) {
+      const list = this.byChannel[channelId];
+      if (!list) return;
+      const idx = list.findIndex((m) => m.id === message.id);
+      if (idx !== -1) list[idx] = message;
+    },
+    removeMessage(channelId: string, messageId: string) {
+      const list = this.byChannel[channelId];
+      if (!list) return;
+      this.byChannel[channelId] = list.filter((m) => m.id !== messageId);
+      if (this.counts[channelId]) this.counts[channelId] -= 1;
+    },
     setLoading(channelId: string, loading: boolean) {
       this.loadingChannels[channelId] = loading;
     },

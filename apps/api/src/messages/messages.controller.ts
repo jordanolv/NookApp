@@ -1,6 +1,17 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { createMessageInputSchema } from '@nookapp/protocol';
+import { createMessageInputSchema, updateMessageInputSchema } from '@nookapp/protocol';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthSession } from '../auth/auth.types';
@@ -43,5 +54,37 @@ export class MessagesController {
     const msg = await this.messagesService.createMessage(serverId, channelId, user.id, body);
     this.gateway.emitToServer(serverId, 'message:sent', msg);
     return msg;
+  }
+
+  @Patch(':messageId')
+  async update(
+    @CurrentUser() user: AuthSession['user'],
+    @Param('serverId') serverId: string,
+    @Param('channelId') channelId: string,
+    @Param('messageId') messageId: string,
+    @Body(new ZodPipe(updateMessageInputSchema))
+    body: ReturnType<typeof updateMessageInputSchema.parse>,
+  ) {
+    const msg = await this.messagesService.updateMessage(
+      serverId,
+      channelId,
+      messageId,
+      user.id,
+      body,
+    );
+    this.gateway.emitToServer(serverId, 'message:updated', msg);
+    return msg;
+  }
+
+  @Delete(':messageId')
+  @HttpCode(204)
+  async remove(
+    @CurrentUser() user: AuthSession['user'],
+    @Param('serverId') serverId: string,
+    @Param('channelId') channelId: string,
+    @Param('messageId') messageId: string,
+  ) {
+    await this.messagesService.deleteMessage(serverId, channelId, messageId, user.id);
+    this.gateway.emitToServer(serverId, 'message:deleted', { id: messageId, channelId });
   }
 }
