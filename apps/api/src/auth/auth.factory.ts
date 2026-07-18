@@ -45,6 +45,30 @@ export function createAuth({ db, mailer, env }: AuthFactoryDeps) {
             message: parsed.error.issues[0]?.message ?? 'Invalid username',
           });
         }
+        ctx.body.username = parsed.data;
+
+        // A returning user (email already registered) is notified by email; Better Auth then
+        // rejects the duplicate sign-up. Check this BEFORE username uniqueness so re-using the
+        // same username does not short-circuit with a confusing "username taken" error.
+        const email = typeof ctx.body?.email === 'string' ? ctx.body.email.toLowerCase() : null;
+        if (email) {
+          const [existing] = await db
+            .select({ name: user.name })
+            .from(user)
+            .where(eq(user.email, email))
+            .limit(1);
+          if (existing) {
+            await mailer
+              .sendAlreadyRegistered(email, {
+                name: existing.name,
+                loginUrl: `${env.WEB_URL}/auth/login`,
+                resetUrl: `${env.WEB_URL}/auth/forgot-password`,
+              })
+              .catch(() => undefined);
+            return;
+          }
+        }
+
         const [usernameTaken] = await db
           .select({ id: user.id })
           .from(user)
@@ -56,23 +80,6 @@ export function createAuth({ db, mailer, env }: AuthFactoryDeps) {
             message: 'This username is already taken',
           });
         }
-        ctx.body.username = parsed.data;
-
-        const email = typeof ctx.body?.email === 'string' ? ctx.body.email.toLowerCase() : null;
-        if (!email) return;
-        const [existing] = await db
-          .select({ name: user.name })
-          .from(user)
-          .where(eq(user.email, email))
-          .limit(1);
-        if (!existing) return;
-        await mailer
-          .sendAlreadyRegistered(email, {
-            name: existing.name,
-            loginUrl: `${env.WEB_URL}/auth/login`,
-            resetUrl: `${env.WEB_URL}/auth/forgot-password`,
-          })
-          .catch(() => undefined);
       }),
     },
     rateLimit: {
@@ -86,7 +93,10 @@ export function createAuth({ db, mailer, env }: AuthFactoryDeps) {
       },
     },
     advanced: {
-      ipAddress: { ipAddressHeaders: ['x-forwarded-for'] },
+      // Behind Traefik (prod) the client IP is in x-forwarded-for. In local dev there is no
+      // proxy, so let Better Auth fall back to the connection IP to keep rate limiting working.
+      ipAddress:
+        process.env.NODE_ENV === 'production' ? { ipAddressHeaders: ['x-forwarded-for'] } : {},
     },
     user: {
       additionalFields: {

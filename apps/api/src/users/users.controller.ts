@@ -20,14 +20,7 @@ export class UsersController {
   @Get('me')
   @UseGuards(AuthGuard)
   me(@CurrentUser() user: AuthSession['user']) {
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      avatarUrl: user.image ?? null,
-      emailVerified: user.emailVerified,
-      createdAt: user.createdAt,
-    };
+    return this.usersService.getProfile(user.id);
   }
 
   @Get('me/ui-layout')

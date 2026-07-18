@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, eq, ne } from 'drizzle-orm';
 import { directMessage, member, message, server, user, type Database } from '@nookapp/db';
 import type {
@@ -6,12 +6,39 @@ import type {
   OwnedServerSummary,
   UiLayout,
   UiLayoutPatchInput,
+  UserPublic,
 } from '@nookapp/protocol';
 import { DB } from '../database/database.module';
 
 @Injectable()
 export class UsersService {
   constructor(@Inject(DB) private readonly db: Database) {}
+
+  async getProfile(userId: string): Promise<UserPublic> {
+    const [row] = await this.db
+      .select({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        username: user.username,
+        avatarUrl: user.avatarUrl,
+        emailVerified: user.emailVerified,
+        createdAt: user.createdAt,
+      })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+    if (!row) throw new NotFoundException('User not found');
+    return {
+      id: row.id,
+      email: row.email,
+      name: row.name,
+      username: row.username,
+      avatarUrl: row.avatarUrl ?? null,
+      emailVerified: row.emailVerified,
+      createdAt: row.createdAt.toISOString(),
+    };
+  }
 
   async getUiLayout(userId: string): Promise<UiLayout> {
     const [row] = await this.db

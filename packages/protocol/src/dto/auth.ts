@@ -35,6 +35,7 @@ export const userPublicSchema = z.object({
   id: z.string(),
   email: emailSchema,
   name: displayNameSchema,
+  username: usernameSchema,
   avatarUrl: z.string().url().nullable(),
   emailVerified: z.boolean(),
   createdAt: z.string().datetime(),
