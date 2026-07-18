@@ -5,7 +5,7 @@ const protocolSrc = fileURLToPath(new URL('../../packages/protocol/src/index.ts'
 export default defineNuxtConfig({
   compatibilityDate: '2025-01-01',
   devtools: { enabled: true },
-  modules: ['@nuxtjs/tailwindcss', '@pinia/nuxt', '@nuxtjs/i18n'],
+  modules: ['@nuxtjs/tailwindcss', '@pinia/nuxt', '@nuxtjs/i18n', '@sentry/nuxt/module'],
   css: ['~/assets/css/main.css'],
   i18n: {
     strategy: 'no_prefix',
@@ -35,6 +35,10 @@ export default defineNuxtConfig({
       livekitUrl: process.env.NUXT_PUBLIC_LIVEKIT_URL ?? 'ws://localhost:7880',
       collabUrl: process.env.NUXT_PUBLIC_COLLAB_URL ?? 'ws://localhost:4234',
       giphyApiKey: process.env.NUXT_PUBLIC_GIPHY_API_KEY ?? '',
+      // Vide = Sentry inerte. Permet de developper et de builder sans compte.
+      sentryDsn: process.env.NUXT_PUBLIC_SENTRY_DSN ?? '',
+      sentryEnvironment: process.env.NUXT_PUBLIC_SENTRY_ENVIRONMENT ?? 'development',
+      sentryRelease: process.env.NUXT_PUBLIC_SENTRY_RELEASE ?? '',
     },
   },
   typescript: {

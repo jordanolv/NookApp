@@ -1,13 +1,17 @@
+// En premier : Sentry instrumente les modules Node au chargement, toute
+// importation anterieure echapperait a la capture.
+import './instrument';
 import 'reflect-metadata';
 import { mkdirSync } from 'node:fs';
 import helmet from 'helmet';
-import { NestFactory } from '@nestjs/core';
+import { HttpAdapterHost, NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 import { toNodeHandler } from 'better-auth/node';
 import type { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
+import { SentryExceptionFilter } from './common/sentry-exception.filter';
 import { AUTH, type AuthInstance } from './auth/auth.types';
 import { CollaborationService } from './collaboration/collaboration.service';
 import { scopeDir, STORAGE_SCOPES, UPLOADS_ROOT, UPLOADS_URL_PREFIX } from './common/storage';
@@ -55,6 +59,7 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.useGlobalFilters(new SentryExceptionFilter(app.get(HttpAdapterHost).httpAdapter));
 
   const config = new DocumentBuilder()
     .setTitle('NookApp API')

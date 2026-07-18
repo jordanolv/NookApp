@@ -93,11 +93,16 @@ jobs:
           STACK: ${{ steps.target.outputs.stack }}
           DOMAIN: ${{ steps.target.outputs.domain }}
           IMAGE_TAG: ${{ github.ref_name }}-${{ needs.build-and-push.outputs.sha }}
+          # Relie une exception remontee dans Sentry a la version exacte
+          # deployee. Meme valeur que le tag d'image immuable.
+          SENTRY_RELEASE: ${{ github.ref_name }}-${{ needs.build-and-push.outputs.sha }}
         run: |
           ssh -p ${{ secrets.VPS_SSH_PORT || 22 }} \
               ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
               "cd /opt/${STACK} \
                && export IMAGE_TAG=${IMAGE_TAG} \
+               && export SENTRY_RELEASE=${SENTRY_RELEASE} \
+               && export NUXT_PUBLIC_SENTRY_RELEASE=${SENTRY_RELEASE} \
                && docker compose -p ${STACK} -f docker-compose.app.yml --env-file .env pull \
                && docker compose -p ${STACK} -f docker-compose.app.yml --env-file .env up -d --remove-orphans"
 
