@@ -4,8 +4,22 @@ module.exports = {
   rootDir: '.',
   testRegex: '.*\\.spec\\.ts$',
   transform: { '^.+\\.(t|j)s$': 'ts-jest' },
-  collectCoverageFrom: ['src/**/*.(t|j)s'],
+  // Le denominateur de couverture exclut le code declaratif sans logique
+  // testable : cablage DI, bootstrap, decorateurs de parametres.
+  collectCoverageFrom: [
+    'src/**/*.(t|j)s',
+    '!src/**/*.module.ts',
+    '!src/**/*.decorator.ts',
+    '!src/**/*.d.ts',
+    '!src/main.ts',
+    '!src/instrument.ts',
+  ],
   coverageDirectory: './coverage',
+  // Cliquet : cale au niveau atteint, a relever a chaque lot de tests ajoute.
+  // La couverture ne peut donc que progresser.
+  coverageThreshold: {
+    global: { statements: 48, branches: 40, functions: 44, lines: 47 },
+  },
   testEnvironment: 'node',
   moduleNameMapper: {
     '^(.+)\\.js$': '$1',
