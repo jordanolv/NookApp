@@ -18,10 +18,13 @@ module.exports = {
   // Cliquet : cale au niveau atteint, a relever a chaque lot de tests ajoute.
   // La couverture ne peut donc que progresser.
   coverageThreshold: {
-    global: { statements: 48, branches: 40, functions: 44, lines: 47 },
+    global: { statements: 73, branches: 57, functions: 70, lines: 73 },
   },
   testEnvironment: 'node',
+  // Retire l'extension .js des imports relatifs style NodeNext. Le motif reste
+  // ancre sur ./ ou ../ : sans cela il capturait aussi les paquets dont le nom
+  // finit par .js (ipaddr.js via express) et cassait leur resolution.
   moduleNameMapper: {
-    '^(.+)\\.js$': '$1',
+    '^(\\.{1,2}/.*)\\.js$': '$1',
   },
 };
