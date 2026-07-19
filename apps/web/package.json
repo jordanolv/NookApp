@@ -18,7 +18,7 @@
     "postinstall": "nuxt prepare",
     "pretypecheck": "pnpm run assets:manifest",
     "typecheck": "nuxt typecheck",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "dependencies": {
     "@hocuspocus/provider": "^4.0.0",
@@ -45,6 +45,7 @@
     "@nuxtjs/tailwindcss": "^6.12.2",
     "@types/node": "^22.7.5",
     "autoprefixer": "^10.4.20",
+    "happy-dom": "^20.11.0",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",
     "typescript": "^5.6.3",
