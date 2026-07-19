@@ -66,3 +66,7 @@ coverage/
 
 # Captures de travail (le PDF genere les embarque)
 captures/
+
+# Outillage local, non versionne
+CLAUDE.md
+.claude/

@@ -1,6 +1,6 @@
 # NookApp
 
-Multi-tenant Discord/Gather-like virtual office. Each user creates their own "Nook" (server), invites members, designs the map, runs plugins. Built as a school exam project — see [`CLAUDE.md`](./CLAUDE.md) for full context.
+Multi-tenant Discord/Gather-like virtual office. Each user creates their own "Nook" (server), invites members, designs the map, and hangs out in a 2D pixel-art world with proximity voice.
 
 ## Stack
 
@@ -83,7 +83,7 @@ plugins/         per-Nook plugins (loaded by registry)
 
 ## Git workflow
 
-One branch per ticket. PRs target `dev`; `dev` merges into `main` on release. Commit format: Conventional Commits, subject only (≤72 chars). See `CLAUDE.md` § _Git workflow_ for the full rules.
+One branch per ticket, named `<type>/<short-summary>`. PRs target `dev`; `dev` merges into `main` on release. Commit format: Conventional Commits, subject line only (≤ 72 chars), enforced by commitlint.
 
 ## License
 
