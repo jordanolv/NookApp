@@ -58,6 +58,8 @@ async function onSubmit() {
             v-model="name"
             type="text"
             required
+            :aria-invalid="error ? 'true' : undefined"
+            :aria-describedby="error ? 'form-error' : undefined"
             minlength="2"
             maxlength="32"
             autocomplete="name"
@@ -72,6 +74,8 @@ async function onSubmit() {
             v-model="username"
             type="text"
             required
+            :aria-invalid="error ? 'true' : undefined"
+            :aria-describedby="error ? 'form-error' : undefined"
             minlength="3"
             maxlength="20"
             pattern="[a-z0-9_]+"
@@ -89,6 +93,8 @@ async function onSubmit() {
             v-model="email"
             type="email"
             required
+            :aria-invalid="error ? 'true' : undefined"
+            :aria-describedby="error ? 'form-error' : undefined"
             autocomplete="email"
             class="auth__input"
           />
@@ -101,6 +107,8 @@ async function onSubmit() {
             v-model="password"
             type="password"
             required
+            :aria-invalid="error ? 'true' : undefined"
+            :aria-describedby="error ? 'form-error' : undefined"
             minlength="12"
             autocomplete="new-password"
             class="auth__input"
@@ -108,7 +116,7 @@ async function onSubmit() {
           <p class="auth__hint">{{ t('auth.register.passwordHint') }}</p>
         </div>
 
-        <p v-if="error" class="auth__error">{{ error }}</p>
+        <p v-if="error" id="form-error" role="alert" class="auth__error">{{ error }}</p>
 
         <label class="auth__consent">
           <input v-model="consent" type="checkbox" class="auth__consent-box" />

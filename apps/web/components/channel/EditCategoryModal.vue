@@ -1,8 +1,14 @@
 <script setup lang="ts">
 import type { CategoryPublic } from '@nookapp/protocol';
+import { ref } from 'vue';
+import { useDialogA11y } from '~/composables/useDialogA11y';
 
 const props = defineProps<{ serverId: string; category: CategoryPublic }>();
 const emit = defineEmits<{ close: []; updated: [] }>();
+
+// La modale n'est montee que lorsqu'elle est ouverte : l'etat est donc constant.
+const panel = ref<HTMLElement | null>(null);
+useDialogA11y(ref(true), panel, () => emit('close'));
 
 const { updateCategory, deleteCategory, setCategoryIcon, setCategoryBanner } = useCategories();
 
@@ -116,8 +122,10 @@ async function remove() {
       @click.self="emit('close')"
     >
       <div
+        ref="panel"
         role="dialog"
         aria-modal="true"
+        tabindex="-1"
         aria-label="Modifier la catégorie"
         class="w-full max-w-sm rounded-2xl overflow-hidden flex flex-col"
         style="

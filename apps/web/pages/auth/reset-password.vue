@@ -73,6 +73,8 @@ async function onSubmit() {
             v-model="password"
             type="password"
             required
+            :aria-invalid="error ? 'true' : undefined"
+            :aria-describedby="error ? 'form-error' : undefined"
             minlength="12"
             autocomplete="new-password"
             class="auth__input"
@@ -89,13 +91,15 @@ async function onSubmit() {
             v-model="confirm"
             type="password"
             required
+            :aria-invalid="error ? 'true' : undefined"
+            :aria-describedby="error ? 'form-error' : undefined"
             minlength="12"
             autocomplete="new-password"
             class="auth__input"
           />
         </div>
 
-        <p v-if="error" class="auth__error">{{ error }}</p>
+        <p v-if="error" id="form-error" role="alert" class="auth__error">{{ error }}</p>
 
         <button type="submit" :disabled="loading || !token" class="auth__btn auth__btn--primary">
           {{ loading ? t('auth.resetPassword.submitLoading') : t('auth.resetPassword.submit') }}

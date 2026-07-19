@@ -1,5 +1,8 @@
 <script setup lang="ts">
-defineProps<{
+import { ref, toRef } from 'vue';
+import { useDialogA11y } from '~/composables/useDialogA11y';
+
+const props = defineProps<{
   open: boolean;
   serverName?: string | null;
   url: string;
@@ -7,16 +10,26 @@ defineProps<{
   copied: boolean;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   close: [];
   copy: [];
 }>();
+
+const panel = ref<HTMLElement | null>(null);
+useDialogA11y(toRef(props, 'open'), panel, () => emit('close'));
 </script>
 
 <template>
   <Teleport to="body">
     <div v-if="open" class="veil" @click.self="$emit('close')">
-      <div class="modal" role="dialog" aria-modal="true" aria-label="Inviter des membres">
+      <div
+        ref="panel"
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Inviter des membres"
+        tabindex="-1"
+      >
         <header class="modal__head">
           <h2>Invite people to {{ serverName }}</h2>
           <button class="modal__close" @click="$emit('close')">✕</button>

@@ -52,12 +52,14 @@ async function onSubmit() {
             v-model="email"
             type="email"
             required
+            :aria-invalid="error ? 'true' : undefined"
+            :aria-describedby="error ? 'form-error' : undefined"
             autocomplete="email"
             class="auth__input"
           />
         </div>
 
-        <p v-if="error" class="auth__error">{{ error }}</p>
+        <p v-if="error" id="form-error" role="alert" class="auth__error">{{ error }}</p>
 
         <button type="submit" :disabled="loading" class="auth__btn auth__btn--primary">
           {{ loading ? t('auth.forgotPassword.submitLoading') : t('auth.forgotPassword.submit') }}

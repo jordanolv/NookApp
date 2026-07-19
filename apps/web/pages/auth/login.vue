@@ -53,6 +53,8 @@ async function onSubmit() {
             v-model="email"
             type="email"
             required
+            :aria-invalid="error ? 'true' : undefined"
+            :aria-describedby="error ? 'form-error' : undefined"
             autocomplete="email"
             class="auth__input"
           />
@@ -65,12 +67,14 @@ async function onSubmit() {
             v-model="password"
             type="password"
             required
+            :aria-invalid="error ? 'true' : undefined"
+            :aria-describedby="error ? 'form-error' : undefined"
             autocomplete="current-password"
             class="auth__input"
           />
         </div>
 
-        <p v-if="error" class="auth__error">{{ error }}</p>
+        <p v-if="error" id="form-error" role="alert" class="auth__error">{{ error }}</p>
 
         <div class="auth__row">
           <NuxtLink to="/auth/forgot-password" class="auth__link auth__link--small">

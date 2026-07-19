@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useDialogA11y } from '~/composables/useDialogA11y';
 import { Lock } from 'lucide-vue-next';
 import type { ChannelPublic } from '@nookapp/protocol';
 
 const props = defineProps<{ serverId: string; channel: ChannelPublic }>();
 const emit = defineEmits<{ close: []; updated: [] }>();
+
+// La modale n'est montee que lorsqu'elle est ouverte : l'etat est donc constant.
+const panel = ref<HTMLElement | null>(null);
+useDialogA11y(ref(true), panel, () => emit('close'));
 
 const { updateChannel } = useChannels();
 
@@ -51,8 +56,10 @@ async function save() {
       @click.self="emit('close')"
     >
       <div
+        ref="panel"
         role="dialog"
         aria-modal="true"
+        tabindex="-1"
         aria-label="Modifier le salon"
         class="w-full max-w-sm rounded-2xl overflow-hidden flex flex-col"
         :style="{

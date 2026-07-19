@@ -439,5 +439,8 @@
       "sit": "Press E to sit",
       "stand": "Press E to stand"
     }
+  },
+  "chat": {
+    "messagesLabel": "Channel messages"
   }
 }
