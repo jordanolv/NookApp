@@ -6,11 +6,17 @@ export const passwordSchema = z
   .min(12, 'Password must be at least 12 characters')
   .max(128);
 export const displayNameSchema = z.string().min(2).max(32);
+export const usernameSchema = z
+  .string()
+  .min(3, 'Username must be at least 3 characters')
+  .max(20, 'Username must be at most 20 characters')
+  .regex(/^[a-z0-9_]+$/, 'Username may only contain lowercase letters, numbers and underscores');
 
 export const registerInputSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
   name: displayNameSchema,
+  username: usernameSchema,
 });
 export type RegisterInput = z.infer<typeof registerInputSchema>;
 
@@ -29,6 +35,7 @@ export const userPublicSchema = z.object({
   id: z.string(),
   email: emailSchema,
   name: displayNameSchema,
+  username: usernameSchema,
   avatarUrl: z.string().url().nullable(),
   emailVerified: z.boolean(),
   createdAt: z.string().datetime(),

@@ -1,88 +1,22 @@
 import Phaser from 'phaser';
-import {
-  TILE_SIZE,
-  WALL_FRONT_COLOR,
-  WALL_HIGHLIGHT_COLOR,
-  WALL_SHADOW_COLOR,
-  WALL_TOP_COLOR,
-} from './constants';
+import { TILE_SIZE } from './constants';
 import type { MapModel } from './map-model';
+import { WALL_SHEET, WALL_SHEET_TEXTURE_KEY } from './wall-catalog';
 
-const WALL_THICKNESS = 16;
-const HALF_THICKNESS = WALL_THICKNESS / 2;
-const TOP_FACE_HEIGHT = 8;
-const CENTER = TILE_SIZE / 2;
-const BODY_LEFT = CENTER - HALF_THICKNESS;
-const BODY_RIGHT = CENTER + HALF_THICKNESS;
-const BODY_TOP = CENTER - HALF_THICKNESS;
-const BODY_BOTTOM = CENTER + HALF_THICKNESS;
+export const WALL_TEXTURE_KEYS: ReadonlyArray<{ key: string; url: string; isSheet: true }> = [
+  { key: WALL_SHEET_TEXTURE_KEY, url: WALL_SHEET.url, isSheet: true as const },
+];
 
-interface Neighbors {
-  n: boolean;
-  s: boolean;
-  e: boolean;
-  w: boolean;
-}
-
-function neighborKey({ n, s, e, w }: Neighbors): string {
-  const k = `${n ? 'N' : ''}${s ? 'S' : ''}${e ? 'E' : ''}${w ? 'W' : ''}`;
-  return `wall_${k || 'I'}`;
-}
-
-// Renders the wall as a center body plus arms reaching out to each connected
-// neighbor, with a light top face above any exposed top edge. The top edges of
-// arms that connect to a wall above (N arm) are interior and skipped, which
-// keeps a vertical run visually continuous instead of dashed.
-function ensureWallTexture(scene: Phaser.Scene, neighbors: Neighbors): string {
-  const key = neighborKey(neighbors);
-  if (scene.textures.exists(key)) return key;
-
-  const g = scene.make.graphics({ x: 0, y: 0 }, false);
-
-  // Front face — center body and the four arms.
-  g.fillStyle(WALL_FRONT_COLOR, 1);
-  g.fillRect(BODY_LEFT, BODY_TOP, WALL_THICKNESS, WALL_THICKNESS);
-  if (neighbors.n) g.fillRect(BODY_LEFT, 0, WALL_THICKNESS, BODY_TOP);
-  if (neighbors.s) g.fillRect(BODY_LEFT, BODY_BOTTOM, WALL_THICKNESS, TILE_SIZE - BODY_BOTTOM);
-  if (neighbors.e) g.fillRect(BODY_RIGHT, BODY_TOP, TILE_SIZE - BODY_RIGHT, WALL_THICKNESS);
-  if (neighbors.w) g.fillRect(0, BODY_TOP, BODY_LEFT, WALL_THICKNESS);
-
-  // Top face — drawn above each horizontal top edge of the body that isn't
-  // covered by an N arm continuing into the wall above.
-  g.fillStyle(WALL_TOP_COLOR, 1);
-  if (!neighbors.n) {
-    g.fillRect(BODY_LEFT, BODY_TOP - TOP_FACE_HEIGHT, WALL_THICKNESS, TOP_FACE_HEIGHT);
-  }
-  if (neighbors.e) {
-    g.fillRect(BODY_RIGHT, BODY_TOP - TOP_FACE_HEIGHT, TILE_SIZE - BODY_RIGHT, TOP_FACE_HEIGHT);
-  }
-  if (neighbors.w) {
-    g.fillRect(0, BODY_TOP - TOP_FACE_HEIGHT, BODY_LEFT, TOP_FACE_HEIGHT);
-  }
-
-  // 1-px highlight at the top of the body (joint between top face and front face).
-  g.fillStyle(WALL_HIGHLIGHT_COLOR, 1);
-  if (!neighbors.n) g.fillRect(BODY_LEFT, BODY_TOP, WALL_THICKNESS, 1);
-  if (neighbors.e) g.fillRect(BODY_RIGHT, BODY_TOP, TILE_SIZE - BODY_RIGHT, 1);
-  if (neighbors.w) g.fillRect(0, BODY_TOP, BODY_LEFT, 1);
-
-  // 1-px shadow at the bottom of the body where exposed (no S arm continuing).
-  g.fillStyle(WALL_SHADOW_COLOR, 1);
-  if (!neighbors.s) g.fillRect(BODY_LEFT, BODY_BOTTOM - 1, WALL_THICKNESS, 1);
-  if (neighbors.e) g.fillRect(BODY_RIGHT, BODY_BOTTOM - 1, TILE_SIZE - BODY_RIGHT, 1);
-  if (neighbors.w) g.fillRect(0, BODY_BOTTOM - 1, BODY_LEFT, 1);
-
-  g.generateTexture(key, TILE_SIZE, TILE_SIZE);
-  g.destroy();
-  return key;
-}
+const COLLIDER_INSET = 1;
+type ColliderOrientation = 'horizontal' | 'vertical' | 'block';
 
 export class WallRenderer {
   private readonly group: Phaser.Physics.Arcade.StaticGroup;
-  private sprites: Phaser.GameObjects.Image[] = [];
+  // cellKey ("x,y") → sprite, so we can update incrementally.
+  private sprites = new Map<string, Phaser.GameObjects.Image>();
 
   constructor(private readonly scene: Phaser.Scene) {
-    this.group = scene.physics.add.staticGroup();
+    this.group = this.scene.physics.add.staticGroup();
   }
 
   collideWith(target: Phaser.GameObjects.GameObject) {
@@ -90,39 +24,124 @@ export class WallRenderer {
   }
 
   apply(model: MapModel) {
-    this.group.clear(true, true);
-    for (const sprite of this.sprites) sprite.destroy();
-    this.sprites = [];
+    if (this.scene.textures.exists(WALL_SHEET_TEXTURE_KEY)) {
+      const seen = new Set<string>();
+      for (const wall of model.data.layers.walls) {
+        const key = cellKey(wall.x, wall.y);
+        seen.add(key);
+        const left = wall.x * TILE_SIZE;
+        const top = wall.y * TILE_SIZE;
+        const existing = this.sprites.get(key);
+        if (existing) {
+          if (existing.frame.name !== String(wall.frame)) {
+            existing.setFrame(wall.frame);
+          }
+        } else {
+          const sprite = this.scene.add
+            .image(left, top, WALL_SHEET_TEXTURE_KEY, wall.frame)
+            .setOrigin(0, 0)
+            .setDepth(top + TILE_SIZE);
+          this.sprites.set(key, sprite);
+        }
+      }
+      // Remove sprites for cells no longer in the model.
+      for (const [key, sprite] of this.sprites) {
+        if (!seen.has(key)) {
+          sprite.destroy();
+          this.sprites.delete(key);
+        }
+      }
+    }
 
-    for (const item of model.data.items) {
-      if (item.type !== 'wall') continue;
-      this.spawnWall(model, item.x, item.y);
+    // Colliders are still fully rebuilt — the run-grouping depends on neighbors
+    // so a single cell change can affect surrounding cell groupings.
+    this.group.clear(true, true);
+    this.addSegmentColliders(model);
+    this.group.refresh();
+  }
+
+  private addSegmentColliders(model: MapModel) {
+    const horizontal = new Set<string>();
+    const vertical = new Set<string>();
+    const blocks: Array<{ x: number; y: number }> = [];
+
+    for (const wall of model.data.layers.walls) {
+      const key = cellKey(wall.x, wall.y);
+      const orientation = colliderOrientation(model, wall.x, wall.y);
+      if (orientation === 'horizontal') horizontal.add(key);
+      else if (orientation === 'vertical') vertical.add(key);
+      else blocks.push({ x: wall.x, y: wall.y });
+    }
+
+    this.addHorizontalRuns(horizontal);
+    this.addVerticalRuns(vertical);
+
+    for (const block of blocks) {
+      this.addColliderRect(
+        block.x * TILE_SIZE + COLLIDER_INSET,
+        block.y * TILE_SIZE + COLLIDER_INSET,
+        TILE_SIZE - COLLIDER_INSET * 2,
+        TILE_SIZE - COLLIDER_INSET * 2,
+      );
     }
   }
 
-  private spawnWall(model: MapModel, tx: number, ty: number) {
-    const neighbors: Neighbors = {
-      n: model.hasWall(tx, ty - 1),
-      s: model.hasWall(tx, ty + 1),
-      e: model.hasWall(tx + 1, ty),
-      w: model.hasWall(tx - 1, ty),
-    };
-    const textureKey = ensureWallTexture(this.scene, neighbors);
-    const cellLeft = tx * TILE_SIZE;
-    const cellTop = ty * TILE_SIZE;
-    const cellBottom = cellTop + TILE_SIZE;
+  private addHorizontalRuns(cells: Set<string>) {
+    const seen = new Set<string>();
+    for (const key of cells) {
+      if (seen.has(key)) continue;
+      const [startX, y] = parseCellKey(key);
+      let endX = startX;
+      while (cells.has(cellKey(endX + 1, y))) endX++;
+      for (let x = startX; x <= endX; x++) seen.add(cellKey(x, y));
+      this.addColliderRect(
+        startX * TILE_SIZE + COLLIDER_INSET,
+        y * TILE_SIZE + COLLIDER_INSET,
+        (endX - startX + 1) * TILE_SIZE - COLLIDER_INSET * 2,
+        TILE_SIZE - COLLIDER_INSET * 2,
+      );
+    }
+  }
 
-    this.sprites.push(
-      this.scene.add.image(cellLeft, cellTop, textureKey).setOrigin(0, 0).setDepth(cellBottom),
-    );
+  private addVerticalRuns(cells: Set<string>) {
+    const seen = new Set<string>();
+    for (const key of cells) {
+      if (seen.has(key)) continue;
+      const [x, startY] = parseCellKey(key);
+      let endY = startY;
+      while (cells.has(cellKey(x, endY + 1))) endY++;
+      for (let y = startY; y <= endY; y++) seen.add(cellKey(x, y));
+      this.addColliderRect(
+        x * TILE_SIZE + COLLIDER_INSET,
+        startY * TILE_SIZE + COLLIDER_INSET,
+        TILE_SIZE - COLLIDER_INSET * 2,
+        (endY - startY + 1) * TILE_SIZE - COLLIDER_INSET * 2,
+      );
+    }
+  }
 
-    const collider = this.scene.add.zone(
-      cellLeft + TILE_SIZE / 2,
-      cellBottom - TILE_SIZE / 2,
-      TILE_SIZE,
-      TILE_SIZE,
-    );
+  private addColliderRect(x: number, y: number, width: number, height: number) {
+    const collider = this.scene.add.zone(x + width / 2, y + height / 2, width, height);
     this.scene.physics.add.existing(collider, true);
     this.group.add(collider);
   }
+}
+
+function cellKey(x: number, y: number) {
+  return `${x},${y}`;
+}
+
+function parseCellKey(key: string): [number, number] {
+  const [x, y] = key.split(',').map(Number);
+  return [x!, y!];
+}
+
+function colliderOrientation(model: MapModel, x: number, y: number): ColliderOrientation {
+  const n = model.hasWall(x, y - 1);
+  const s = model.hasWall(x, y + 1);
+  const e = model.hasWall(x + 1, y);
+  const w = model.hasWall(x - 1, y);
+  if ((e || w) && !n && !s) return 'horizontal';
+  if ((n || s) && !e && !w) return 'vertical';
+  return 'block';
 }

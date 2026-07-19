@@ -1,6 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { updateMemberInputSchema } from '@nookapp/protocol';
+import { banMemberInputSchema } from '@nookapp/protocol';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthSession } from '../auth/auth.types';
@@ -24,17 +24,6 @@ export class MembersController {
     return this.membersService.getMember(serverId, user.id);
   }
 
-  @Patch(':userId')
-  update(
-    @CurrentUser() user: AuthSession['user'],
-    @Param('serverId') serverId: string,
-    @Param('userId') targetUserId: string,
-    @Body(new ZodPipe(updateMemberInputSchema))
-    body: ReturnType<typeof updateMemberInputSchema.parse>,
-  ) {
-    return this.membersService.updateMember(serverId, targetUserId, user.id, body);
-  }
-
   @Delete(':userId')
   kick(
     @CurrentUser() user: AuthSession['user'],
@@ -42,5 +31,32 @@ export class MembersController {
     @Param('userId') targetUserId: string,
   ) {
     return this.membersService.kickMember(serverId, targetUserId, user.id);
+  }
+
+  @Get('bans/list')
+  listBans(@CurrentUser() user: AuthSession['user'], @Param('serverId') serverId: string) {
+    return this.membersService.listBans(serverId, user.id);
+  }
+
+  @Post(':userId/ban')
+  @HttpCode(204)
+  async ban(
+    @CurrentUser() user: AuthSession['user'],
+    @Param('serverId') serverId: string,
+    @Param('userId') targetUserId: string,
+    @Body(new ZodPipe(banMemberInputSchema))
+    body: ReturnType<typeof banMemberInputSchema.parse>,
+  ) {
+    await this.membersService.banMember(serverId, targetUserId, user.id, body);
+  }
+
+  @Delete('bans/:userId')
+  @HttpCode(204)
+  async unban(
+    @CurrentUser() user: AuthSession['user'],
+    @Param('serverId') serverId: string,
+    @Param('userId') targetUserId: string,
+  ) {
+    await this.membersService.unbanMember(serverId, targetUserId, user.id);
   }
 }

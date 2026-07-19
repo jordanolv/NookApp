@@ -16,6 +16,7 @@ export const updateServerInputSchema = z.object({
   name: z.string().min(2).max(100).optional(),
   slug: slugSchema.optional(),
   iconUrl: z.string().url().nullable().optional(),
+  bannerUrl: z.string().nullable().optional(),
 });
 export type UpdateServerInput = z.infer<typeof updateServerInputSchema>;
 
@@ -25,6 +26,7 @@ export const serverPublicSchema = z.object({
   name: z.string(),
   ownerId: z.string(),
   iconUrl: z.string().url().nullable(),
+  bannerUrl: z.string().nullable(),
   createdAt: z.string().datetime(),
 });
 export type ServerPublic = z.infer<typeof serverPublicSchema>;

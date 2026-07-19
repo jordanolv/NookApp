@@ -22,6 +22,10 @@ export interface RectPaintColors {
   remove: number;
 }
 
+export interface RectPaintOptions {
+  shape?: 'fill' | 'outline';
+}
+
 // Generic drag-to-paint rectangle: the start cell decides the mode (add when
 // the cell is empty, remove when it already holds whatever the caller paints).
 // Used for both floor tiles and walls — caller passes hasItemAt(x, y) to query
@@ -33,8 +37,9 @@ export class RectPaintTool {
   constructor(
     scene: Phaser.Scene,
     private readonly colors: RectPaintColors,
+    private readonly options: RectPaintOptions = {},
   ) {
-    this.preview = scene.add.graphics().setDepth(21);
+    this.preview = scene.add.graphics().setDepth(9995);
   }
 
   beginDrag(tx: number, ty: number, isPresent: boolean) {
@@ -81,20 +86,22 @@ export class RectPaintTool {
     const maxY = Math.max(this.drag.startY, cy);
     const color = this.drag.mode === 'add' ? this.colors.add : this.colors.remove;
     this.preview.clear();
-    this.preview.fillStyle(color, 0.25);
-    this.preview.fillRect(
-      minX * TILE_SIZE,
-      minY * TILE_SIZE,
-      (maxX - minX + 1) * TILE_SIZE,
-      (maxY - minY + 1) * TILE_SIZE,
-    );
+    const width = (maxX - minX + 1) * TILE_SIZE;
+    const height = (maxY - minY + 1) * TILE_SIZE;
+    if (this.options.shape === 'outline' && this.drag.mode === 'add') {
+      this.preview.lineStyle(TILE_SIZE, color, 0.2);
+      this.preview.strokeRect(
+        minX * TILE_SIZE + TILE_SIZE / 2,
+        minY * TILE_SIZE + TILE_SIZE / 2,
+        width - TILE_SIZE,
+        height - TILE_SIZE,
+      );
+    } else {
+      this.preview.fillStyle(color, 0.25);
+      this.preview.fillRect(minX * TILE_SIZE, minY * TILE_SIZE, width, height);
+    }
     this.preview.lineStyle(2, color, 0.85);
-    this.preview.strokeRect(
-      minX * TILE_SIZE,
-      minY * TILE_SIZE,
-      (maxX - minX + 1) * TILE_SIZE,
-      (maxY - minY + 1) * TILE_SIZE,
-    );
+    this.preview.strokeRect(minX * TILE_SIZE, minY * TILE_SIZE, width, height);
   }
 }
 

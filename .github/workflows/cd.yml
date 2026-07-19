@@ -1,0 +1,123 @@
+name: CD
+
+on:
+  push:
+    branches: [main, dev]
+  workflow_dispatch:
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_OWNER: ${{ github.repository_owner }}
+
+jobs:
+  build-and-push:
+    name: Build and push images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      sha: ${{ steps.meta.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: meta
+        run: echo "sha=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push api
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/nookapp-api:${{ github.ref_name }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/nookapp-api:${{ github.ref_name }}-${{ steps.meta.outputs.sha }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Build and push web
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/nookapp-web:${{ github.ref_name }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/nookapp-web:${{ github.ref_name }}-${{ steps.meta.outputs.sha }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+  deploy:
+    name: Deploy to VPS
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+      url: ${{ github.ref_name == 'main' && 'https://nookapp.eu' || 'https://dev.nookapp.eu' }}
+    steps:
+      - name: Resolve deployment target
+        id: target
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "stack=nookapp-prod" >> "$GITHUB_OUTPUT"
+            echo "domain=nookapp.eu" >> "$GITHUB_OUTPUT"
+          else
+            echo "stack=nookapp-staging" >> "$GITHUB_OUTPUT"
+            echo "domain=dev.nookapp.eu" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p ${{ secrets.VPS_SSH_PORT || 22 }} -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy ${{ steps.target.outputs.stack }}
+        env:
+          STACK: ${{ steps.target.outputs.stack }}
+          DOMAIN: ${{ steps.target.outputs.domain }}
+          IMAGE_TAG: ${{ github.ref_name }}-${{ needs.build-and-push.outputs.sha }}
+          # Relie une exception remontee dans Sentry a la version exacte
+          # deployee. Meme valeur que le tag d'image immuable.
+          SENTRY_RELEASE: ${{ github.ref_name }}-${{ needs.build-and-push.outputs.sha }}
+        run: |
+          ssh -p ${{ secrets.VPS_SSH_PORT || 22 }} \
+              ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
+              "cd /opt/${STACK} \
+               && export IMAGE_TAG=${IMAGE_TAG} \
+               && export SENTRY_RELEASE=${SENTRY_RELEASE} \
+               && export NUXT_PUBLIC_SENTRY_RELEASE=${SENTRY_RELEASE} \
+               && docker compose -p ${STACK} -f docker-compose.app.yml --env-file .env pull \
+               && docker compose -p ${STACK} -f docker-compose.app.yml --env-file .env up -d --remove-orphans"
+
+      - name: Healthcheck
+        env:
+          DOMAIN: ${{ steps.target.outputs.domain }}
+        run: |
+          for i in 1 2 3 4 5 6; do
+            sleep 10
+            code=$(curl -s -o /dev/null -w "%{http_code}" "https://${DOMAIN}/api/v1/health" || echo "000")
+            echo "attempt $i: HTTP $code"
+            if [ "$code" = "200" ]; then
+              echo "healthcheck passed"
+              exit 0
+            fi
+          done
+          echo "healthcheck failed after 6 attempts"
+          exit 1

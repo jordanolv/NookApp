@@ -1,0 +1,446 @@
+{
+  "common": {
+    "brand": "NookApp",
+    "cancel": "Annuler",
+    "close": "Fermer",
+    "copy": "Copier",
+    "copied": "Copié !",
+    "creating": "Création…",
+    "email": "Email",
+    "language": "Langue",
+    "password": "Mot de passe",
+    "save": "Sauvegarder",
+    "saved": "Enregistré.",
+    "saving": "Sauvegarde…",
+    "signIn": "Se connecter"
+  },
+  "locale": {
+    "fr": "Français",
+    "en": "Anglais"
+  },
+  "home": {
+    "title": "NookApp — votre bureau virtuel",
+    "tagline": "Bureau virtuel pixel-art",
+    "headline": "Votre équipe, mais en pixel-art.",
+    "description": "Construisez votre carte, croisez-vous dans les couloirs, sautez en vocal d'un clic. Un petit monde rien que pour votre Nook.",
+    "getStarted": "Créer mon Nook",
+    "alreadyHaveAccount": "J'ai déjà un compte",
+    "myNooks": "Mes Nooks",
+    "features": {
+      "world": {
+        "title": "Un monde à dessiner",
+        "body": "Posez les sols, levez des pièces, déposez vos meubles. Votre bureau, à votre image."
+      },
+      "voice": {
+        "title": "Vocal de proximité",
+        "body": "Marchez vers vos collègues pour parler, éloignez-vous pour passer en réunion. Comme dans la vraie vie."
+      },
+      "plugins": {
+        "title": "Plugins maison",
+        "body": "Mini-jeux, bots musique, cartes à collectionner — activez ce qui vous plaît, par Nook."
+      }
+    },
+    "footer": "Construit pour les petites équipes.",
+    "legalPrivacy": "Confidentialité",
+    "legalTerms": "Conditions"
+  },
+  "nooks": {
+    "title": "Mes Nooks",
+    "subtitle": "Vos bureaux, vos équipes, votre monde.",
+    "newNook": "Nouveau Nook",
+    "loading": "Chargement…",
+    "empty": {
+      "title": "Aucun Nook pour l'instant",
+      "body": "Créez votre premier Nook pour commencer à bâtir votre bureau virtuel.",
+      "cta": "Créer mon premier Nook"
+    },
+    "signOut": "Se déconnecter",
+    "create": {
+      "title": "Créer un Nook",
+      "nameLabel": "Nom du serveur",
+      "templateLabel": "Modèle de map",
+      "namePlaceholder": "Ma super équipe",
+      "nameTooShort": "Le nom doit faire au moins 2 caractères",
+      "failed": "Impossible de créer le Nook",
+      "cancel": "Annuler",
+      "submit": "Créer",
+      "submitLoading": "Création…"
+    }
+  },
+  "serverPicker": {
+    "switchNook": "Changer de Nook",
+    "invite": "Inviter des gens",
+    "plugins": "Plugins",
+    "settings": "Paramètres du serveur",
+    "appHome": "Accueil"
+  },
+  "plugins": {
+    "title": "Plugins",
+    "titleWithName": "Plugins — {name}",
+    "subtitle": "Active des fonctionnalités sur ce Nook.",
+    "empty": "Aucun plugin disponible pour le moment.",
+    "install": "Installer",
+    "installed": "Installé"
+  },
+  "auth": {
+    "login": {
+      "title": "Connexion — NookApp",
+      "heading": "Se connecter",
+      "noAccount": "Pas encore de compte ?",
+      "createOne": "Créer un compte",
+      "submitLoading": "Connexion…",
+      "invalidCredentials": "Identifiants invalides",
+      "forgotPassword": "Mot de passe oublié ?"
+    },
+    "forgotPassword": {
+      "title": "Mot de passe oublié — NookApp",
+      "heading": "Mot de passe oublié",
+      "description": "Entrez votre adresse email et nous vous enverrons un lien pour le réinitialiser.",
+      "submit": "Envoyer le lien",
+      "submitLoading": "Envoi…",
+      "sent": "Si un compte existe pour cette adresse, un email vient de partir.",
+      "backToLogin": "Retour à la connexion",
+      "failed": "L'envoi a échoué"
+    },
+    "resetPassword": {
+      "title": "Nouveau mot de passe — NookApp",
+      "heading": "Choisir un nouveau mot de passe",
+      "newPassword": "Nouveau mot de passe",
+      "confirmPassword": "Confirmer le mot de passe",
+      "submit": "Mettre à jour",
+      "submitLoading": "Mise à jour…",
+      "success": "Mot de passe modifié. Vous pouvez vous connecter.",
+      "goToLogin": "Aller à la connexion",
+      "missingToken": "Lien invalide ou expiré.",
+      "mismatch": "Les mots de passe ne correspondent pas.",
+      "failed": "La réinitialisation a échoué"
+    },
+    "register": {
+      "title": "Inscription — NookApp",
+      "heading": "Créer votre compte",
+      "alreadyHaveAccount": "Vous avez déjà un compte ?",
+      "displayName": "Nom affiché",
+      "username": "Nom d'utilisateur",
+      "usernameHint": "3 à 20 caractères : lettres minuscules, chiffres et _",
+      "passwordHint": "Au moins 12 caractères",
+      "submit": "Créer le compte",
+      "submitLoading": "Création du compte…",
+      "failed": "L'inscription a échoué",
+      "legalNotice": "En créant un compte, tu acceptes nos",
+      "legalTerms": "Conditions d'utilisation",
+      "legalPrivacy": "Politique de confidentialité"
+    },
+    "verify": {
+      "title": "Vérification email — NookApp",
+      "heading": "Vérifiez votre boîte mail",
+      "sentPrefix": "Nous avons envoyé un lien de vérification à",
+      "fallbackEmail": "votre adresse email",
+      "sentSuffix": "Cliquez dessus pour activer votre compte.",
+      "alreadyVerified": "Déjà vérifié ?"
+    }
+  },
+  "settings": {
+    "user": {
+      "title": "Paramètres du compte",
+      "titleWithName": "Paramètres du compte — {name}",
+      "tabs": {
+        "profile": "Profil",
+        "character": "Personnage",
+        "audio": "Audio & vidéo",
+        "appearance": "Apparence"
+      },
+      "profile": {
+        "heading": "Profil",
+        "description": "Ce que les autres voient dans tes Nooks.",
+        "displayName": "Pseudo",
+        "displayNameHint": "2 à 32 caractères.",
+        "language": "Langue",
+        "languageHint": "Change la langue de l'interface sur cet appareil.",
+        "saveError": "Impossible de sauvegarder.",
+        "changeEmail": "Changer",
+        "emailChangeSent": "Un lien de confirmation a été envoyé à ton adresse actuelle."
+      },
+      "character": {
+        "heading": "Personnage",
+        "description": "Corps, yeux, tenue, cheveux, accessoire.",
+        "reset": "Réinitialiser",
+        "none": "Aucun",
+        "preview": "Aperçu",
+        "previewHint": "Live dans le monde.",
+        "layers": {
+          "body": "Corps",
+          "eyes": "Yeux",
+          "outfit": "Tenue",
+          "hair": "Cheveux",
+          "accessory": "Accessoire"
+        }
+      },
+      "audio": {
+        "heading": "Audio & vidéo",
+        "description": "Bientôt — sélection du micro, du haut-parleur, de la caméra et test de niveau."
+      },
+      "appearance": {
+        "heading": "Apparence",
+        "description": "Choisis la façon dont tu veux explorer ton Nook.",
+        "theme": {
+          "title": "Thème",
+          "hint": "Bascule entre le mode clair (cozy paper) et le mode sombre (cozy night).",
+          "light": "Clair",
+          "dark": "Sombre"
+        },
+        "classicLayout": {
+          "title": "Utiliser l'interface classique",
+          "hint": "Remplace le monde 2D Phaser par un lobby BBS rétro : feed des derniers threads, messages récents, et vocal toujours visible à droite. Idéal pour suivre les conversations sans bouger ton avatar."
+        },
+        "swapSidebars": {
+          "title": "Inverser les barres latérales",
+          "hint": "Place la liste des canaux à droite et la barre d'outils à gauche."
+        }
+      },
+      "danger": {
+        "heading": "Zone de danger",
+        "description": "Supprimer ton compte est définitif et immédiat.",
+        "deleteButton": "Supprimer mon compte",
+        "warning": "Cette action est irréversible. Tes messages et tes données seront effacés.",
+        "nooksHeading": "Que faire des Nooks que tu possèdes ?",
+        "transferTo": "Transférer à {name}",
+        "deleteNook": "Supprimer ce Nook",
+        "willBeDeleted": "Sera supprimé (aucun autre membre)",
+        "confirmLabel": "Tape « {name} » pour confirmer",
+        "confirmButton": "Supprimer définitivement",
+        "error": "Impossible de supprimer le compte."
+      },
+      "data": {
+        "heading": "Mes données",
+        "description": "Télécharge une copie de tes données personnelles (profil, messages, Nooks) au format JSON.",
+        "export": "Exporter mes données"
+      }
+    }
+  },
+  "lobby": {
+    "heading": "Lobby",
+    "subtitle": "Activité récente sur ton Nook",
+    "latestThreads": "Derniers threads",
+    "recentMessages": "Messages récents",
+    "forumHighlights": "Forums",
+    "noActivity": "Rien à afficher pour l'instant.",
+    "noMessages": "Aucun message.",
+    "openChannel": "Ouvrir",
+    "backToLobby": "← Retour au lobby",
+    "messagesCount": "{count} message | {count} messages",
+    "postsCount": "{count} post | {count} posts",
+    "voice": {
+      "title": "Vocal",
+      "notConnected": "Tu n'es pas connecté à un salon vocal.",
+      "joinHint": "Clique un salon vocal dans la barre latérale pour rejoindre."
+    }
+  },
+  "voice": {
+    "connected": "Voice connecté",
+    "leave": "Quitter le vocal",
+    "mute": "Couper le micro",
+    "unmute": "Réactiver le micro",
+    "deafen": "Couper le son",
+    "undeafen": "Réactiver le son",
+    "enableCamera": "Activer la caméra",
+    "disableCamera": "Désactiver la caméra",
+    "shareScreen": "Partager l'écran",
+    "stopSharing": "Arrêter le partage",
+    "labels": {
+      "muted": "Muet",
+      "microphone": "Micro",
+      "deafened": "Sourd",
+      "sound": "Son",
+      "camera": "Caméra",
+      "sharing": "Partage",
+      "screen": "Écran"
+    },
+    "status": {
+      "inNook": "Dans le Nook",
+      "label": "Statut",
+      "clear": "Aucun statut"
+    },
+    "members": {
+      "title": "Dans le vocal",
+      "you": "toi",
+      "empty": "Personne pour l'instant",
+      "viewCompact": "Mode avatars seuls",
+      "viewDetailed": "Mode liste détaillée",
+      "hereTitle": "Membres ici",
+      "hereEmpty": "Tu es seul ici pour l'instant.",
+      "hide": "Masquer",
+      "drag": "Glisser pour déplacer"
+    },
+    "accountSettings": "Paramètres du compte",
+    "signOut": "Se déconnecter"
+  },
+  "channels": {
+    "create": {
+      "title": "Créer un canal",
+      "channelType": "TYPE DE CANAL",
+      "widgetType": "TYPE DE WIDGET",
+      "name": "NOM DU CANAL",
+      "error": "Erreur lors de la création.",
+      "creating": "Création…",
+      "createAndPlace": "Créer et placer →",
+      "submit": "Créer le canal",
+      "placeholders": {
+        "text": "général",
+        "forum": "gaming",
+        "notes": "Mes notes",
+        "gaming": "Gaming",
+        "voice": "Salon vocal"
+      },
+      "banner": "BANNIÈRE",
+      "bannerOptional": "— optionnel",
+      "bannerPick": "Choisir une image"
+    },
+    "edit": {
+      "title": "Modifier le canal",
+      "iconType": "TYPE D'ICÔNE",
+      "icon": "Icône",
+      "emoji": "Emoji",
+      "image": "Image",
+      "none": "Aucune",
+      "iconLabel": "ICÔNE",
+      "color": "COULEUR",
+      "chooseEmoji": "CHOISIR UN EMOJI",
+      "change": "Changer",
+      "browse": "Parcourir…",
+      "fileHint": "JPG, PNG, GIF, WebP · max 8 Mo",
+      "name": "NOM DU CANAL",
+      "category": "CATÉGORIE",
+      "noCategory": "Aucune catégorie",
+      "error": "Une erreur est survenue.",
+      "saving": "Enregistrement…",
+      "save": "Enregistrer"
+    },
+    "types": {
+      "text": {
+        "label": "Texte",
+        "hint": "Messages, liens, fichiers"
+      },
+      "forum": {
+        "label": "Forum",
+        "hint": "Threads organisés par sujet"
+      },
+      "voice": {
+        "label": "Vocal",
+        "hint": "Zone vocale sur la map"
+      },
+      "widget": {
+        "label": "Widget",
+        "hint": "Notes, library, …"
+      }
+    },
+    "widgets": {
+      "notes": {
+        "label": "Notes",
+        "hint": "Notes rapides style Apple"
+      },
+      "gaming": {
+        "label": "Gaming",
+        "hint": "Library de jeux + discussions"
+      }
+    }
+  },
+  "serverSettings": {
+    "title": "Paramètres du serveur",
+    "titleWithName": "Paramètres du serveur — {name}",
+    "tabs": {
+      "general": "Général",
+      "roles": "Rôles",
+      "members": "Membres"
+    },
+    "generalSoon": "(Bientôt) — nom, bannière, suppression…",
+    "members": {
+      "loading": "Chargement…",
+      "loadError": "Erreur de chargement",
+      "title": "Membres · {count}",
+      "refresh": "Actualiser",
+      "owner": "Owner",
+      "assignRoles": "Assigner des rôles ▾",
+      "hideRoles": "Masquer ▴",
+      "roleUpdateError": "Impossible de modifier les rôles",
+      "kick": "Exclure",
+      "ban": "Bannir",
+      "kickConfirm": "Exclure {name} de ce serveur ?",
+      "banConfirm": "Bannir {name} ? Le membre sera retiré et ne pourra plus revenir.",
+      "banReasonPrompt": "Raison (optionnel) :",
+      "actionError": "Action échouée",
+      "bannedTitle": "Bannis · {count}",
+      "unban": "Débannir",
+      "noBans": "Aucun membre banni",
+      "bannedBy": "Banni"
+    },
+    "roles": {
+      "loading": "Chargement…",
+      "loadError": "Erreur de chargement",
+      "title": "Rôles · {count}",
+      "empty": "Aucun rôle.",
+      "newRole": "+ Nouveau rôle",
+      "newRoleName": "Nouveau rôle",
+      "createError": "Impossible de créer le rôle",
+      "saveError": "Impossible d'enregistrer",
+      "deleteError": "Suppression impossible",
+      "deleteConfirm": "Supprimer le rôle \"{name}\" ?",
+      "roleName": "Nom du rôle",
+      "color": "Couleur",
+      "reset": "Réinitialiser",
+      "permissions": "Permissions",
+      "delete": "Supprimer le rôle"
+    }
+  },
+  "permissions": {
+    "groups": {
+      "general": "Général",
+      "moderation": "Modération",
+      "management": "Gestion"
+    },
+    "ViewChannels": {
+      "label": "Voir les salons",
+      "description": "Voir la liste des salons et leur contenu."
+    },
+    "SendMessages": {
+      "label": "Envoyer des messages",
+      "description": "Envoyer des messages dans les salons texte."
+    },
+    "ManageMessages": {
+      "label": "Gérer les messages",
+      "description": "Supprimer les messages des autres membres."
+    },
+    "CreateInvite": {
+      "label": "Créer une invitation",
+      "description": "Générer un lien d'invitation pour le serveur."
+    },
+    "ManageChannels": {
+      "label": "Gérer les salons",
+      "description": "Créer, modifier et supprimer des salons et catégories."
+    },
+    "ManageRoles": {
+      "label": "Gérer les rôles",
+      "description": "Créer, modifier et assigner les rôles inférieurs au sien."
+    },
+    "ManageMembers": {
+      "label": "Gérer les membres",
+      "description": "Expulser des membres du serveur."
+    },
+    "ManageMap": {
+      "label": "Modifier la carte",
+      "description": "Utiliser le mode édition de la carte."
+    },
+    "ManageServer": {
+      "label": "Gérer le serveur",
+      "description": "Modifier le nom, la bannière et les paramètres du serveur."
+    }
+  },
+  "world": {
+    "interact": {
+      "sit": "Appuyer sur E pour s'asseoir",
+      "stand": "Appuyer sur E pour se lever"
+    }
+  },
+  "chat": {
+    "messagesLabel": "Messages du salon"
+  }
+}

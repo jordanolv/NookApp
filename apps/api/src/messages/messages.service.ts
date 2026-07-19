@@ -1,11 +1,16 @@
 import { randomUUID } from 'node:crypto';
-import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, lt } from 'drizzle-orm';
-import { channel, member, message, user, type Database } from '@nookapp/db';
-import type { CreateMessageInput, MessagePublic } from '@nookapp/protocol';
+import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { and, count, desc, eq, lt } from 'drizzle-orm';
+import { channel, member, message, type Database } from '@nookapp/db';
+import {
+  hasPermission,
+  PERMISSIONS,
+  type CreateMessageInput,
+  type MessagePublic,
+  type UpdateMessageInput,
+} from '@nookapp/protocol';
 import { DB } from '../database/database.module';
-import { RealtimeGateway } from '../realtime/realtime.gateway';
-import { PluginsService } from '../plugins/plugins.service';
+import { RolesService } from '../roles/roles.service';
 
 function toMessagePublic(row: typeof message.$inferSelect): MessagePublic {
   return {
@@ -22,8 +27,7 @@ function toMessagePublic(row: typeof message.$inferSelect): MessagePublic {
 export class MessagesService {
   constructor(
     @Inject(DB) private readonly db: Database,
-    private readonly realtime: RealtimeGateway,
-    private readonly plugins: PluginsService,
+    private readonly rolesService: RolesService,
   ) {}
 
   async listMessages(
@@ -50,6 +54,19 @@ export class MessagesService {
     return rows.map(toMessagePublic).reverse();
   }
 
+  async countByServer(serverId: string): Promise<Record<string, number>> {
+    const rows = await this.db
+      .select({ channelId: message.channelId, total: count() })
+      .from(message)
+      .innerJoin(channel, eq(channel.id, message.channelId))
+      .where(eq(channel.serverId, serverId))
+      .groupBy(message.channelId);
+
+    const result: Record<string, number> = {};
+    for (const r of rows) result[r.channelId] = Number(r.total);
+    return result;
+  }
+
   async createMessage(
     serverId: string,
     channelId: string,
@@ -68,42 +85,59 @@ export class MessagesService {
       })
       .returning();
 
-    const msg = toMessagePublic(created);
+    return toMessagePublic(created);
+  }
 
-    // Route slash commands to plugins — emit bot response ephemerally (no DB write)
-    if (input.content.startsWith('/')) {
-      const [cmd, ...args] = input.content.slice(1).trim().split(/\s+/);
-      if (cmd) {
-        const [u] = await this.db
-          .select({ name: user.name })
-          .from(user)
-          .where(eq(user.id, userId))
-          .limit(1);
+  async updateMessage(
+    serverId: string,
+    channelId: string,
+    messageId: string,
+    userId: string,
+    input: UpdateMessageInput,
+  ): Promise<MessagePublic> {
+    await this.requireChannelMember(serverId, channelId, userId);
+    const existing = await this.requireMessage(channelId, messageId);
 
-        const response = await this.plugins.handleCommand(
-          serverId,
-          channelId,
-          cmd,
-          args,
-          userId,
-          u?.name ?? userId,
-        );
+    if (existing.authorId !== userId) {
+      throw new ForbiddenException('Can only edit your own messages');
+    }
 
-        if (response) {
-          const botMsg: MessagePublic = {
-            id: `bot-${randomUUID()}`,
-            channelId,
-            authorId: `plugin:${cmd}`,
-            content: response,
-            createdAt: new Date().toISOString(),
-            editedAt: null,
-          };
-          this.realtime.emitToServer(serverId, 'message:sent', botMsg);
-        }
+    const [updated] = await this.db
+      .update(message)
+      .set({ content: input.content, editedAt: new Date() })
+      .where(eq(message.id, messageId))
+      .returning();
+
+    return toMessagePublic(updated);
+  }
+
+  async deleteMessage(
+    serverId: string,
+    channelId: string,
+    messageId: string,
+    userId: string,
+  ): Promise<void> {
+    await this.requireChannelMember(serverId, channelId, userId);
+    const existing = await this.requireMessage(channelId, messageId);
+
+    if (existing.authorId !== userId) {
+      const authz = await this.rolesService.resolveAuthz(serverId, userId);
+      if (!authz.isOwner && !hasPermission(authz.permissions, PERMISSIONS.ManageMessages)) {
+        throw new ForbiddenException('Missing ManageMessages permission');
       }
     }
 
-    return msg;
+    await this.db.delete(message).where(eq(message.id, messageId));
+  }
+
+  private async requireMessage(channelId: string, messageId: string) {
+    const [row] = await this.db
+      .select()
+      .from(message)
+      .where(and(eq(message.id, messageId), eq(message.channelId, channelId)))
+      .limit(1);
+    if (!row) throw new NotFoundException('Message not found');
+    return row;
   }
 
   private async requireChannelMember(serverId: string, channelId: string, userId: string) {

@@ -1,0 +1,76 @@
+/*
+ * Shared theme defaults.
+ *
+ * `:root` carries:
+ *   - the brand accent palette (constant across themes by default, themes may
+ *     override via the optional accent tokens)
+ *   - the LIGHT theme's tokens as fallbacks so SSR-rendered HTML and the brief
+ *     pre-hydration window render correctly. Keep these in sync with light.ts.
+ *
+ * `applyTheme()` overwrites these values at runtime when a different theme
+ * is active.
+ */
+:root {
+  color-scheme: light dark;
+
+  /* Brand accents — shared across themes */
+  --accent-leaf: #74b86f;
+  --accent-warm: #e8a35a;
+  --accent-cool: #6db4d6;
+  --accent-rose: #d97a7a;
+  --accent-violet: #9a7ad9;
+  --accent-leaf-soft: rgba(116, 184, 111, 0.18);
+  --accent-rose-soft: rgba(217, 122, 122, 0.18);
+  --accent-violet-soft: rgba(154, 122, 217, 0.2);
+  --accent-warm-soft: rgba(232, 163, 90, 0.2);
+  --accent-cool-soft: rgba(109, 180, 214, 0.2);
+
+  /* Cozy paper (light) — initial fallback. Mirror of themes/light.ts. */
+  --surface: rgba(255, 252, 244, 0.62);
+  --surface-strong: rgba(255, 252, 244, 0.8);
+  --surface-raised: rgba(255, 255, 255, 0.55);
+  --surface-tinted: rgba(29, 42, 35, 0.05);
+  --surface-tinted-strong: rgba(29, 42, 35, 0.09);
+  --surface-border: rgba(29, 42, 35, 0.08);
+  --surface-divider: rgba(29, 42, 35, 0.1);
+  --surface-texture: none;
+  --surface-grid-line: rgba(29, 42, 35, 0.05);
+  --surface-grid-size: 28px;
+
+  --page-bg: #cdd0d4;
+
+  --ink: #1d2a23;
+  --ink-soft: #2d3d33;
+  --ink-muted: rgba(29, 42, 35, 0.55);
+  --ink-faint: rgba(29, 42, 35, 0.35);
+  --ink-inverse: #ffffff;
+
+  --shadow-soft: 0 8px 28px rgba(20, 35, 25, 0.18), 0 2px 6px rgba(20, 35, 25, 0.08);
+  --shadow-lift: 0 14px 40px rgba(20, 35, 25, 0.28), 0 4px 10px rgba(20, 35, 25, 0.12);
+
+  --tooltip-bg: rgba(29, 42, 35, 0.92);
+  --tooltip-ink: #ffffff;
+
+  --label-bg: rgba(255, 252, 244, 0.95);
+  --label-ink: #1d2a23;
+  --label-ring: rgba(29, 42, 35, 0.12);
+
+  --font-body: ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-card: 22px;
+  --radius-pill: 999px;
+  --radius-tile: 14px;
+
+  --border-width: 1px;
+  --focus-ring: 0 0 0 3px rgba(116, 184, 111, 0.35);
+
+  /* Computed grid backdrop — composes the two grid tokens above */
+  --surface-grid:
+    linear-gradient(var(--surface-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--surface-grid-line) 1px, transparent 1px);
+}

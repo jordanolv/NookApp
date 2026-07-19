@@ -2,25 +2,53 @@ import { randomUUID } from 'node:crypto';
 import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, eq } from 'drizzle-orm';
 import { channel, member, type Database } from '@nookapp/db';
-import type { ChannelPublic, CreateChannelInput, UpdateChannelInput } from '@nookapp/protocol';
+import {
+  hasPermission,
+  PERMISSIONS,
+  type ChannelPublic,
+  type CreateChannelInput,
+  type UpdateChannelInput,
+} from '@nookapp/protocol';
 import { DB } from '../database/database.module';
+import { RolesService } from '../roles/roles.service';
 
 function toChannelPublic(row: typeof channel.$inferSelect): ChannelPublic {
   return {
     id: row.id,
     serverId: row.serverId,
+    categoryId: row.categoryId ?? null,
     type: row.type,
     name: row.name,
     position: row.position,
     parentId: row.parentId ?? null,
     mapZone: (row.mapZone as { x: number; y: number; w: number; h: number } | null) ?? null,
+    iconUrl: row.iconUrl ?? null,
+    bannerUrl: row.bannerUrl ?? null,
+    widgetKind: (row.widgetKind as ChannelPublic['widgetKind']) ?? null,
+    showStat: row.showStat,
+    color: row.color ?? null,
+    iconName: row.iconName ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
 
 @Injectable()
 export class ChannelsService {
-  constructor(@Inject(DB) private readonly db: Database) {}
+  constructor(
+    @Inject(DB) private readonly db: Database,
+    private readonly rolesService: RolesService,
+  ) {}
+
+  async getChannel(serverId: string, channelId: string, userId: string): Promise<ChannelPublic> {
+    await this.requireMember(serverId, userId);
+    const [row] = await this.db
+      .select()
+      .from(channel)
+      .where(and(eq(channel.id, channelId), eq(channel.serverId, serverId)))
+      .limit(1);
+    if (!row) throw new NotFoundException('Channel not found');
+    return toChannelPublic(row);
+  }
 
   async listChannels(serverId: string, userId: string): Promise<ChannelPublic[]> {
     await this.requireMember(serverId, userId);
@@ -37,7 +65,7 @@ export class ChannelsService {
     userId: string,
     input: CreateChannelInput,
   ): Promise<ChannelPublic> {
-    await this.requireRole(serverId, userId, ['owner', 'admin']);
+    await this.requirePermission(serverId, userId, PERMISSIONS.ManageChannels);
 
     const position = input.position ?? (await this.nextPosition(serverId));
 
@@ -51,6 +79,10 @@ export class ChannelsService {
         position,
         parentId: input.parentId ?? null,
         mapZone: input.mapZone ?? null,
+        widgetKind: input.type === 'widget' ? (input.widgetKind ?? null) : null,
+        showStat: input.showStat ?? true,
+        color: input.color ?? null,
+        iconName: input.iconName ?? null,
       })
       .returning();
 
@@ -63,7 +95,7 @@ export class ChannelsService {
     userId: string,
     input: UpdateChannelInput,
   ): Promise<ChannelPublic> {
-    await this.requireRole(serverId, userId, ['owner', 'admin']);
+    await this.requirePermission(serverId, userId, PERMISSIONS.ManageChannels);
 
     const [updated] = await this.db
       .update(channel)
@@ -72,6 +104,12 @@ export class ChannelsService {
         ...(input.position !== undefined && { position: input.position }),
         ...(input.parentId !== undefined && { parentId: input.parentId }),
         ...(input.mapZone !== undefined && { mapZone: input.mapZone }),
+        ...(input.iconUrl !== undefined && { iconUrl: input.iconUrl }),
+        ...(input.bannerUrl !== undefined && { bannerUrl: input.bannerUrl }),
+        ...(input.categoryId !== undefined && { categoryId: input.categoryId }),
+        ...(input.showStat !== undefined && { showStat: input.showStat }),
+        ...(input.color !== undefined && { color: input.color }),
+        ...(input.iconName !== undefined && { iconName: input.iconName }),
       })
       .where(and(eq(channel.id, channelId), eq(channel.serverId, serverId)))
       .returning();
@@ -81,7 +119,7 @@ export class ChannelsService {
   }
 
   async deleteChannel(serverId: string, channelId: string, userId: string): Promise<void> {
-    await this.requireRole(serverId, userId, ['owner', 'admin']);
+    await this.requirePermission(serverId, userId, PERMISSIONS.ManageChannels);
     const result = await this.db
       .delete(channel)
       .where(and(eq(channel.id, channelId), eq(channel.serverId, serverId)))
@@ -107,17 +145,10 @@ export class ChannelsService {
     if (!m) throw new ForbiddenException('Not a member of this server');
   }
 
-  private async requireRole(
-    serverId: string,
-    userId: string,
-    roles: Array<'owner' | 'admin' | 'member'>,
-  ) {
-    const [m] = await this.db
-      .select({ role: member.role })
-      .from(member)
-      .where(and(eq(member.serverId, serverId), eq(member.userId, userId)))
-      .limit(1);
-    if (!m || !roles.includes(m.role)) {
+  private async requirePermission(serverId: string, userId: string, flag: number) {
+    const authz = await this.rolesService.resolveAuthz(serverId, userId);
+    if (authz.isOwner) return;
+    if (!hasPermission(authz.permissions, flag)) {
       throw new ForbiddenException('Insufficient permissions');
     }
   }

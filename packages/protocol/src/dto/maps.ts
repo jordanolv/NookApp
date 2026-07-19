@@ -1,28 +1,47 @@
 import { z } from 'zod';
 
-const tileCoordSchema = z.tuple([
-  z.number().int().min(0).max(199),
-  z.number().int().min(0).max(199),
-]);
+const mapCoordSchema = z.number().int().min(0).max(199);
 
-// Each item type is its own object schema; the discriminated union makes adding
-// new types (bed, rug, plant, …) a matter of declaring a new schema and adding
-// it to the union below — no other code touches MapData shape.
-const wallItemSchema = z.object({
-  type: z.literal('wall'),
-  x: z.number().int().min(0).max(199),
-  y: z.number().int().min(0).max(199),
+const mapCellSchema = z.object({
+  x: mapCoordSchema,
+  y: mapCoordSchema,
 });
 
-const mapItemSchema = z.discriminatedUnion('type', [wallItemSchema]);
-export type MapItem = z.infer<typeof mapItemSchema>;
-export type WallItem = z.infer<typeof wallItemSchema>;
+const floorCellSchema = mapCellSchema.extend({
+  asset: z.string().min(1).max(64),
+});
+
+const wallCellSchema = mapCellSchema.extend({
+  // Index into the LimeZu Room_Builder spritesheet (24 cols × 59 rows = 1416).
+  frame: z.number().int().min(0).max(1415),
+});
+
+const decorObjectSchema = mapCellSchema.extend({
+  id: z.string().min(1).max(64),
+  asset: z.string().min(1).max(64),
+});
+
+const mapLayersSchema = z.object({
+  floors: z.array(floorCellSchema).max(40000).default([]),
+  walls: z.array(wallCellSchema).max(40000).default([]),
+  decor: z.array(decorObjectSchema).max(2000).default([]),
+  // Manually painted impassable cells — additive to wall collision, for decor
+  // and buildings that have no wall sprite of their own.
+  collision: z.array(mapCellSchema).max(40000).default([]),
+});
 
 export const mapDataSchema = z.object({
-  tiles: z.array(tileCoordSchema).max(40000),
-  items: z.array(mapItemSchema).max(2000),
+  width: z.number().int().min(1).max(200).default(200),
+  height: z.number().int().min(1).max(200).default(200),
+  spawn: mapCellSchema.default({ x: 35, y: 35 }),
+  layers: mapLayersSchema.default({ floors: [], walls: [], decor: [], collision: [] }),
 });
+
 export type MapData = z.infer<typeof mapDataSchema>;
+export type FloorCell = z.infer<typeof floorCellSchema>;
+export type WallCell = z.infer<typeof wallCellSchema>;
+export type DecorObject = z.infer<typeof decorObjectSchema>;
+export type CollisionCell = z.infer<typeof mapCellSchema>;
 
 export const updateMapInputSchema = z.object({
   data: mapDataSchema,
@@ -36,12 +55,16 @@ export const mapPublicSchema = z.object({
 });
 export type MapPublic = z.infer<typeof mapPublicSchema>;
 
-const SPAWN = 35;
-const HALF = 3;
-const defaultTiles: [number, number][] = [];
-for (let dx = -HALF; dx < HALF; dx++) {
-  for (let dy = -HALF; dy < HALF; dy++) {
-    defaultTiles.push([SPAWN + dx, SPAWN + dy]);
+const floors: FloorCell[] = [];
+for (let dx = -3; dx < 3; dx++) {
+  for (let dy = -3; dy < 3; dy++) {
+    floors.push({ asset: 'office_floor_light', x: 35 + dx, y: 35 + dy });
   }
 }
-export const DEFAULT_MAP: MapData = { tiles: defaultTiles, items: [] };
+
+export const DEFAULT_MAP: MapData = {
+  width: 200,
+  height: 200,
+  spawn: { x: 35, y: 35 },
+  layers: { floors, walls: [], decor: [], collision: [] },
+};

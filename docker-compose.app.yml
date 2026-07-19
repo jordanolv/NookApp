@@ -1,0 +1,182 @@
+services:
+  web:
+    image: ghcr.io/${GHCR_OWNER}/nookapp-web:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NUXT_HOST: 0.0.0.0
+      NUXT_PORT: 4001
+      NUXT_PUBLIC_API_BASE: https://${DOMAIN}/api/v1
+      NUXT_PUBLIC_AUTH_BASE: https://${DOMAIN}/api/auth
+      NUXT_PUBLIC_WEB_URL: https://${DOMAIN}
+      NUXT_PUBLIC_LIVEKIT_URL: wss://${DOMAIN}/livekit
+      NUXT_PUBLIC_COLLAB_URL: wss://${DOMAIN}/collab
+      NUXT_PUBLIC_GIPHY_API_KEY: ${NUXT_PUBLIC_GIPHY_API_KEY:-}
+      NUXT_PUBLIC_SENTRY_DSN: ${NUXT_PUBLIC_SENTRY_DSN:-}
+      NUXT_PUBLIC_SENTRY_ENVIRONMENT: ${NUXT_PUBLIC_SENTRY_ENVIRONMENT:-production}
+      NUXT_PUBLIC_SENTRY_RELEASE: ${NUXT_PUBLIC_SENTRY_RELEASE:-}
+    expose:
+      - '4001'
+    networks:
+      - default
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dokploy-network
+      - traefik.http.routers.${STACK_NAME}-web.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.${STACK_NAME}-web.entrypoints=websecure
+      - traefik.http.routers.${STACK_NAME}-web.tls.certresolver=letsencrypt
+      - traefik.http.routers.${STACK_NAME}-web.priority=1
+      - traefik.http.services.${STACK_NAME}-web.loadbalancer.server.port=4001
+
+  api:
+    image: ghcr.io/${GHCR_OWNER}/nookapp-api:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      API_PORT: 4000
+      COLLAB_PORT: 4234
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: https://${DOMAIN}
+      LIVEKIT_URL: wss://${DOMAIN}/livekit
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      MAIL_DRIVER: ${MAIL_DRIVER:-mailpit}
+      MAIL_FROM: ${MAIL_FROM}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAILPIT_HOST: ${MAILPIT_HOST:-mailpit}
+      MAILPIT_PORT: ${MAILPIT_PORT:-1025}
+      NUXT_PUBLIC_WEB_URL: https://${DOMAIN}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.1}
+    expose:
+      - '4000'
+      - '4234'
+    volumes:
+      - api-uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - default
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dokploy-network
+      # HTTP api (NestJS)
+      - traefik.http.routers.${STACK_NAME}-api.rule=Host(`${DOMAIN}`) && (PathPrefix(`/api`) || PathPrefix(`/uploads`) || PathPrefix(`/socket.io`))
+      - traefik.http.routers.${STACK_NAME}-api.entrypoints=websecure
+      - traefik.http.routers.${STACK_NAME}-api.tls.certresolver=letsencrypt
+      - traefik.http.routers.${STACK_NAME}-api.priority=10
+      - traefik.http.services.${STACK_NAME}-api.loadbalancer.server.port=4000
+      # WebSocket Hocuspocus (/collab)
+      - traefik.http.middlewares.${STACK_NAME}-collab-strip.stripprefix.prefixes=/collab
+      - traefik.http.routers.${STACK_NAME}-collab.rule=Host(`${DOMAIN}`) && PathPrefix(`/collab`)
+      - traefik.http.routers.${STACK_NAME}-collab.entrypoints=websecure
+      - traefik.http.routers.${STACK_NAME}-collab.tls.certresolver=letsencrypt
+      - traefik.http.routers.${STACK_NAME}-collab.priority=10
+      - traefik.http.routers.${STACK_NAME}-collab.middlewares=${STACK_NAME}-collab-strip
+      - traefik.http.routers.${STACK_NAME}-collab.service=${STACK_NAME}-collab
+      - traefik.http.services.${STACK_NAME}-collab.loadbalancer.server.port=4234
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER}']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks:
+      - default
+
+  db-backup:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+    volumes:
+      - ./scripts/db-backup.sh:/usr/local/bin/db-backup.sh:ro
+      - ./scripts/db-restore.sh:/usr/local/bin/db-restore.sh:ro
+      - db-backups:/backups
+    command:
+      - sh
+      - -c
+      - |
+        echo "[db-backup] starting; interval=${BACKUP_INTERVAL_HOURS:-24}h retention=${BACKUP_RETENTION_DAYS:-7}d"
+        while true; do
+          /usr/local/bin/db-backup.sh || echo "[db-backup] backup failed"
+          sleep "$$(( ${BACKUP_INTERVAL_HOURS:-24} * 3600 ))"
+        done
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - default
+
+  livekit:
+    image: livekit/livekit-server:latest
+    restart: unless-stopped
+    command:
+      - --bind=0.0.0.0
+      - --node-ip=${LIVEKIT_NODE_IP}
+    environment:
+      LIVEKIT_KEYS: '${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}'
+      LIVEKIT_PORT: '7880'
+      LIVEKIT_RTC_TCP_PORT: '7881'
+      LIVEKIT_RTC_PORT_RANGE_START: '7882'
+      LIVEKIT_RTC_PORT_RANGE_END: '7882'
+      LIVEKIT_RTC_USE_EXTERNAL_IP: 'true'
+    expose:
+      - '7880'
+    ports:
+      - '${LIVEKIT_TCP_PORT:-7881}:7881/tcp'
+      - '${LIVEKIT_UDP_PORT:-7882}:7882/udp'
+    networks:
+      - default
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dokploy-network
+      - traefik.http.middlewares.${STACK_NAME}-livekit-strip.stripprefix.prefixes=/livekit
+      - traefik.http.routers.${STACK_NAME}-livekit.rule=Host(`${DOMAIN}`) && PathPrefix(`/livekit`)
+      - traefik.http.routers.${STACK_NAME}-livekit.entrypoints=websecure
+      - traefik.http.routers.${STACK_NAME}-livekit.tls.certresolver=letsencrypt
+      - traefik.http.routers.${STACK_NAME}-livekit.priority=10
+      - traefik.http.routers.${STACK_NAME}-livekit.middlewares=${STACK_NAME}-livekit-strip
+      - traefik.http.services.${STACK_NAME}-livekit.loadbalancer.server.port=7880
+
+volumes:
+  postgres-data:
+  api-uploads:
+  db-backups:
+
+networks:
+  default:
+  proxy:
+    external: true
+    name: dokploy-network

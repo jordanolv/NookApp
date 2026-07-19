@@ -8,7 +8,10 @@ export const SPAWN_TILE_Y = 35;
 
 export const FLOOR_COLOR = 0xf3ead4;
 
-export const WALL_TOP_COLOR = 0x9a9a9a;
-export const WALL_FRONT_COLOR = 0x3a3a3a;
-export const WALL_HIGHLIGHT_COLOR = 0xb8b8b8;
-export const WALL_SHADOW_COLOR = 0x1a1a1a;
+export const WALL_BORDER_COLOR = 0x2e2e3a;
+export const WALL_BORDER_THICKNESS = 2;
+
+// Visual zoom level — applied via Phaser's cam.setZoom so the camera renders
+// the world at this magnification. The canvas fills its container 1:1 in CSS;
+// no extra CSS transform. Kept as a constant so overlay math stays consistent.
+export const DISPLAY_SCALE = 1.5;

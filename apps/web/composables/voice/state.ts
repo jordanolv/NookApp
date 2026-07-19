@@ -33,3 +33,9 @@ export const audioEls = new Map<string, HTMLAudioElement>();
 // 'world' = cam bubbles above players; 'panel' = Discord-style floating grid
 export const mediaViewMode = ref<'world' | 'panel'>('world');
 export const mediaPanelFocusKey = ref<string | null>(null);
+
+// One-shot flag: when true, the next leave() should send the avatar back to
+// spawn. Set by leaveExplicit() (dock button), cleared by the page watcher
+// after teleporting. Walking out of a room calls plain leave() and leaves
+// this false — the avatar stays where it is.
+export const returnToSpawnOnLeave = ref(false);

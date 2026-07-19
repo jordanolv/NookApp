@@ -1,0 +1,20 @@
+name: release-please
+
+# Automatise le versioning sémantique à partir des Conventional Commits :
+# à chaque push sur main, ouvre/maj une release PR qui bump la version et
+# alimente CHANGELOG.md, puis crée le tag vX.Y.Z + la GitHub Release au merge.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}

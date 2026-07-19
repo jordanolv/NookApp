@@ -27,10 +27,29 @@ export function useAuth() {
     await refreshUser();
   }
 
-  async function signUp(name: string, email: string, password: string) {
+  async function signUp(name: string, username: string, email: string, password: string) {
     await $fetch(`${authBase}/sign-up/email`, {
       method: 'POST',
-      body: { name, email, password },
+      body: { name, username, email, password },
+      credentials: 'include',
+    });
+  }
+
+  async function requestPasswordReset(email: string) {
+    await $fetch(`${authBase}/request-password-reset`, {
+      method: 'POST',
+      body: {
+        email,
+        redirectTo: `${window.location.origin}/auth/reset-password`,
+      },
+      credentials: 'include',
+    });
+  }
+
+  async function resetPassword(token: string, newPassword: string) {
+    await $fetch(`${authBase}/reset-password`, {
+      method: 'POST',
+      body: { token, newPassword },
       credentials: 'include',
     });
   }
@@ -43,5 +62,15 @@ export function useAuth() {
     store.setUser(null);
   }
 
-  return { user, isAuthenticated, ready, signIn, signUp, signOut, refreshUser };
+  return {
+    user,
+    isAuthenticated,
+    ready,
+    signIn,
+    signUp,
+    signOut,
+    refreshUser,
+    requestPasswordReset,
+    resetPassword,
+  };
 }

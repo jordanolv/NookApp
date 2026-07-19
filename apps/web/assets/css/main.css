@@ -1,10 +1,12 @@
+/* Theme system. The active theme's tokens are written to :root by
+   applyTheme() at runtime (see apps/web/themes/apply.ts). This manifest
+   provides shared defaults and per-theme structural overrides.
+   Imports must come before @tailwind directives (CSS spec). */
+@import '../../themes/styles/index.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-:root {
-  color-scheme: light dark;
-}
 
 html,
 body,
@@ -13,5 +15,46 @@ body,
 }
 
 body {
-  @apply bg-neutral-50 text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100;
+  background: var(--page-bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* a11y — lien d'évitement (RGAA 12.13 / OPQUAST 9). Masqué jusqu'au focus clavier. */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 1000;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--ink-inverse);
+  font-weight: 600;
+  transform: translateY(-150%);
+  transition: transform 0.15s ease;
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+/* a11y — focus clavier toujours visible (RGAA 10.7). */
+:focus-visible {
+  outline: 2px solid var(--accent-leaf, #4ade80);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* a11y — respect de la préférence système "réduire les animations" (RGAA 13.8). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

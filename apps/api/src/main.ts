@@ -1,21 +1,41 @@
+// En premier : Sentry instrumente les modules Node au chargement, toute
+// importation anterieure echapperait a la capture.
+import './instrument';
 import 'reflect-metadata';
-import { NestFactory } from '@nestjs/core';
+import { mkdirSync } from 'node:fs';
+import helmet from 'helmet';
+import { HttpAdapterHost, NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 import { toNodeHandler } from 'better-auth/node';
 import type { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
+import { SentryExceptionFilter } from './common/sentry-exception.filter';
 import { AUTH, type AuthInstance } from './auth/auth.types';
+import { CollaborationService } from './collaboration/collaboration.service';
+import { scopeDir, STORAGE_SCOPES, UPLOADS_ROOT, UPLOADS_URL_PREFIX } from './common/storage';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
+
+  for (const scope of STORAGE_SCOPES) {
+    mkdirSync(scopeDir(scope), { recursive: true });
+  }
+  app.useStaticAssets(UPLOADS_ROOT, { prefix: UPLOADS_URL_PREFIX });
 
   const auth = app.get<AuthInstance>(AUTH);
   const httpAdapter = app.getHttpAdapter().getInstance();
-  const webOrigin = process.env.NUXT_PUBLIC_WEB_URL ?? 'http://localhost:3001';
+  const webOrigin = process.env.NUXT_PUBLIC_WEB_URL ?? 'http://localhost:4001';
 
-  // CORS applied on the raw Express app so it covers /api/auth/* (which bypasses
-  // NestJS middleware) as well as all NestJS-managed routes.
+  httpAdapter.set('trust proxy', 1);
+  httpAdapter.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
+
   httpAdapter.use((req: Request, res: Response, next: NextFunction) => {
     const origin = req.headers.origin;
     if (origin === webOrigin) {
@@ -31,8 +51,6 @@ async function bootstrap() {
     next();
   });
 
-  // Better Auth needs to handle its own body parsing and the full request URL —
-  // mount with httpAdapter.all so req.url stays /api/auth/... inside the handler.
   httpAdapter.all('/api/auth/*', toNodeHandler(auth));
 
   const { json, urlencoded } = await import('express');
@@ -41,6 +59,7 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.useGlobalFilters(new SentryExceptionFilter(app.get(HttpAdapterHost).httpAdapter));
 
   const config = new DocumentBuilder()
     .setTitle('NookApp API')
@@ -50,9 +69,12 @@ async function bootstrap() {
   const doc = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, doc);
 
-  const port = Number(process.env.PORT ?? 3000);
+  const port = Number(process.env.API_PORT ?? 4000);
   await app.listen(port);
   console.log(`api listening on http://localhost:${port}`);
+
+  const collab = app.get(CollaborationService);
+  await collab.listen();
 }
 
 void bootstrap();

@@ -5,9 +5,9 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { forwardRef, Inject } from '@nestjs/common';
 import type { Server, Socket } from 'socket.io';
 import type {
+  PlayerAppearancePayload,
   PlayerHelloPayload,
   PlayerMovedPayload,
   PlayerSnapshotPayload,
@@ -16,11 +16,16 @@ import type {
   VoiceSnapshotPayload,
 } from '@nookapp/protocol';
 import { AuthService } from '../auth/auth.service';
-import { PluginsService } from '../plugins/plugins.service';
+import { MembersService } from '../members/members.service';
 
 type RoomPlayers = Map<string, PlayerState>;
 
-@WebSocketGateway({ cors: { origin: true, credentials: true } })
+@WebSocketGateway({
+  cors: {
+    origin: process.env.NUXT_PUBLIC_WEB_URL ?? 'http://localhost:4001',
+    credentials: true,
+  },
+})
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server!: Server;
@@ -31,7 +36,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   constructor(
     private readonly authService: AuthService,
-    @Inject(forwardRef(() => PluginsService)) private readonly plugins: PluginsService,
+    private readonly members: MembersService,
   ) {}
 
   async handleConnection(client: Socket) {
@@ -45,6 +50,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
     client.data.userId = session.user.id;
     client.data.name = session.user.name;
+    client.join(`user:${session.user.id}`);
   }
 
   handleDisconnect(client: Socket) {
@@ -52,32 +58,48 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const userId = client.data.userId as string | undefined;
     if (!serverId || !userId) return;
 
+    const last = this.rooms.get(serverId)?.get(userId);
+    if (last) {
+      void this.members.updateLastPosition(serverId, userId, last.x, last.y).catch(() => undefined);
+    }
+
     this.rooms.get(serverId)?.delete(userId);
     client.to(`server:${serverId}`).emit('player:left', { userId });
-    this.plugins.emitEvent(serverId, 'player:left', { userId });
 
     const vp = this.voicePresence.get(serverId);
     const channelId = vp?.get(userId);
     if (vp && channelId) {
       vp.delete(userId);
       this.server.to(`server:${serverId}`).emit('voice:left', { userId, channelId });
-      this.plugins.emitEvent(serverId, 'voice:left', { userId, channelId });
     }
   }
 
   @SubscribeMessage('player:hello')
-  handlePlayerHello(client: Socket, payload: PlayerHelloPayload) {
-    const { serverId, name, x, y, dir } = payload;
+  async handlePlayerHello(client: Socket, payload: PlayerHelloPayload) {
+    const { serverId, name, dir, appearance } = payload;
+    let { x, y } = payload;
     const userId = client.data.userId as string;
+
+    const isMember = await this.members.isMember(serverId, userId);
+    if (!isMember) {
+      client.emit('player:error', { code: 'forbidden', message: 'Not a member of this server' });
+      return;
+    }
 
     client.join(`server:${serverId}`);
     client.data.serverId = serverId;
     client.data.name = name;
 
+    const saved = await this.members.getLastPosition(serverId, userId).catch(() => null);
+    if (saved) {
+      x = saved.x;
+      y = saved.y;
+    }
+
     if (!this.rooms.has(serverId)) this.rooms.set(serverId, new Map());
     const room = this.rooms.get(serverId)!;
 
-    const me: PlayerState = { userId, name, x, y, dir };
+    const me: PlayerState = { userId, name, x, y, dir, appearance };
     const snapshot: PlayerSnapshotPayload = {
       you: me,
       others: Array.from(room.values()).filter((p) => p.userId !== userId),
@@ -86,13 +108,6 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     room.set(userId, me);
     client.to(`server:${serverId}`).emit('player:joined', me);
-    this.plugins.emitEvent(serverId, 'player:joined', me);
-
-    // Send world objects snapshot to the newcomer so objects spawned before they joined are visible
-    const worldObjects = this.plugins.getWorldObjects(serverId);
-    if (worldObjects.length) {
-      client.emit('world:object:snapshot', { objects: worldObjects });
-    }
 
     // Send current voice presence snapshot to the newcomer
     const vp = this.voicePresence.get(serverId);
@@ -118,10 +133,35 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const room = this.rooms.get(serverId);
     if (room?.has(userId)) {
       const prev = room.get(userId)!;
-      room.set(userId, { ...prev, x: payload.x, y: payload.y, dir: payload.dir });
+      room.set(userId, {
+        ...prev,
+        x: payload.x,
+        y: payload.y,
+        dir: payload.dir,
+        pose: payload.pose,
+      });
     }
 
     client.volatile.to(`server:${serverId}`).emit('player:moved', payload);
+  }
+
+  @SubscribeMessage('player:appearance')
+  handlePlayerAppearance(
+    client: Socket,
+    payload: { appearance: PlayerAppearancePayload['appearance'] },
+  ) {
+    const serverId = client.data.serverId as string | undefined;
+    const userId = client.data.userId as string | undefined;
+    if (!serverId || !userId) return;
+
+    const room = this.rooms.get(serverId);
+    const prev = room?.get(userId);
+    if (room && prev) {
+      room.set(userId, { ...prev, appearance: payload.appearance });
+    }
+
+    const out: PlayerAppearancePayload = { userId, appearance: payload.appearance };
+    client.to(`server:${serverId}`).emit('player:appearance', out);
   }
 
   @SubscribeMessage('voice:join')
@@ -137,18 +177,12 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const prevChannel = vp.get(userId);
     if (prevChannel && prevChannel !== payload.channelId) {
       this.server.to(`server:${serverId}`).emit('voice:left', { userId, channelId: prevChannel });
-      this.plugins.emitEvent(serverId, 'voice:left', { userId, channelId: prevChannel });
     }
 
     vp.set(userId, payload.channelId);
     this.server
       .to(`server:${serverId}`)
       .emit('voice:joined', { userId, name, channelId: payload.channelId });
-    this.plugins.emitEvent(serverId, 'voice:joined', {
-      userId,
-      name,
-      channelId: payload.channelId,
-    });
   }
 
   @SubscribeMessage('voice:leave')
@@ -163,19 +197,27 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     vp.delete(userId);
     this.server.to(`server:${serverId}`).emit('voice:left', { userId, channelId });
-    this.plugins.emitEvent(serverId, 'voice:left', { userId, channelId });
   }
 
-  @SubscribeMessage('world:object:click')
-  handleWorldObjectClick(client: Socket, payload: { objectId: string }) {
-    const serverId = client.data.serverId as string | undefined;
+  @SubscribeMessage('dm:typing')
+  handleDmTyping(client: Socket, payload: { conversationId: string; toUserId: string }) {
     const userId = client.data.userId as string | undefined;
-    if (!serverId || !userId) return;
+    if (!userId || !payload?.toUserId || !payload?.conversationId) return;
+    this.server
+      .to(`user:${payload.toUserId}`)
+      .emit('dm:typing', { conversationId: payload.conversationId, fromUserId: userId });
+  }
 
-    this.plugins.handleWorldObjectClick(serverId, payload.objectId, userId);
+  @SubscribeMessage('client:ping')
+  handleClientPing() {
+    return { t: Date.now() };
   }
 
   emitToServer(serverId: string, event: string, payload: unknown) {
     this.server.to(`server:${serverId}`).emit(event, payload);
+  }
+
+  emitToUser(userId: string, event: string, payload: unknown) {
+    this.server.to(`user:${userId}`).emit(event, payload);
   }
 }

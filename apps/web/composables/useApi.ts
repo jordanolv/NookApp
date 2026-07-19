@@ -44,9 +44,18 @@ export function useApi() {
     });
   }
 
+  function postForm<T>(path: string, body: FormData, opts?: Parameters<typeof $fetch>[1]) {
+    return $fetch<T>(`${apiBase}${path}`, {
+      method: 'POST',
+      body,
+      credentials: 'include',
+      ...opts,
+    });
+  }
+
   function del(path: string, opts?: Parameters<typeof $fetch>[1]) {
     return $fetch(`${apiBase}${path}`, { method: 'DELETE', credentials: 'include', ...opts });
   }
 
-  return { get, post, patch, put, del };
+  return { get, post, postForm, patch, put, del };
 }

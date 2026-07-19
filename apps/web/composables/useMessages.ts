@@ -1,4 +1,4 @@
-import type { CreateMessageInput, MessagePublic } from '@nookapp/protocol';
+import type { CreateMessageInput, MessagePublic, UpdateMessageInput } from '@nookapp/protocol';
 import { useMessagesStore } from '~/stores/messages';
 
 export function useMessages() {
@@ -19,6 +19,12 @@ export function useMessages() {
     }
   }
 
+  async function fetchMessageCounts(serverId: string) {
+    const counts = await api.get<Record<string, number>>(`/servers/${serverId}/message-counts`);
+    store.setCounts(counts);
+    return counts;
+  }
+
   async function sendMessage(
     serverId: string,
     channelId: string,
@@ -30,5 +36,32 @@ export function useMessages() {
     );
   }
 
-  return { store, fetchMessages, sendMessage };
+  async function editMessage(
+    serverId: string,
+    channelId: string,
+    messageId: string,
+    input: UpdateMessageInput,
+  ): Promise<MessagePublic> {
+    return api.patch<MessagePublic>(
+      `/servers/${serverId}/channels/${channelId}/messages/${messageId}`,
+      input as unknown as Record<string, unknown>,
+    );
+  }
+
+  async function deleteMessage(
+    serverId: string,
+    channelId: string,
+    messageId: string,
+  ): Promise<void> {
+    await api.del(`/servers/${serverId}/channels/${channelId}/messages/${messageId}`);
+  }
+
+  return {
+    store,
+    fetchMessages,
+    fetchMessageCounts,
+    sendMessage,
+    editMessage,
+    deleteMessage,
+  };
 }
