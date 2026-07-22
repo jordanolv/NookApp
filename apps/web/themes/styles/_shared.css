@@ -41,8 +41,8 @@
 
   --ink: #1d2a23;
   --ink-soft: #2d3d33;
-  --ink-muted: rgba(29, 42, 35, 0.55);
-  --ink-faint: rgba(29, 42, 35, 0.35);
+  --ink-muted: rgba(29, 42, 35, 0.7);
+  --ink-faint: rgba(29, 42, 35, 0.68);
   --ink-inverse: #ffffff;
 
   --shadow-soft: 0 8px 28px rgba(20, 35, 25, 0.18), 0 2px 6px rgba(20, 35, 25, 0.08);
