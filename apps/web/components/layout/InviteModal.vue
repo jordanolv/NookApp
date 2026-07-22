@@ -19,7 +19,9 @@ defineEmits<{
       <div class="modal" role="dialog" aria-modal="true" aria-label="Inviter des membres">
         <header class="modal__head">
           <h2>Invite people to {{ serverName }}</h2>
-          <button class="modal__close" @click="$emit('close')">✕</button>
+          <button class="modal__close" :aria-label="$t('a11y.close')" @click="$emit('close')">
+            ✕
+          </button>
         </header>
 
         <div v-if="loading" class="modal__loading">

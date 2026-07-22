@@ -65,7 +65,7 @@ const features = computed(() => [
     <section class="landing__features" :aria-label="t('home.tagline')">
       <article v-for="f in features" :key="f.key" class="feature" :data-accent="f.accent">
         <div class="feature__icon">{{ f.emoji }}</div>
-        <h3 class="feature__title">{{ f.title }}</h3>
+        <h2 class="feature__title">{{ f.title }}</h2>
         <p class="feature__body">{{ f.body }}</p>
       </article>
     </section>

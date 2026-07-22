@@ -439,5 +439,9 @@
       "sit": "Press E to sit",
       "stand": "Press E to stand"
     }
+  },
+  "a11y": {
+    "close": "Close",
+    "clearImage": "Remove image"
   }
 }

@@ -439,5 +439,9 @@
       "sit": "Appuyer sur E pour s'asseoir",
       "stand": "Appuyer sur E pour se lever"
     }
+  },
+  "a11y": {
+    "close": "Fermer",
+    "clearImage": "Retirer l'image"
   }
 }

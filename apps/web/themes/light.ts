@@ -30,8 +30,8 @@ export const lightTheme: ThemeDefinition = {
     // Ink
     ink: '#1d2a23',
     inkSoft: '#2d3d33',
-    inkMuted: 'rgba(29, 42, 35, 0.55)',
-    inkFaint: 'rgba(29, 42, 35, 0.35)',
+    inkMuted: 'rgba(29, 42, 35, 0.70)',
+    inkFaint: 'rgba(29, 42, 35, 0.68)',
     inkInverse: '#ffffff',
 
     // Shadows
