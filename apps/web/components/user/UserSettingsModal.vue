@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { UserCircle, PersonStanding, Mic, Palette, RotateCcw, Languages } from 'lucide-vue-next';
+import {
+  UserCircle,
+  PersonStanding,
+  Mic,
+  Palette,
+  RotateCcw,
+  Languages,
+  LogOut,
+} from 'lucide-vue-next';
 import type { Component } from 'vue';
 import {
   CG_LAYER_ORDER,
@@ -14,7 +22,12 @@ import { THEME_LIST } from '~/themes';
 import type { OwnedServerSummary } from '@nookapp/protocol';
 
 const emit = defineEmits<{ close: [] }>();
-const { user, refreshUser } = useAuth();
+const { user, refreshUser, signOut } = useAuth();
+
+async function onSignOut() {
+  emit('close');
+  await signOut();
+}
 const authStore = useAuthStore();
 const api = useApi();
 const { authBase } = useRuntimeConfig().public;
@@ -237,6 +250,19 @@ async function deleteAccount() {
         >
           <component :is="tab.icon" class="h-4 w-4 shrink-0" :stroke-width="1.75" />
           <span class="truncate">{{ t(tab.labelKey) }}</span>
+        </button>
+
+        <button
+          class="mt-auto flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm transition-colors"
+          style="color: var(--danger, #ef4444)"
+          @click="onSignOut"
+          @mouseenter="
+            ($event.currentTarget as HTMLElement).style.background = 'var(--surface-tinted)'
+          "
+          @mouseleave="($event.currentTarget as HTMLElement).style.background = 'transparent'"
+        >
+          <LogOut class="h-4 w-4 shrink-0" :stroke-width="1.75" />
+          <span class="truncate">{{ t('nooks.signOut') }}</span>
         </button>
       </nav>
 
