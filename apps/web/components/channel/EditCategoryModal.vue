@@ -222,6 +222,7 @@ async function remove() {
                 v-if="iconDisplaySrc"
                 class="absolute top-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded-full text-xs"
                 style="background: rgba(20, 35, 25, 0.55); color: var(--ink-soft)"
+                aria-label="Retirer l'image"
                 @click.stop="clearIcon"
               >
                 ×
@@ -263,6 +264,7 @@ async function remove() {
                 v-if="bannerDisplaySrc"
                 class="absolute top-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded-full text-xs"
                 style="background: rgba(20, 35, 25, 0.55); color: var(--ink-soft)"
+                aria-label="Retirer l'image"
                 @click.stop="clearBanner"
               >
                 ×
