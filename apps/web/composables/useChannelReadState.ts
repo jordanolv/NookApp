@@ -55,7 +55,9 @@ export function useChannelReadState() {
       }
       return n;
     }
-    return isUnread(channelId, lastMessageCreatedAt) ? 1 : 0;
+    return isUnread(channelId, lastMessageCreatedAt ?? messagesStore.lastMessageAt[channelId])
+      ? 1
+      : 0;
   }
 
   return { lastSeen, markRead, isUnread, unreadCount };
