@@ -175,6 +175,9 @@ onMounted(() => {
   teardownVoiceListeners = voice.setupListeners();
   teardownMessageCounter = socket.onMessage((msg) => {
     messagesStore.incrementCount(msg.channelId);
+    if (msg.authorId !== user.value?.id && !chatTabs.activeChannelIds.value.has(msg.channelId)) {
+      messagesStore.bumpUnread(msg.channelId);
+    }
   });
   teardownDmRealtime = dmRealtime.setup();
 });

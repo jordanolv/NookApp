@@ -5,6 +5,7 @@ interface MessagesState {
   byChannel: Record<string, MessagePublic[]>;
   loadingChannels: Record<string, boolean>;
   counts: Record<string, number>;
+  unread: Record<string, number>;
 }
 
 export const useMessagesStore = defineStore('messages', {
@@ -12,6 +13,7 @@ export const useMessagesStore = defineStore('messages', {
     byChannel: {},
     loadingChannels: {},
     counts: {},
+    unread: {},
   }),
   getters: {
     forChannel: (s) => (channelId: string) => s.byChannel[channelId] ?? [],
@@ -24,6 +26,14 @@ export const useMessagesStore = defineStore('messages', {
     appendMessage(channelId: string, message: MessagePublic) {
       if (!this.byChannel[channelId]) this.byChannel[channelId] = [];
       this.byChannel[channelId].push(message);
+    },
+    // Per-channel unread counter, driven by realtime messages arriving in a
+    // channel that isn't currently open. Reset when the channel is read.
+    bumpUnread(channelId: string) {
+      this.unread[channelId] = (this.unread[channelId] ?? 0) + 1;
+    },
+    clearUnread(channelId: string) {
+      this.unread[channelId] = 0;
     },
     updateMessage(channelId: string, message: MessagePublic) {
       const list = this.byChannel[channelId];

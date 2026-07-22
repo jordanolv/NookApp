@@ -24,12 +24,9 @@ const data = inject(CHANNEL_CARD_DATA);
 if (!data) throw new Error('ChannelCard must be used inside a provider of CHANNEL_CARD_DATA');
 
 const readState = useChannelReadState();
-const lastMessage = computed(() => data.lastMessageOf(props.channel.id));
 const stat = computed(() => data.statOf(props.channel));
 const isForumHeader = computed(() => props.channel.type === 'forum' && !props.isChild);
-const unread = computed(() =>
-  readState.unreadCount(props.channel.id, lastMessage.value?.createdAt),
-);
+const unread = computed(() => readState.unreadCount(props.channel.id));
 const unreadLabel = computed(() => (unread.value > 99 ? '99+' : String(unread.value)));
 const accent = computed(() => data.accent(props.channel));
 const cardVars = computed(() => ({ '--accent': `rgba(${accent.value}, 1)` }));
