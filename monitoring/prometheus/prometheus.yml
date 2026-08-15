@@ -1,0 +1,53 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Metriques applicatives NestJS (port interne, jamais route par Traefik).
+  # Cibles par nom de conteneur : l'alias "api" serait ambigu puisque
+  # Prometheus est attache aux reseaux staging ET prod.
+  - job_name: nookapp-api
+    static_configs:
+      - targets: ['nookapp-staging-api-1:9464']
+        labels:
+          env: staging
+      - targets: ['nookapp-prod-api-1:9464']
+        labels:
+          env: prod
+
+  - job_name: node
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  - job_name: postgres
+    static_configs:
+      - targets: ['postgres-exporter-staging:9187']
+        labels:
+          env: staging
+      - targets: ['postgres-exporter-prod:9187']
+        labels:
+          env: prod
+
+  # Sondes de disponibilite externes : on verifie ce que voient les
+  # utilisateurs (TLS + Traefik + healthcheck applicatif), pas l'interne.
+  - job_name: blackbox-http
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://dev.nookapp.eu/api/v1/health
+          - https://nookapp.eu/api/v1/health
+          - https://dev.nookapp.eu
+          - https://nookapp.eu
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
