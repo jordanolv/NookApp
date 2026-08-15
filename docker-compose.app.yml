@@ -149,16 +149,11 @@ services:
   livekit:
     image: livekit/livekit-server:latest
     restart: unless-stopped
-    command:
-      - --bind=0.0.0.0
-      - --node-ip=${LIVEKIT_NODE_IP}
-    environment:
-      LIVEKIT_KEYS: '${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}'
-      LIVEKIT_PORT: '7880'
-      LIVEKIT_RTC_TCP_PORT: '7881'
-      LIVEKIT_RTC_PORT_RANGE_START: '7882'
-      LIVEKIT_RTC_PORT_RANGE_END: '7882'
-      LIVEKIT_RTC_USE_EXTERNAL_IP: 'true'
+    # Config par fichier : les flags env changent entre versions de l'image,
+    # le yaml monte par stack est la forme stable deployee sur le VPS.
+    command: --config /etc/livekit.yaml
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
     expose:
       - '7880'
     ports:
