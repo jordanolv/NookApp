@@ -50,6 +50,9 @@ services:
       LIVEKIT_URL: wss://${DOMAIN}/livekit
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
+      DISCORD_REDIRECT_URI: https://${DOMAIN}/api/auth/callback/discord
       MAIL_DRIVER: ${MAIL_DRIVER:-mailpit}
       MAIL_FROM: ${MAIL_FROM}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
@@ -81,6 +84,8 @@ services:
       - traefik.http.routers.${STACK_NAME}-api.entrypoints=websecure
       - traefik.http.routers.${STACK_NAME}-api.tls.certresolver=letsencrypt
       - traefik.http.routers.${STACK_NAME}-api.priority=10
+      # Deux services sur ce conteneur : le routeur api doit designer le sien.
+      - traefik.http.routers.${STACK_NAME}-api.service=${STACK_NAME}-api
       - traefik.http.services.${STACK_NAME}-api.loadbalancer.server.port=4000
       # WebSocket Hocuspocus (/collab)
       - traefik.http.middlewares.${STACK_NAME}-collab-strip.stripprefix.prefixes=/collab
