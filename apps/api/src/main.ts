@@ -14,6 +14,7 @@ import { AppModule } from './app.module';
 import { SentryExceptionFilter } from './common/sentry-exception.filter';
 import { AUTH, type AuthInstance } from './auth/auth.types';
 import { CollaborationService } from './collaboration/collaboration.service';
+import { MetricsService, normalizeRoute } from './metrics/metrics.service';
 import { scopeDir, STORAGE_SCOPES, UPLOADS_ROOT, UPLOADS_URL_PREFIX } from './common/storage';
 
 async function bootstrap() {
@@ -51,6 +52,19 @@ async function bootstrap() {
     next();
   });
 
+  const metrics = app.get(MetricsService);
+  httpAdapter.use((req: Request, res: Response, next: NextFunction) => {
+    const end = metrics.httpRequestDuration.startTimer();
+    res.on('finish', () => {
+      end({
+        method: req.method,
+        route: normalizeRoute(req.path),
+        status_code: String(res.statusCode),
+      });
+    });
+    next();
+  });
+
   httpAdapter.all('/api/auth/*', toNodeHandler(auth));
 
   const { json, urlencoded } = await import('express');
@@ -75,6 +89,8 @@ async function bootstrap() {
 
   const collab = app.get(CollaborationService);
   await collab.listen();
+
+  metrics.listen();
 }
 
 void bootstrap();

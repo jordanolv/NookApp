@@ -11,6 +11,7 @@ import { HealthModule } from './health/health.module';
 import { MailerModule } from './mailer/mailer.module';
 import { MapsModule } from './maps/maps.module';
 import { MembersModule } from './members/members.module';
+import { MetricsModule } from './metrics/metrics.module';
 import { MessagesModule } from './messages/messages.module';
 import { DmsModule } from './dms/dms.module';
 import { RealtimeModule } from './realtime/realtime.module';
@@ -34,6 +35,7 @@ import { StorageModule } from './common/storage';
     MailerModule,
     AuthModule,
     HealthModule,
+    MetricsModule,
     UsersModule,
     ServersModule,
     ChannelsModule,

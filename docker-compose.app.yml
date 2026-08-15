@@ -42,6 +42,7 @@ services:
       NODE_ENV: production
       API_PORT: 4000
       COLLAB_PORT: 4234
+      METRICS_PORT: 9464
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
@@ -49,6 +50,9 @@ services:
       LIVEKIT_URL: wss://${DOMAIN}/livekit
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET}
+      DISCORD_REDIRECT_URI: https://${DOMAIN}/api/auth/callback/discord
       MAIL_DRIVER: ${MAIL_DRIVER:-mailpit}
       MAIL_FROM: ${MAIL_FROM}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
@@ -62,6 +66,8 @@ services:
     expose:
       - '4000'
       - '4234'
+      # Metriques Prometheus : port interne, aucun label Traefik ne le route.
+      - '9464'
     volumes:
       - api-uploads:/app/uploads
     depends_on:
@@ -78,6 +84,8 @@ services:
       - traefik.http.routers.${STACK_NAME}-api.entrypoints=websecure
       - traefik.http.routers.${STACK_NAME}-api.tls.certresolver=letsencrypt
       - traefik.http.routers.${STACK_NAME}-api.priority=10
+      # Deux services sur ce conteneur : le routeur api doit designer le sien.
+      - traefik.http.routers.${STACK_NAME}-api.service=${STACK_NAME}-api
       - traefik.http.services.${STACK_NAME}-api.loadbalancer.server.port=4000
       # WebSocket Hocuspocus (/collab)
       - traefik.http.middlewares.${STACK_NAME}-collab-strip.stripprefix.prefixes=/collab
@@ -141,16 +149,11 @@ services:
   livekit:
     image: livekit/livekit-server:latest
     restart: unless-stopped
-    command:
-      - --bind=0.0.0.0
-      - --node-ip=${LIVEKIT_NODE_IP}
-    environment:
-      LIVEKIT_KEYS: '${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}'
-      LIVEKIT_PORT: '7880'
-      LIVEKIT_RTC_TCP_PORT: '7881'
-      LIVEKIT_RTC_PORT_RANGE_START: '7882'
-      LIVEKIT_RTC_PORT_RANGE_END: '7882'
-      LIVEKIT_RTC_USE_EXTERNAL_IP: 'true'
+    # Config par fichier : les flags env changent entre versions de l'image,
+    # le yaml monte par stack est la forme stable deployee sur le VPS.
+    command: --config /etc/livekit.yaml
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
     expose:
       - '7880'
     ports:
