@@ -32,7 +32,7 @@ export const pixelQuestTheme: ThemeDefinition = {
     ink: '#f4e4c1',
     inkSoft: '#e0c995',
     inkMuted: 'rgba(244, 228, 193, 0.65)',
-    inkFaint: 'rgba(244, 228, 193, 0.4)',
+    inkFaint: 'rgba(244, 228, 193, 0.53)',
     inkInverse: '#0d0805',
 
     // Shadows — hard block offsets, no blur (signature pixel look)

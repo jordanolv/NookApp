@@ -31,7 +31,7 @@ export const darkTheme: ThemeDefinition = {
     ink: '#f3eee2',
     inkSoft: '#e0d9c6',
     inkMuted: 'rgba(243, 238, 226, 0.6)',
-    inkFaint: 'rgba(243, 238, 226, 0.35)',
+    inkFaint: 'rgba(243, 238, 226, 0.50)',
     inkInverse: '#1d2a23',
 
     // Shadows

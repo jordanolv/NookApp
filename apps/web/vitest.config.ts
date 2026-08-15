@@ -11,5 +11,10 @@ export default defineConfig({
   test: {
     include: ['test/**/*.spec.ts'],
     environment: 'happy-dom',
+    coverage: {
+      provider: 'v8',
+      // Scoped to the layers that carry logic; components stay out of the denominator.
+      include: ['composables/**', 'stores/**', 'utils/**'],
+    },
   },
 });

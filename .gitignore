@@ -62,7 +62,6 @@ coverage/
 
 # Documents de reference de l examen (non versionnes)
 *.pdf
-!docs/bloc2/NookApp-Bloc2.pdf
 
 # Captures de travail (le PDF genere les embarque)
 captures/

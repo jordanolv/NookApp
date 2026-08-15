@@ -5,6 +5,7 @@ interface MessagesState {
   byChannel: Record<string, MessagePublic[]>;
   loadingChannels: Record<string, boolean>;
   counts: Record<string, number>;
+  lastMessageAt: Record<string, string>;
 }
 
 export const useMessagesStore = defineStore('messages', {
@@ -12,6 +13,7 @@ export const useMessagesStore = defineStore('messages', {
     byChannel: {},
     loadingChannels: {},
     counts: {},
+    lastMessageAt: {},
   }),
   getters: {
     forChannel: (s) => (channelId: string) => s.byChannel[channelId] ?? [],
@@ -45,6 +47,12 @@ export const useMessagesStore = defineStore('messages', {
     },
     setCounts(counts: Record<string, number>) {
       this.counts = { ...counts };
+    },
+    noteLastMessage(channelId: string, createdAt: string) {
+      const prev = this.lastMessageAt[channelId];
+      if (!prev || new Date(createdAt).getTime() > new Date(prev).getTime()) {
+        this.lastMessageAt[channelId] = createdAt;
+      }
     },
     incrementCount(channelId: string) {
       this.counts[channelId] = (this.counts[channelId] ?? 0) + 1;

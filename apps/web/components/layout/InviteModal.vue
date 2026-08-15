@@ -32,7 +32,7 @@ useDialogA11y(toRef(props, 'open'), panel, () => emit('close'));
       >
         <header class="modal__head">
           <h2>Invite people to {{ serverName }}</h2>
-          <button class="modal__close" @click="$emit('close')">✕</button>
+          <button class="modal__close" aria-label="Fermer" @click="$emit('close')">✕</button>
         </header>
 
         <div v-if="loading" class="modal__loading">
