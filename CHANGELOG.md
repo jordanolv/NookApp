@@ -8,6 +8,18 @@ projet applique le [versionnage sémantique](https://semver.org/lang/fr/).
 `release-please` à partir des Conventional Commits (voir
 `.github/workflows/release-please.yml`).
 
+## [1.2.0](https://github.com/jordanolv/NookApp/compare/v1.1.0...v1.2.0) (2026-08-15)
+
+
+### Fonctionnalités
+
+* **monitoring:** prometheus, grafana, loki and discord alerts ([#80](https://github.com/jordanolv/NookApp/issues/80)) ([27165a1](https://github.com/jordanolv/NookApp/commit/27165a12f6a7b76cdca824872cde6c80eb8543d7))
+
+
+### Corrections
+
+* **deploy:** mount livekit config file instead of env flags ([#82](https://github.com/jordanolv/NookApp/issues/82)) ([1399139](https://github.com/jordanolv/NookApp/commit/1399139907633dfd055250a922060cccf8af5d3a))
+
 ## [1.1.0](https://github.com/jordanolv/NookApp/compare/v1.0.0...v1.1.0) (2026-08-15)
 
 
