@@ -23,7 +23,7 @@ export class MetricsService implements OnModuleDestroy {
     collectDefaultMetrics({ register: this.registry });
   }
 
-  listen() {
+  listen(): Server {
     const port = Number(process.env.METRICS_PORT ?? 9464);
     this.server = createServer((req, res) => {
       if (req.url !== '/metrics') {
@@ -43,6 +43,7 @@ export class MetricsService implements OnModuleDestroy {
         });
     });
     this.server.listen(port, () => this.logger.log(`metrics exposed on :${port}/metrics`));
+    return this.server;
   }
 
   onModuleDestroy() {

@@ -24,6 +24,38 @@ describe('MetricsService', () => {
   });
 });
 
+describe('MetricsService http server', () => {
+  let service: MetricsService;
+  let baseUrl: string;
+
+  beforeAll(async () => {
+    process.env.METRICS_PORT = '0';
+    service = new MetricsService();
+    const server = service.listen();
+    await new Promise((resolve) => server.once('listening', resolve));
+    const address = server.address();
+    if (typeof address === 'string' || address === null) throw new Error('no port');
+    baseUrl = `http://127.0.0.1:${address.port}`;
+  });
+
+  afterAll(() => {
+    service.onModuleDestroy();
+    delete process.env.METRICS_PORT;
+  });
+
+  it('serves the prometheus exposition on /metrics', async () => {
+    const res = await fetch(`${baseUrl}/metrics`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/plain');
+    expect(await res.text()).toContain('process_cpu_user_seconds_total');
+  });
+
+  it('returns 404 on any other path', async () => {
+    const res = await fetch(`${baseUrl}/anything`);
+    expect(res.status).toBe(404);
+  });
+});
+
 describe('normalizeRoute', () => {
   it('replaces numeric and long id segments', () => {
     expect(normalizeRoute('/api/v1/servers/42/channels')).toBe('/api/v1/servers/:id/channels');
