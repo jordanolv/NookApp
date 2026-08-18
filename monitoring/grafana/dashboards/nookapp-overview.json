@@ -86,7 +86,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (env) (rate(http_request_duration_seconds_count{status_code=~\"5..\"}[5m])) / sum by (env) (rate(http_request_duration_seconds_count[5m]))",
+          "expr": "(sum by (env) (rate(http_request_duration_seconds_count{status_code=~\"5..\"}[5m])) or sum by (env) (rate(http_request_duration_seconds_count[5m])) * 0) / sum by (env) (rate(http_request_duration_seconds_count[5m]))",
           "legendFormat": "5xx {{env}}"
         }
       ],
@@ -95,11 +95,15 @@
     {
       "id": 5,
       "type": "timeseries",
-      "title": "Event loop lag p95 (Node.js)",
+      "title": "Event loop lag p99 (Node.js)",
       "gridPos": { "x": 8, "y": 6, "w": 8, "h": 6 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
-        { "refId": "A", "expr": "nodejs_eventloop_lag_p95_seconds", "legendFormat": "lag p95" }
+        {
+          "refId": "A",
+          "expr": "nodejs_eventloop_lag_p99_seconds",
+          "legendFormat": "lag p99 {{env}}"
+        }
       ],
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] }
     },
@@ -165,10 +169,10 @@
     {
       "id": 10,
       "type": "logs",
-      "title": "Logs API (staging + prod)",
+      "title": "Logs applicatifs (staging + prod)",
       "gridPos": { "x": 0, "y": 18, "w": 24, "h": 9 },
       "datasource": { "type": "loki", "uid": "loki" },
-      "targets": [{ "refId": "A", "expr": "{service=\"api\"}" }],
+      "targets": [{ "refId": "A", "expr": "{stack=~\"nookapp-(staging|prod)\"}" }],
       "options": { "showTime": true, "wrapLogMessage": true, "sortOrder": "Descending" }
     }
   ]
