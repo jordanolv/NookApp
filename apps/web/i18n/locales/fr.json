@@ -447,5 +447,31 @@
   },
   "chat": {
     "messagesLabel": "Messages du salon"
+  },
+  "onboarding": {
+    "ariaLabel": "Bienvenue sur NookApp",
+    "skip": "Passer",
+    "next": "Suivant",
+    "back": "Retour",
+    "welcome": {
+      "title": "Bienvenue sur NookApp ! 🎉",
+      "body": "Ton bureau virtuel en pixel art : déplace-toi, discute et retrouve ton équipe dans un monde 2D. Petit tour rapide ?"
+    },
+    "move": {
+      "keys": "ZQSD",
+      "title": "Déplace-toi librement",
+      "body": "Utilise les touches ZQSD (ou WASD) ou les flèches pour te déplacer dans le monde. Approche-toi des autres pour interagir."
+    },
+    "chat": {
+      "title": "Discute en texte et en vocal",
+      "body": "Chaque Nook a ses salons texte 💬 et ses zones vocales 🎙️. Entre dans une pièce pour rejoindre automatiquement sa conversation vocale."
+    },
+    "start": {
+      "title": "C'est parti !",
+      "body": "Crée ton premier Nook et invite ton équipe, ou rejoins un Nook existant avec un lien d'invitation.",
+      "create": "Créer mon premier Nook",
+      "codePlaceholder": "Code ou lien d'invitation",
+      "join": "Rejoindre"
+    }
   }
 }
