@@ -371,7 +371,8 @@
       "bannedTitle": "Banned · {count}",
       "unban": "Unban",
       "noBans": "No banned users",
-      "bannedBy": "Banned"
+      "bannedBy": "Banned",
+      "effectivePermissions": "Effective permissions ({granted}/{total})"
     },
     "roles": {
       "loading": "Loading…",
@@ -424,6 +425,10 @@
     "ManageMembers": {
       "label": "Manage members",
       "description": "Kick members from the server."
+    },
+    "ManagePlugins": {
+      "label": "Manage plugins",
+      "description": "Enable, disable and configure plugins."
     },
     "ManageMap": {
       "label": "Edit map",

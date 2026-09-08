@@ -371,7 +371,8 @@
       "bannedTitle": "Bannis · {count}",
       "unban": "Débannir",
       "noBans": "Aucun membre banni",
-      "bannedBy": "Banni"
+      "bannedBy": "Banni",
+      "effectivePermissions": "Permissions effectives ({granted}/{total})"
     },
     "roles": {
       "loading": "Chargement…",
@@ -424,6 +425,10 @@
     "ManageMembers": {
       "label": "Gérer les membres",
       "description": "Expulser des membres du serveur."
+    },
+    "ManagePlugins": {
+      "label": "Gérer les plugins",
+      "description": "Activer, désactiver et configurer les plugins."
     },
     "ManageMap": {
       "label": "Modifier la carte",

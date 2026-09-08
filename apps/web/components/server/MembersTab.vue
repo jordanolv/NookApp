@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import type { MemberPublic, RolePublic, ServerBan } from '@nookapp/protocol';
+import {
+  ALL_PERMISSIONS,
+  combinePermissions,
+  hasPermission,
+  PERMISSION_KEYS,
+  PERMISSIONS,
+  type MemberPublic,
+  type RolePublic,
+  type ServerBan,
+} from '@nookapp/protocol';
 import { useRoles } from '~/composables/useRoles';
 
 const props = defineProps<{ serverId: string }>();
@@ -74,6 +83,21 @@ const rolesById = computed(() => {
   for (const r of roles.value) m.set(r.id, r);
   return m;
 });
+
+const everyonePermissions = computed(() => roles.value.find((r) => r.isEveryone)?.permissions ?? 0);
+
+function effectivePermissions(m: MemberPublic): number {
+  if (m.isOwner) return ALL_PERMISSIONS;
+  return combinePermissions(
+    everyonePermissions.value,
+    ...m.roleIds.map((id) => rolesById.value.get(id)?.permissions ?? 0),
+  );
+}
+
+function grantedCount(m: MemberPublic): number {
+  const bits = effectivePermissions(m);
+  return PERMISSION_KEYS.filter((k) => hasPermission(bits, PERMISSIONS[k])).length;
+}
 
 async function refresh() {
   loading.value = true;
@@ -209,6 +233,41 @@ onMounted(refresh);
                   {{ r.name }}
                 </button>
               </div>
+            </details>
+
+            <details class="mt-1">
+              <summary
+                class="text-xs text-ink-muted hover:text-ink cursor-pointer select-none list-none"
+              >
+                {{
+                  t('serverSettings.members.effectivePermissions', {
+                    granted: grantedCount(m),
+                    total: PERMISSION_KEYS.length,
+                  })
+                }}
+              </summary>
+              <ul class="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
+                <li
+                  v-for="key in PERMISSION_KEYS"
+                  :key="key"
+                  class="flex items-center gap-1.5 text-[11px]"
+                  :class="
+                    hasPermission(effectivePermissions(m), PERMISSIONS[key])
+                      ? 'text-ink'
+                      : 'text-ink-muted line-through opacity-60'
+                  "
+                >
+                  <span
+                    class="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    :class="
+                      hasPermission(effectivePermissions(m), PERMISSIONS[key])
+                        ? 'bg-emerald-400'
+                        : 'bg-surface-border'
+                    "
+                  />
+                  {{ t(`permissions.${key}.label`) }}
+                </li>
+              </ul>
             </details>
 
             <div v-if="canModerate(m)" class="mt-2 flex gap-2">
