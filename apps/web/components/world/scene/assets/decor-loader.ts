@@ -1,6 +1,7 @@
-import Phaser from 'phaser';
+import type Phaser from 'phaser';
 import { getDecorAsset } from '../decor-catalog';
 import { decorCellTextureKey } from '../decor-renderer';
+import { flushLoader } from './loader-flush';
 
 // The decor catalog is huge (6k+ assets). Instead of preloading every texture
 // at boot we load on demand: the textures a map actually uses, plus whatever
@@ -24,12 +25,6 @@ export class DecorTextureLoader {
       }
     }
 
-    const queuedSomething = this.scene.load.list.size > before;
-    if (!queuedSomething && !this.scene.load.isLoading()) {
-      onLoaded?.();
-      return;
-    }
-    if (onLoaded) this.scene.load.once(Phaser.Loader.Events.COMPLETE, onLoaded);
-    if (!this.scene.load.isLoading()) this.scene.load.start();
+    flushLoader(this.scene, before, onLoaded);
   }
 }
