@@ -8,6 +8,29 @@ projet applique le [versionnage sémantique](https://semver.org/lang/fr/).
 `release-please` à partir des Conventional Commits (voir
 `.github/workflows/release-please.yml`).
 
+## [1.3.0](https://github.com/jordanolv/NookApp/compare/v1.2.0...v1.3.0) (2026-09-12)
+
+
+### Fonctionnalités
+
+* **members:** show effective permissions preview per member ([#107](https://github.com/jordanolv/NookApp/issues/107)) ([5a8000f](https://github.com/jordanolv/NookApp/commit/5a8000fb71be5b727a9d32782da82a387886cece))
+* **settings:** add audio and video device selection ([#115](https://github.com/jordanolv/NookApp/issues/115)) ([9fc37cd](https://github.com/jordanolv/NookApp/commit/9fc37cdb3feea73dd7c0c61db92d90e4dbd35f9c))
+* **users:** add first-login onboarding tour ([#108](https://github.com/jordanolv/NookApp/issues/108)) ([c0ea9c7](https://github.com/jordanolv/NookApp/commit/c0ea9c7c79da4f54dfd5baa19964b939bcb70407))
+* **world:** add player emotes with bubble and sprite motion ([#116](https://github.com/jordanolv/NookApp/issues/116)) ([5d8e5ed](https://github.com/jordanolv/NookApp/commit/5d8e5edbaacaba0d7e5370d50a9e61f2d27b6db5))
+
+
+### Corrections
+
+* **auth:** redirect email links to the web app, simplify sign-up ([#112](https://github.com/jordanolv/NookApp/issues/112)) ([c34f609](https://github.com/jordanolv/NookApp/commit/c34f60911ab3145c48f8abcf589b15decaae9589))
+* **channels:** edit voice channels from the sidebar context menu ([#114](https://github.com/jordanolv/NookApp/issues/114)) ([0b53930](https://github.com/jordanolv/NookApp/commit/0b5393037c7bce9280ee1bd289e94627d3ac8035))
+* **monitoring:** fill empty dashboard panels ([#96](https://github.com/jordanolv/NookApp/issues/96)) ([df68724](https://github.com/jordanolv/NookApp/commit/df68724372da8b4990bda79d6bc6698debf1a623))
+* **web:** normalize ssr error payload so error page renders ([#95](https://github.com/jordanolv/NookApp/issues/95)) ([e6644ff](https://github.com/jordanolv/NookApp/commit/e6644ff45f96e8dade4004c712ec511f4cd5d1ac))
+
+
+### Performance
+
+* **world:** lazy-load character sheets and cache game assets ([#113](https://github.com/jordanolv/NookApp/issues/113)) ([b53902c](https://github.com/jordanolv/NookApp/commit/b53902cb517e0db5833cf34d4b0ebbd6b5024190))
+
 ## [1.2.0](https://github.com/jordanolv/NookApp/compare/v1.1.0...v1.2.0) (2026-08-15)
 
 
