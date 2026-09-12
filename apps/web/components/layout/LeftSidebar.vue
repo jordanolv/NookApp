@@ -127,6 +127,7 @@ onBeforeUnmount(() => {
         :can-manage="canManage"
         @select="(ch, e) => emit('select-channel', ch, e)"
         @create-voice="emit('create-channel', { type: 'voice', categoryId: null })"
+        @edit-channel="(id) => emit('edit-channel', id)"
       />
     </div>
 
