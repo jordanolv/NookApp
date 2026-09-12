@@ -119,7 +119,6 @@
       "title": "Inscription — NookApp",
       "heading": "Créer votre compte",
       "alreadyHaveAccount": "Vous avez déjà un compte ?",
-      "displayName": "Nom affiché",
       "username": "Nom d'utilisateur",
       "usernameHint": "3 à 20 caractères : lettres minuscules, chiffres et _",
       "passwordHint": "Au moins 12 caractères",
