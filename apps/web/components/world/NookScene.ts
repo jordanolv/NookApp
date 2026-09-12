@@ -11,6 +11,7 @@ import { MapModel } from './scene/map-model';
 import { WallRenderer, WALL_TEXTURE_KEYS } from './scene/wall-renderer';
 import { preloadWorldAssets } from './scene/assets/preload';
 import { DecorTextureLoader } from './scene/assets/decor-loader';
+import { CharacterTextureLoader } from './scene/character/character-texture-loader';
 import { BuildController } from './scene/build/build-controller';
 import { LocalPlayer } from './scene/player/local-player';
 import { RemotePlayerManager } from './scene/player/remote-players';
@@ -52,6 +53,7 @@ export class NookScene extends Phaser.Scene {
   private wallRenderer!: WallRenderer;
   private decorRenderer!: DecorRenderer;
   private decorLoader!: DecorTextureLoader;
+  private characterLoader!: CharacterTextureLoader;
   private buildOverlay!: BuildOverlay;
   private model: MapModel | null = null;
   private wallCollider?: Phaser.Physics.Arcade.Collider;
@@ -87,7 +89,7 @@ export class NookScene extends Phaser.Scene {
   }
 
   preload() {
-    preloadWorldAssets(this, {
+    preloadWorldAssets(this, this.appearance, {
       onProgress: (value) => this.onLoadProgress?.(value),
       onComplete: () => this.onLoadComplete?.(),
     });
@@ -109,6 +111,7 @@ export class NookScene extends Phaser.Scene {
     this.wallRenderer = new WallRenderer(this);
     this.decorRenderer = new DecorRenderer(this);
     this.decorLoader = new DecorTextureLoader(this);
+    this.characterLoader = new CharacterTextureLoader(this);
     this.collisionRenderer = new CollisionRenderer(this);
     this.buildOverlay = new BuildOverlay(this);
     this.roomZones = new RoomZoneManager(this);
@@ -171,11 +174,13 @@ export class NookScene extends Phaser.Scene {
 
   applyAppearance(next: Appearance) {
     this.appearance = { ...next };
-    this.localPlayer?.setAppearance(next);
+    this.characterLoader.ensure(next, () => this.localPlayer?.setAppearance(next));
   }
 
   setRemoteAppearance(userId: string, appearance: Appearance) {
-    this.remotePlayers?.setAppearance(userId, appearance);
+    this.characterLoader.ensure(appearance, () =>
+      this.remotePlayers?.setAppearance(userId, appearance),
+    );
   }
 
   updateRemotePlayer(payload: PlayerMovedPayload, name: string | null) {
@@ -184,6 +189,11 @@ export class NookScene extends Phaser.Scene {
 
   hasRemotePlayer(userId: string): boolean {
     return this.remotePlayers?.has(userId) ?? false;
+  }
+
+  playEmote(userId: string, motion: 'bounce' | 'wiggle') {
+    if (userId === this.localUserId) this.localPlayer?.sprite.emote(motion);
+    else this.remotePlayers?.playEmote(userId, motion);
   }
 
   removeRemotePlayer(userId: string) {

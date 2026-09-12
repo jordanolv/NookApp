@@ -34,6 +34,13 @@ export function createAuth({ db, mailer, env }: AuthFactoryDeps) {
     trustedOrigins: [env.WEB_URL],
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
+        // Better Auth resolves relative callbackURLs against the API origin, so email links
+        // (verify, change-email) would land on a 404 there. Anchor them to the web app.
+        const cb = ctx.body?.callbackURL ?? (ctx.path === '/sign-up/email' ? '/app' : undefined);
+        if (typeof cb === 'string' && cb.startsWith('/')) {
+          ctx.body.callbackURL = `${env.WEB_URL}${cb}`;
+        }
+
         if (ctx.path !== '/sign-up/email') return;
 
         const parsed = usernameSchema.safeParse(
@@ -47,9 +54,9 @@ export function createAuth({ db, mailer, env }: AuthFactoryDeps) {
         }
         ctx.body.username = parsed.data;
 
-        // A returning user (email already registered) is notified by email; Better Auth then
-        // rejects the duplicate sign-up. Check this BEFORE username uniqueness so re-using the
-        // same username does not short-circuit with a confusing "username taken" error.
+        // Anti-enumeration: a returning user is notified by email and Better Auth answers with the
+        // same generic success as a fresh sign-up (requireEmailVerification). Check this BEFORE
+        // username uniqueness so re-using the same username does not leak via "username taken".
         const email = typeof ctx.body?.email === 'string' ? ctx.body.email.toLowerCase() : null;
         if (email) {
           const [existing] = await db
@@ -135,7 +142,6 @@ export function createAuth({ db, mailer, env }: AuthFactoryDeps) {
     emailVerification: {
       sendOnSignUp: true,
       autoSignInAfterVerification: true,
-      callbackURL: `${env.WEB_URL}/app`,
       sendVerificationEmail: async ({ user, url }) => {
         await mailer.sendVerificationEmail(user.email, {
           name: user.name,

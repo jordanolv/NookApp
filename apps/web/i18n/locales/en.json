@@ -119,7 +119,6 @@
       "title": "Register — NookApp",
       "heading": "Create your account",
       "alreadyHaveAccount": "Already have one?",
-      "displayName": "Display name",
       "username": "Username",
       "usernameHint": "3 to 20 characters: lowercase letters, numbers and _",
       "passwordHint": "At least 12 characters",
@@ -177,7 +176,12 @@
       },
       "audio": {
         "heading": "Audio & video",
-        "description": "Soon — microphone, speaker and camera selection, plus level testing."
+        "description": "Pick the devices used in voice channels.",
+        "microphone": "Microphone",
+        "speaker": "Speaker",
+        "camera": "Camera",
+        "systemDefault": "System default",
+        "micTestHint": "Speak to check that your microphone picks you up."
       },
       "appearance": {
         "heading": "Appearance",
@@ -371,7 +375,8 @@
       "bannedTitle": "Banned · {count}",
       "unban": "Unban",
       "noBans": "No banned users",
-      "bannedBy": "Banned"
+      "bannedBy": "Banned",
+      "effectivePermissions": "Effective permissions ({granted}/{total})"
     },
     "roles": {
       "loading": "Loading…",
@@ -425,6 +430,10 @@
       "label": "Manage members",
       "description": "Kick members from the server."
     },
+    "ManagePlugins": {
+      "label": "Manage plugins",
+      "description": "Enable, disable and configure plugins."
+    },
     "ManageMap": {
       "label": "Edit map",
       "description": "Use the map editing mode."
@@ -442,5 +451,31 @@
   },
   "chat": {
     "messagesLabel": "Channel messages"
+  },
+  "onboarding": {
+    "ariaLabel": "Welcome to NookApp",
+    "skip": "Skip",
+    "next": "Next",
+    "back": "Back",
+    "welcome": {
+      "title": "Welcome to NookApp! 🎉",
+      "body": "Your pixel-art virtual office: move around, chat and meet your team in a 2D world. Quick tour?"
+    },
+    "move": {
+      "keys": "WASD",
+      "title": "Move around freely",
+      "body": "Use WASD (or ZQSD) or the arrow keys to walk around the world. Get close to others to interact."
+    },
+    "chat": {
+      "title": "Chat with text and voice",
+      "body": "Every Nook has text channels 💬 and voice zones 🎙️. Walk into a room to automatically join its voice conversation."
+    },
+    "start": {
+      "title": "Let's go!",
+      "body": "Create your first Nook and invite your team, or join an existing one with an invite link.",
+      "create": "Create my first Nook",
+      "codePlaceholder": "Invite code or link",
+      "join": "Join"
+    }
   }
 }

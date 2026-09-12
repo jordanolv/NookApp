@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, provide, ref } from 'vue';
+import { computed, provide, ref } from 'vue';
 import type { ChannelPublic, CategoryPublic } from '@nookapp/protocol';
 import { ChevronDown, Folder } from 'lucide-vue-next';
 import { CHANNEL_CARD_DATA, useChannelCardData } from '~/composables/useChannelCardData';
@@ -55,9 +55,6 @@ function onCategoryCtx(cat: CategoryPublic, e: MouseEvent) {
 function closeCtx() {
   ctxMenu.value = null;
 }
-
-onMounted(() => window.addEventListener('mousedown', closeCtx));
-onUnmounted(() => window.removeEventListener('mousedown', closeCtx));
 
 function childrenOf(parentId: string): ChannelPublic[] {
   return props.channels
@@ -166,26 +163,19 @@ const grouped = computed(() =>
       </div>
     </div>
 
-    <Teleport to="body">
-      <div
-        v-if="ctxMenu"
-        class="ctx-menu"
-        :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
-        @mousedown.stop
+    <LayoutCtxMenu v-if="ctxMenu" :x="ctxMenu.x" :y="ctxMenu.y" @close="closeCtx">
+      <button
+        class="ctx-menu__item"
+        @click="
+          ctxMenu!.type === 'channel'
+            ? emit('edit-channel', ctxMenu!.id)
+            : emit('edit-category', ctxMenu!.id);
+          closeCtx();
+        "
       >
-        <button
-          class="ctx-menu__item"
-          @click="
-            ctxMenu!.type === 'channel'
-              ? emit('edit-channel', ctxMenu!.id)
-              : emit('edit-category', ctxMenu!.id);
-            closeCtx();
-          "
-        >
-          Modifier
-        </button>
-      </div>
-    </Teleport>
+        Modifier
+      </button>
+    </LayoutCtxMenu>
   </div>
 </template>
 
@@ -279,35 +269,5 @@ const grouped = computed(() =>
   font-size: 11px;
   color: var(--ink-faint);
   font-style: italic;
-}
-
-.ctx-menu {
-  position: fixed;
-  z-index: 200;
-  min-width: 140px;
-  padding: 4px;
-  border-radius: 10px;
-  background: var(--surface-strong);
-  border: 1px solid var(--surface-border);
-  box-shadow: var(--shadow-lift);
-  backdrop-filter: blur(20px) saturate(1.4);
-  -webkit-backdrop-filter: blur(20px) saturate(1.4);
-}
-.ctx-menu__item {
-  display: block;
-  width: 100%;
-  padding: 6px 10px;
-  text-align: left;
-  font-size: 12px;
-  color: var(--ink-soft);
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 100ms;
-}
-.ctx-menu__item:hover {
-  background: var(--surface-tinted-strong);
-  color: var(--ink);
 }
 </style>

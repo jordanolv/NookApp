@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CreateServerInput } from '@nookapp/protocol';
+import type { CreateServerInput, UserPublic } from '@nookapp/protocol';
 import { DEFAULT_TEMPLATE_ID } from '~/components/world/scene/map-templates';
 
 definePageMeta({ layout: 'app' });
@@ -8,6 +8,8 @@ const { t } = useI18n();
 const { store, fetchServers, createServer } = useServers();
 const { seedServerMap } = useMapTemplates();
 const { user, signOut } = useAuth();
+const api = useApi();
+const authStore = useAuthStore();
 const socket = useSocket();
 const dmHub = useDmHub();
 const dmsStore = useDmsStore();
@@ -18,12 +20,14 @@ let teardownDm: (() => void) | null = null;
 onMounted(() => {
   socket.connect();
   teardownDm = dmRealtime.setup();
+  if (user.value && !user.value.onboardedAt) showOnboarding.value = true;
 });
 onUnmounted(() => {
   teardownDm?.();
 });
 
 const showCreate = ref(false);
+const showOnboarding = ref(false);
 const createName = ref('');
 const createTemplate = ref(DEFAULT_TEMPLATE_ID);
 const createError = ref('');
@@ -67,6 +71,16 @@ async function submitCreate() {
   }
 }
 
+async function finishOnboarding() {
+  showOnboarding.value = false;
+  try {
+    const updated = await api.post<UserPublic>('/users/me/onboarding-complete', {});
+    authStore.setUser(updated);
+  } catch {
+    // Non-blocking: the tour simply shows again next visit.
+  }
+}
+
 async function onSignOut() {
   menuOpen.value = false;
   await signOut();
@@ -76,6 +90,11 @@ async function onSignOut() {
 
 <template>
   <div class="nooks">
+    <LayoutOnboardingModal
+      :open="showOnboarding"
+      @finish="finishOnboarding"
+      @create-nook="showCreate = true"
+    />
     <div class="nooks__grid" aria-hidden="true" />
     <div class="nooks__blob nooks__blob--a" aria-hidden="true" />
     <div class="nooks__blob nooks__blob--b" aria-hidden="true" />

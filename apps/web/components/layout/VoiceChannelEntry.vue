@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
-import { Mic } from 'lucide-vue-next';
 import type { ChannelPublic } from '@nookapp/protocol';
 import { voicePresence } from '~/composables/voice/state';
 import { useVoiceActiveTime } from '~/composables/useVoiceActiveTime';
 import { useChannelEditing } from '~/composables/useChannelEditing';
 import { useChannels } from '~/composables/useChannels';
-import { accentRgb } from '~/utils/channel-theme';
+import { channelAccentRgb, channelIconStyle } from '~/utils/channel-theme';
+import { iconForChannel } from '~/utils/channel-format';
 
 const props = defineProps<{
   channel: ChannelPublic;
@@ -56,12 +56,8 @@ function cancelEdit() {
   channelEditing.stopEditing();
 }
 
-const accent = computed(() => accentRgb('voice', props.channel.id));
-const iconStyle = computed(() => ({
-  background: `linear-gradient(135deg, rgba(${accent.value}, 1) 0%, rgba(${accent.value}, 0.75) 100%)`,
-  boxShadow: `inset 0 -2px 0 rgba(0, 0, 0, 0.18), 0 2px 6px rgba(${accent.value}, 0.35)`,
-}));
-const accentVar = computed(() => ({ '--accent': `rgb(${accent.value})` }));
+const iconStyle = computed(() => channelIconStyle(props.channel));
+const accentVar = computed(() => ({ '--accent': `rgb(${channelAccentRgb(props.channel)})` }));
 </script>
 
 <template>
@@ -73,7 +69,7 @@ const accentVar = computed(() => ({ '--accent': `rgb(${accent.value})` }));
     @click="$emit('click', $event)"
   >
     <span class="voice-entry__icon" :style="iconStyle">
-      <Mic :size="12" :stroke-width="2.4" />
+      <component :is="iconForChannel(channel)" :size="12" :stroke-width="2.4" />
     </span>
     <span class="voice-entry__text">
       <input

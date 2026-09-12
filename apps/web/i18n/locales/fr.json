@@ -119,7 +119,6 @@
       "title": "Inscription — NookApp",
       "heading": "Créer votre compte",
       "alreadyHaveAccount": "Vous avez déjà un compte ?",
-      "displayName": "Nom affiché",
       "username": "Nom d'utilisateur",
       "usernameHint": "3 à 20 caractères : lettres minuscules, chiffres et _",
       "passwordHint": "Au moins 12 caractères",
@@ -177,7 +176,12 @@
       },
       "audio": {
         "heading": "Audio & vidéo",
-        "description": "Bientôt — sélection du micro, du haut-parleur, de la caméra et test de niveau."
+        "description": "Choisis les périphériques utilisés dans les salons vocaux.",
+        "microphone": "Micro",
+        "speaker": "Haut-parleur",
+        "camera": "Caméra",
+        "systemDefault": "Par défaut du système",
+        "micTestHint": "Parle pour vérifier que ton micro capte bien."
       },
       "appearance": {
         "heading": "Apparence",
@@ -371,7 +375,8 @@
       "bannedTitle": "Bannis · {count}",
       "unban": "Débannir",
       "noBans": "Aucun membre banni",
-      "bannedBy": "Banni"
+      "bannedBy": "Banni",
+      "effectivePermissions": "Permissions effectives ({granted}/{total})"
     },
     "roles": {
       "loading": "Chargement…",
@@ -425,6 +430,10 @@
       "label": "Gérer les membres",
       "description": "Expulser des membres du serveur."
     },
+    "ManagePlugins": {
+      "label": "Gérer les plugins",
+      "description": "Activer, désactiver et configurer les plugins."
+    },
     "ManageMap": {
       "label": "Modifier la carte",
       "description": "Utiliser le mode édition de la carte."
@@ -442,5 +451,31 @@
   },
   "chat": {
     "messagesLabel": "Messages du salon"
+  },
+  "onboarding": {
+    "ariaLabel": "Bienvenue sur NookApp",
+    "skip": "Passer",
+    "next": "Suivant",
+    "back": "Retour",
+    "welcome": {
+      "title": "Bienvenue sur NookApp ! 🎉",
+      "body": "Ton bureau virtuel en pixel art : déplace-toi, discute et retrouve ton équipe dans un monde 2D. Petit tour rapide ?"
+    },
+    "move": {
+      "keys": "ZQSD",
+      "title": "Déplace-toi librement",
+      "body": "Utilise les touches ZQSD (ou WASD) ou les flèches pour te déplacer dans le monde. Approche-toi des autres pour interagir."
+    },
+    "chat": {
+      "title": "Discute en texte et en vocal",
+      "body": "Chaque Nook a ses salons texte 💬 et ses zones vocales 🎙️. Entre dans une pièce pour rejoindre automatiquement sa conversation vocale."
+    },
+    "start": {
+      "title": "C'est parti !",
+      "body": "Crée ton premier Nook et invite ton équipe, ou rejoins un Nook existant avec un lien d'invitation.",
+      "create": "Créer mon premier Nook",
+      "codePlaceholder": "Code ou lien d'invitation",
+      "join": "Rejoindre"
+    }
   }
 }

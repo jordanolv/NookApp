@@ -27,6 +27,7 @@ defineProps<{
       :status="t.status"
       :media-icon-html="t.mediaIconHtml"
       :activity="t.activity"
+      :emote="t.emote"
       :x="t.x"
       :y="t.y"
     />

@@ -607,18 +607,7 @@ async function deleteAccount() {
           </aside>
         </section>
 
-        <section
-          v-else-if="activeTab === 'audio'"
-          class="h-full flex flex-col items-center justify-center text-center"
-        >
-          <Mic class="h-10 w-10 mb-3" :stroke-width="1.5" style="color: var(--ink-faint)" />
-          <p class="text-sm font-semibold" style="color: var(--ink-soft)">
-            {{ t('settings.user.audio.heading') }}
-          </p>
-          <p class="text-xs mt-1 max-w-xs" style="color: var(--ink-muted)">
-            {{ t('settings.user.audio.description') }}
-          </p>
-        </section>
+        <UserAudioVideoSettings v-else-if="activeTab === 'audio'" />
 
         <section v-else-if="activeTab === 'appearance'" class="space-y-6">
           <header>

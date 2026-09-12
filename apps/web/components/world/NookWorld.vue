@@ -24,6 +24,7 @@ import { useWorldCameraOffset } from '~/composables/useWorldCameraOffset';
 import WorldOverlays from './overlay/WorldOverlays.vue';
 import ZonePicker from './ZonePicker.vue';
 import WorldLoadingOverlay from './WorldLoadingOverlay.vue';
+import { EMOTE_BUBBLE_MS, emoteById } from '~/utils/emotes';
 
 type RectPayload = {
   x1: number;
@@ -211,6 +212,12 @@ onMounted(() => {
     scene.updateRemotePlayer(payload, null);
   });
 
+  const offEmote = socket.onPlayerEmote(({ userId, emote }) => {
+    const def = emoteById(emote);
+    scene.playEmote(userId, def.motion);
+    overlaysHandle?.showEmote(userId, def.emoji, EMOTE_BUBBLE_MS);
+  });
+
   const offLeft = socket.onPlayerLeft(({ userId }) => {
     scene.removeRemotePlayer(userId);
     overlaysHandle?.removeScreenRing(userId);
@@ -336,6 +343,7 @@ onMounted(() => {
     offMoved();
     offLeft();
     offAppearance();
+    offEmote();
     rawSocket.off('world:object:snapshot', onWorldSnapshot);
     rawSocket.off('world:object:spawn', onWorldSpawn);
     rawSocket.off('world:object:remove', onWorldRemove);
@@ -422,7 +430,7 @@ defineExpose({
 
 <style scoped>
 .loading-fade-leave-active {
-  transition: opacity 350ms ease-out;
+  transition: opacity 150ms ease-out;
 }
 .loading-fade-leave-to {
   opacity: 0;

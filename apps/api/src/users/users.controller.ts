@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import {
   deleteAccountInputSchema,
@@ -36,6 +36,12 @@ export class UsersController {
     @Body(new ZodPipe(uiLayoutPatchInputSchema)) body: UiLayoutPatchInput,
   ) {
     return this.usersService.patchUiLayout(user.id, body);
+  }
+
+  @Post('me/onboarding-complete')
+  @UseGuards(AuthGuard)
+  completeOnboarding(@CurrentUser() user: AuthSession['user']) {
+    return this.usersService.completeOnboarding(user.id);
   }
 
   @Get('me/owned-servers')

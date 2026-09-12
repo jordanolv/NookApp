@@ -38,6 +38,7 @@ export const userPublicSchema = z.object({
   username: usernameSchema,
   avatarUrl: z.string().url().nullable(),
   emailVerified: z.boolean(),
+  onboardedAt: z.string().datetime().nullable(),
   createdAt: z.string().datetime(),
 });
 export type UserPublic = z.infer<typeof userPublicSchema>;

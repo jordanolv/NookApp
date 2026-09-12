@@ -6,6 +6,8 @@ import type {
   MessagePublic,
   PlayerAppearance,
   PlayerAppearancePayload,
+  PlayerEmote,
+  PlayerEmotePayload,
   PlayerHelloPayload,
   PlayerMovedPayload,
   PlayerSnapshotPayload,
@@ -144,6 +146,15 @@ export function useSocket() {
     return () => socket?.off('player:appearance', cb);
   }
 
+  function emitPlayerEmote(emote: PlayerEmote) {
+    socket?.emit('player:emote', { emote });
+  }
+
+  function onPlayerEmote(cb: (payload: PlayerEmotePayload) => void) {
+    socket?.on('player:emote', cb);
+    return () => socket?.off('player:emote', cb);
+  }
+
   function emitVoiceJoin(payload: { channelId: string }) {
     socket?.emit('voice:join', payload);
   }
@@ -191,6 +202,8 @@ export function useSocket() {
     onPlayerMoved,
     emitPlayerAppearance,
     onPlayerAppearance,
+    emitPlayerEmote,
+    onPlayerEmote,
     emitVoiceJoin,
     emitVoiceLeave,
     onVoiceSnapshot,
