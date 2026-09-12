@@ -27,10 +27,11 @@ export function useAuth() {
     await refreshUser();
   }
 
-  async function signUp(name: string, username: string, email: string, password: string) {
+  // Display name defaults to the username; editable later from profile settings.
+  async function signUp(username: string, email: string, password: string) {
     await $fetch(`${authBase}/sign-up/email`, {
       method: 'POST',
-      body: { name, username, email, password },
+      body: { name: username, username, email, password },
       credentials: 'include',
     });
   }

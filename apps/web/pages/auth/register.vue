@@ -4,7 +4,6 @@ const { t } = useI18n();
 useHead(() => ({ title: t('auth.register.title') }));
 
 const { signUp } = useAuth();
-const name = ref('');
 const username = ref('');
 const email = ref('');
 const password = ref('');
@@ -17,7 +16,7 @@ async function onSubmit() {
   error.value = '';
   loading.value = true;
   try {
-    await signUp(name.value, username.value, email.value, password.value);
+    await signUp(username.value, email.value, password.value);
     await navigateTo(`/auth/verify?email=${encodeURIComponent(email.value)}`);
   } catch (e: unknown) {
     console.error('[register] error:', e);
@@ -51,22 +50,6 @@ async function onSubmit() {
       </header>
 
       <form class="auth__form" @submit.prevent="onSubmit">
-        <div class="auth__field">
-          <label class="auth__label" for="name">{{ t('auth.register.displayName') }}</label>
-          <input
-            id="name"
-            v-model="name"
-            type="text"
-            required
-            :aria-invalid="error ? 'true' : undefined"
-            :aria-describedby="error ? 'form-error' : undefined"
-            minlength="2"
-            maxlength="32"
-            autocomplete="name"
-            class="auth__input"
-          />
-        </div>
-
         <div class="auth__field">
           <label class="auth__label" for="username">{{ t('auth.register.username') }}</label>
           <input
