@@ -7,6 +7,7 @@ const props = defineProps<{
   status: NameTagStatus;
   mediaIconHtml?: string;
   activity?: string | null;
+  emote?: string | null;
   x: number;
   y: number;
 }>();
@@ -44,5 +45,44 @@ const dotStyle = computed(() => {
     />
     <span class="tracking-wide">{{ name }}</span>
     <span v-if="mediaIconHtml" class="flex items-center gap-0.5" v-html="mediaIconHtml" />
+    <Transition name="emote-pop">
+      <span v-if="emote" class="emote-bubble" aria-hidden="true">{{ emote }}</span>
+    </Transition>
   </div>
 </template>
+
+<style scoped>
+.emote-bubble {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 4px);
+  transform: translateX(-50%);
+  font-size: 22px;
+  line-height: 1;
+  animation: emote-float 2s ease-out forwards;
+}
+@keyframes emote-float {
+  0% {
+    transform: translate(-50%, 6px) scale(0.6);
+    opacity: 0;
+  }
+  15% {
+    transform: translate(-50%, 0) scale(1.15);
+    opacity: 1;
+  }
+  80% {
+    transform: translate(-50%, -6px) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -14px) scale(0.9);
+    opacity: 0;
+  }
+}
+.emote-pop-leave-active {
+  transition: opacity 120ms;
+}
+.emote-pop-leave-to {
+  opacity: 0;
+}
+</style>

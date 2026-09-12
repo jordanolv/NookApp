@@ -148,6 +148,35 @@ export class CharacterSprite {
     else this.idle(dir);
   }
 
+  // sync() only rewrites position/frame/depth, so angle and scale are free for one-shot tweens
+  emote(motion: 'bounce' | 'wiggle') {
+    const targets = this.layers.filter((l): l is Phaser.GameObjects.Sprite => l !== null);
+    this.scene.tweens.killTweensOf(targets);
+    for (const t of targets) t.setAngle(0).setScale(LAYER_SCALE);
+    if (motion === 'wiggle') {
+      this.scene.tweens.add({
+        targets,
+        angle: { from: -8, to: 8 },
+        duration: 140,
+        yoyo: true,
+        repeat: 5,
+        ease: 'Sine.easeInOut',
+        onComplete: () => targets.forEach((t) => t.setAngle(0)),
+      });
+      return;
+    }
+    this.scene.tweens.add({
+      targets,
+      scaleY: LAYER_SCALE * 1.15,
+      scaleX: LAYER_SCALE * 0.9,
+      duration: 120,
+      yoyo: true,
+      repeat: 2,
+      ease: 'Quad.easeOut',
+      onComplete: () => targets.forEach((t) => t.setScale(LAYER_SCALE)),
+    });
+  }
+
   setInteractive(onClick: () => void) {
     this.body.setInteractive();
     this.body.on('pointerdown', onClick);
