@@ -27,6 +27,11 @@ export default defineNuxtConfig({
     '/legal/**': { prerender: true },
     '/auth/**': { ssr: true },
     '/app/**': { ssr: false },
+    // Game assets are not content-hashed, so cache them for a week instead of
+    // revalidating ~500 sprites on every Nook entry.
+    '/assets/**': {
+      headers: { 'cache-control': 'public, max-age=604800, stale-while-revalidate=86400' },
+    },
   },
   runtimeConfig: {
     public: {

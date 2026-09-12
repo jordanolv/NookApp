@@ -422,7 +422,7 @@ defineExpose({
 
 <style scoped>
 .loading-fade-leave-active {
-  transition: opacity 350ms ease-out;
+  transition: opacity 150ms ease-out;
 }
 .loading-fade-leave-to {
   opacity: 0;
