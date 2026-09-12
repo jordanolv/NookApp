@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { ChevronDown } from 'lucide-vue-next';
 import type { ChannelPublic } from '@nookapp/protocol';
 import { useHudVisibility } from '~/composables/useHudVisibility';
@@ -13,7 +13,16 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [channel: ChannelPublic, event: MouseEvent];
   'create-voice': [];
+  'edit-channel': [channelId: string];
 }>();
+
+const ctxMenu = ref<{ id: string; x: number; y: number } | null>(null);
+
+function onCtx(ch: ChannelPublic, e: MouseEvent) {
+  if (!props.canManage) return;
+  e.preventDefault();
+  ctxMenu.value = { id: ch.id, x: e.clientX, y: e.clientY };
+}
 
 const hudVis = useHudVisibility();
 const hidden = hudVis.isHidden('ui:voiceHidden');
@@ -53,8 +62,20 @@ const sorted = computed(() => [...props.channels].sort((a, b) => a.position - b.
         :channel="ch"
         :is-current="ch.id === currentVoiceId"
         @click="(e) => emit('select', ch, e)"
+        @contextmenu="onCtx(ch, $event)"
       />
     </div>
+    <LayoutCtxMenu v-if="ctxMenu" :x="ctxMenu.x" :y="ctxMenu.y" @close="ctxMenu = null">
+      <button
+        class="ctx-menu__item"
+        @click="
+          emit('edit-channel', ctxMenu!.id);
+          ctxMenu = null;
+        "
+      >
+        Modifier
+      </button>
+    </LayoutCtxMenu>
   </section>
 </template>
 
