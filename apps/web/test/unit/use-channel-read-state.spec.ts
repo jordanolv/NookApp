@@ -37,6 +37,7 @@ describe('useChannelReadState', () => {
       username: 'me',
       avatarUrl: null,
       emailVerified: true,
+      onboardedAt: null,
       createdAt: '2026-07-19T09:00:00.000Z',
     });
   });

@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, eq, ne } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne } from 'drizzle-orm';
 import { directMessage, member, message, server, user, type Database } from '@nookapp/db';
 import type {
   DeleteAccountInput,
@@ -23,6 +23,7 @@ export class UsersService {
         username: user.username,
         avatarUrl: user.avatarUrl,
         emailVerified: user.emailVerified,
+        onboardedAt: user.onboardedAt,
         createdAt: user.createdAt,
       })
       .from(user)
@@ -36,8 +37,17 @@ export class UsersService {
       username: row.username,
       avatarUrl: row.avatarUrl ?? null,
       emailVerified: row.emailVerified,
+      onboardedAt: row.onboardedAt?.toISOString() ?? null,
       createdAt: row.createdAt.toISOString(),
     };
+  }
+
+  async completeOnboarding(userId: string): Promise<UserPublic> {
+    await this.db
+      .update(user)
+      .set({ onboardedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(user.id, userId), isNull(user.onboardedAt)));
+    return this.getProfile(userId);
   }
 
   async getUiLayout(userId: string): Promise<UiLayout> {

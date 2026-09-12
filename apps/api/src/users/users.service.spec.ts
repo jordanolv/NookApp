@@ -37,6 +37,34 @@ describe('UsersService', () => {
     service = module.get(UsersService);
   });
 
+  describe('completeOnboarding', () => {
+    it('stamps onboardedAt once and returns the profile', async () => {
+      const where = jest.fn().mockResolvedValue(undefined);
+      const set = jest.fn().mockReturnValue({ where });
+      mockDb.update.mockReturnValue({ set });
+      const row = {
+        id: 'u1',
+        email: 'a@b.co',
+        name: 'A',
+        username: 'a',
+        avatarUrl: null,
+        emailVerified: true,
+        onboardedAt: new Date('2026-01-01T00:00:00Z'),
+        createdAt: new Date('2025-01-01T00:00:00Z'),
+      };
+      mockDb.select.mockReturnValue({
+        from: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockResolvedValue([row]),
+      });
+
+      const profile = await service.completeOnboarding('u1');
+
+      expect(set).toHaveBeenCalledWith(expect.objectContaining({ onboardedAt: expect.any(Date) }));
+      expect(profile.onboardedAt).toBe('2026-01-01T00:00:00.000Z');
+    });
+  });
+
   describe('deleteAccount', () => {
     it('transfers an owned server to the chosen member', async () => {
       mockTx.select
