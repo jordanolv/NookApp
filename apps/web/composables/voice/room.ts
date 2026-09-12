@@ -8,16 +8,21 @@ import {
   setParticipantMedia,
 } from './tracks';
 import { cleanupRoom } from './cleanup';
+import { mediaDevicePrefs } from '~/composables/useMediaDevices';
 
 export function createRoom(): Room {
+  const prefs = mediaDevicePrefs.value;
   return new Room({
     adaptiveStream: true,
     dynacast: true,
     audioCaptureDefaults: {
+      deviceId: prefs.audioinput ?? undefined,
       echoCancellation: true,
       noiseSuppression: true,
       autoGainControl: true,
     },
+    videoCaptureDefaults: { deviceId: prefs.videoinput ?? undefined },
+    audioOutput: { deviceId: prefs.audiooutput ?? undefined },
     publishDefaults: {
       audioPreset: { maxBitrate: 96_000 },
       dtx: true,

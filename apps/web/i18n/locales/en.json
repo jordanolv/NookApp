@@ -176,7 +176,12 @@
       },
       "audio": {
         "heading": "Audio & video",
-        "description": "Soon — microphone, speaker and camera selection, plus level testing."
+        "description": "Pick the devices used in voice channels.",
+        "microphone": "Microphone",
+        "speaker": "Speaker",
+        "camera": "Camera",
+        "systemDefault": "System default",
+        "micTestHint": "Speak to check that your microphone picks you up."
       },
       "appearance": {
         "heading": "Appearance",

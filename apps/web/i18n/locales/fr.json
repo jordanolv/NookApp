@@ -176,7 +176,12 @@
       },
       "audio": {
         "heading": "Audio & vidéo",
-        "description": "Bientôt — sélection du micro, du haut-parleur, de la caméra et test de niveau."
+        "description": "Choisis les périphériques utilisés dans les salons vocaux.",
+        "microphone": "Micro",
+        "speaker": "Haut-parleur",
+        "camera": "Caméra",
+        "systemDefault": "Par défaut du système",
+        "micTestHint": "Parle pour vérifier que ton micro capte bien."
       },
       "appearance": {
         "heading": "Apparence",
