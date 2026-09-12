@@ -20,6 +20,8 @@ import {
 import { useHudVisibility } from '~/composables/useHudVisibility';
 import { useDmsStore } from '~/stores/dms';
 import { useDmHub } from '~/composables/useDmHub';
+import { EMOTES } from '~/utils/emotes';
+import type { PlayerEmote } from '@nookapp/protocol';
 
 defineProps<{
   serverName: string;
@@ -31,7 +33,6 @@ const { buildMode } = useMap();
 
 const emit = defineEmits<{
   'open-server-menu': [event: MouseEvent];
-  wave: [];
 }>();
 
 const { t } = useI18n({ useScope: 'global' });
@@ -58,14 +59,12 @@ const showStatus = ref(false);
 const dmHub = useDmHub();
 const dmsStore = useDmsStore();
 const dmUnread = computed(() => dmsStore.totalUnread);
-const waving = ref(false);
+const showEmotes = ref(false);
+const socket = useSocket();
 
-function onWave() {
-  waving.value = true;
-  setTimeout(() => {
-    waving.value = false;
-  }, 600);
-  emit('wave');
+function sendEmote(id: PlayerEmote) {
+  socket.emitPlayerEmote(id);
+  showEmotes.value = false;
 }
 
 function restoreOnline() {
@@ -91,15 +90,32 @@ function restoreOnline() {
     <span class="dock__sep" aria-hidden="true" />
 
     <!-- World actions -->
-    <button
-      type="button"
-      class="dock__btn"
-      :class="{ 'dock__btn--active': waving }"
-      title="Saluer (wave)"
-      @click="onWave"
-    >
-      <Hand :size="16" />
-    </button>
+    <div class="dock__status-wrap">
+      <button
+        type="button"
+        class="dock__btn"
+        :class="{ 'dock__btn--active': showEmotes }"
+        title="Emotes"
+        @click="showEmotes = !showEmotes"
+      >
+        <Hand :size="16" />
+      </button>
+      <div v-if="showEmotes" class="dock__status-veil" @click="showEmotes = false" />
+      <Transition name="status-pop">
+        <div v-if="showEmotes" class="dock__status-anchor dock__emotes">
+          <button
+            v-for="e in EMOTES"
+            :key="e.id"
+            type="button"
+            class="dock__emote"
+            :title="e.label"
+            @click="sendEmote(e.id)"
+          >
+            {{ e.emoji }}
+          </button>
+        </div>
+      </Transition>
+    </div>
     <button
       type="button"
       class="dock__btn"
@@ -351,6 +367,33 @@ function restoreOnline() {
   left: 50%;
   transform: translateX(-50%);
   z-index: 41;
+}
+
+.dock__emotes {
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--surface-strong);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-lift);
+}
+.dock__emote {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background 100ms,
+    transform 100ms;
+}
+.dock__emote:hover {
+  background: var(--surface-tinted-strong);
+  transform: scale(1.15);
 }
 
 .status-pop-enter-active,

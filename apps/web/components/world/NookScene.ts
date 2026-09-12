@@ -191,6 +191,11 @@ export class NookScene extends Phaser.Scene {
     return this.remotePlayers?.has(userId) ?? false;
   }
 
+  playEmote(userId: string, motion: 'bounce' | 'wiggle') {
+    if (userId === this.localUserId) this.localPlayer?.sprite.emote(motion);
+    else this.remotePlayers?.playEmote(userId, motion);
+  }
+
   removeRemotePlayer(userId: string) {
     this.remotePlayers?.remove(userId);
   }

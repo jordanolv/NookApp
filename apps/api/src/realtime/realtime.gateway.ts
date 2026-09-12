@@ -6,8 +6,10 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
+import { playerEmoteSchema } from '@nookapp/protocol';
 import type {
   PlayerAppearancePayload,
+  PlayerEmotePayload,
   PlayerHelloPayload,
   PlayerMovedPayload,
   PlayerSnapshotPayload,
@@ -162,6 +164,19 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     const out: PlayerAppearancePayload = { userId, appearance: payload.appearance };
     client.to(`server:${serverId}`).emit('player:appearance', out);
+  }
+
+  @SubscribeMessage('player:emote')
+  handlePlayerEmote(client: Socket, payload: { emote: unknown }) {
+    const serverId = client.data.serverId as string | undefined;
+    const userId = client.data.userId as string | undefined;
+    if (!serverId || !userId) return;
+    const parsed = playerEmoteSchema.safeParse(payload?.emote);
+    if (!parsed.success) return;
+
+    // Includes the sender so every client renders the emote the same way.
+    const out: PlayerEmotePayload = { userId, emote: parsed.data };
+    this.server.to(`server:${serverId}`).emit('player:emote', out);
   }
 
   @SubscribeMessage('voice:join')

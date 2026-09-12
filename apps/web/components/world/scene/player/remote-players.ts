@@ -74,6 +74,10 @@ export class RemotePlayerManager {
     remote.sprite.reapplyAnim(remote.lastDir);
   }
 
+  playEmote(userId: string, motion: 'bounce' | 'wiggle') {
+    this.players.get(userId)?.sprite.emote(motion);
+  }
+
   remove(userId: string) {
     const remote = this.players.get(userId);
     if (!remote) return;

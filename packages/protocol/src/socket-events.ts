@@ -7,6 +7,7 @@ export const SOCKET_EVENTS = {
   PlayerMoved: 'player:moved',
   PlayerSnapshot: 'player:snapshot',
   PlayerAppearance: 'player:appearance',
+  PlayerEmote: 'player:emote',
   MessageSent: 'message:sent',
   MessageUpdated: 'message:updated',
   MessageDeleted: 'message:deleted',
@@ -43,6 +44,15 @@ export const playerMovedPayloadSchema = z.object({
   pose: playerPoseSchema.optional(),
 });
 export type PlayerMovedPayload = z.infer<typeof playerMovedPayloadSchema>;
+
+export const playerEmoteSchema = z.enum(['wave', 'dance', 'laugh', 'heart', 'party']);
+export type PlayerEmote = z.infer<typeof playerEmoteSchema>;
+
+export const playerEmotePayloadSchema = z.object({
+  userId: z.string(),
+  emote: playerEmoteSchema,
+});
+export type PlayerEmotePayload = z.infer<typeof playerEmotePayloadSchema>;
 
 export const playerHelloPayloadSchema = z.object({
   serverId: z.string(),

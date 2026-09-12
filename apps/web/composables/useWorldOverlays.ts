@@ -24,6 +24,7 @@ export type NameTagOverlay = {
   status: NameTagStatus;
   mediaIconHtml: string;
   activity: string | null;
+  emote: string | null;
   x: number;
   y: number;
 };
@@ -71,6 +72,11 @@ export function useWorldOverlays(opts: {
   const { localActivity } = useLocalActivity();
 
   const screenRingArcs = new Map<string, Phaser.GameObjects.Arc>();
+  const emotes = new Map<string, { emoji: string; until: number }>();
+
+  function showEmote(userId: string, emoji: string, durationMs: number) {
+    emotes.set(userId, { emoji, until: performance.now() + durationMs });
+  }
 
   function ensureScreenRing(userId: string): Phaser.GameObjects.Arc {
     let arc = screenRingArcs.get(userId);
@@ -123,6 +129,7 @@ export function useWorldOverlays(opts: {
     const activeSpeakers = voice.activeSpeakers.value;
 
     const nextNameTags: NameTagOverlay[] = [];
+    const now = performance.now();
     const nextBubbles: CamBubbleOverlay[] = [];
     const seenScreens = new Set<string>();
 
@@ -135,6 +142,7 @@ export function useWorldOverlays(opts: {
         status: isLocal ? localStatus : 'online',
         mediaIconHtml: isLocal ? localMediaIcon : '',
         activity: isLocal ? localActivity.value : null,
+        emote: emoteFor(t.userId, now),
         x: tag.x,
         y: tag.y,
       });
@@ -218,5 +226,15 @@ export function useWorldOverlays(opts: {
     screenRingArcs.clear();
   }
 
-  return { removeScreenRing, reset };
+  function emoteFor(userId: string, now: number): string | null {
+    const e = emotes.get(userId);
+    if (!e) return null;
+    if (e.until <= now) {
+      emotes.delete(userId);
+      return null;
+    }
+    return e.emoji;
+  }
+
+  return { removeScreenRing, showEmote, reset };
 }
