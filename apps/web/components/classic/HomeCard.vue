@@ -23,14 +23,14 @@ defineProps<{
 <style scoped>
 .card {
   border-radius: 14px;
-  background: rgba(15, 16, 24, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  background: var(--surface-strong);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-soft);
   overflow: hidden;
 }
 
 .card--ghost {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--surface);
   border-style: dashed;
 }
 
@@ -39,12 +39,12 @@ defineProps<{
   align-items: center;
   gap: 8px;
   padding: 12px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--surface-divider);
+  background: var(--surface-tinted);
 }
 
 .card__head-icon {
-  color: rgba(165, 180, 252, 0.85);
+  color: var(--ink-muted);
 }
 
 .card__title {
@@ -54,16 +54,16 @@ defineProps<{
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--ink);
 }
 
 .card__count {
   font-family: ui-monospace, 'SF Mono', monospace;
   font-size: 10px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--ink-muted);
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--surface-tinted);
 }
 </style>
