@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { TILE_SIZE } from '../constants';
 import { CG_LAYER_ORDER, type Appearance, type CgLayer } from '~/composables/useCharacter';
 import {
   CG_WALK_FRAME_RATE,
@@ -20,10 +21,10 @@ const LAYER_DEPTH_STEP = 0.01;
 const BODY_SIZE = { w: 10, h: 6 };
 const BODY_OFFSET = { x: 3, y: 24 };
 
-// while seated, draw the character above the chair it sits on (decor depth is
-// the cell bottom). One tile is enough to clear the chair without leaping over
-// the decor a row further down.
-const SIT_DEPTH_BIAS = 32;
+// while seated the sprite is lifted onto the seat, so its feet no longer say
+// which row it belongs to: depth comes from the seat cell instead, just above
+// the chair (decor sits at cell bottom + 0.5) and below the next row.
+const SEAT_DEPTH_ABOVE_DECOR = 1;
 
 export function ensureWalkAnims(scene: Phaser.Scene, bodyKey: string) {
   for (const dir of DIRECTIONS) {
@@ -44,7 +45,6 @@ export class CharacterSprite {
   private readonly layers: (Phaser.GameObjects.Sprite | null)[];
   private appearance: Appearance;
   private seated = false;
-  private depthBias = 0;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -122,21 +122,18 @@ export class CharacterSprite {
 
   playWalk(dir: Direction) {
     this.seated = false;
-    this.depthBias = 0;
     this.body.play(walkAnimKey(dir, this.appearance.body), true);
   }
 
   idle(dir: Direction) {
     this.seated = false;
-    this.depthBias = 0;
     this.body.anims.stop();
     this.body.setFrame(idleFrame(dir));
   }
 
-  // static seated pose, drawn above the chair (see SIT_DEPTH_BIAS)
+  // static seated pose, drawn above the chair (see SEAT_DEPTH_ABOVE_DECOR)
   sit(dir: Direction) {
     this.seated = true;
-    this.depthBias = SIT_DEPTH_BIAS;
     this.body.anims.stop();
     this.body.setFrame(sitFrame(dir));
   }
@@ -188,13 +185,16 @@ export class CharacterSprite {
     const sy = Math.round(this.body.y);
     this.body.setPosition(sx, sy);
     const frame = this.body.frame.name;
+    const depth = this.seated
+      ? Math.floor(sy / TILE_SIZE) * TILE_SIZE + TILE_SIZE + SEAT_DEPTH_ABOVE_DECOR
+      : sy;
     for (let i = 1; i < this.layers.length; i++) {
       const layer = this.layers[i];
       if (!layer) continue;
       layer.setFrame(frame).setPosition(sx, sy);
-      layer.setDepth(sy + this.depthBias + LAYER_DEPTH_STEP * i);
+      layer.setDepth(depth + LAYER_DEPTH_STEP * i);
     }
-    this.body.setDepth(sy + this.depthBias);
+    this.body.setDepth(depth);
   }
 
   destroy() {

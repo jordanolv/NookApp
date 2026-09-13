@@ -49,7 +49,13 @@ export type VoiceRoomOverlay = {
   speakingUserIds: Set<string>;
 };
 
-export type ObjectLabelOverlay = { id: string; label: string; x: number; y: number };
+export type ObjectLabelOverlay = {
+  id: string;
+  label: string;
+  muted: boolean;
+  x: number;
+  y: number;
+};
 
 const NAME_TAG_Y_OFFSET = 60;
 const CAM_BUBBLE_Y_OFFSET = 50;
@@ -191,8 +197,9 @@ export function useWorldOverlays(opts: {
     opts.out.objectLabels.value = latestLabels.map((l) => {
       const { x, y } = NookScene.projectToScreen(cam, rect, l.worldX, l.worldY);
       // the interaction prompt ships an i18n key; everything else is display text
-      const label = l.id === 'interaction-prompt' ? opts.t(l.label) : l.label;
-      return { id: l.id, label, x, y };
+      const isPrompt = l.id.startsWith('interaction-prompt');
+      const label = isPrompt ? opts.t(l.label) : l.label;
+      return { id: l.id, label, muted: l.id === 'interaction-prompt-active', x, y };
     });
 
     const presence = voice.voicePresence.value;

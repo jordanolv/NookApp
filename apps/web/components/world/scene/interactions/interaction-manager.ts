@@ -80,7 +80,7 @@ export class InteractionManager {
   collectPromptLabel(buffer: ObjectLabelUpdate[]) {
     if (this.activeBehavior && this.activeCtx) {
       buffer.push(
-        this.promptFor(this.activeBehavior.activePromptKey(this.activeCtx), this.activeCtx),
+        this.promptFor(this.activeBehavior.activePromptKey(this.activeCtx), this.activeCtx, true),
       );
       return;
     }
@@ -90,12 +90,15 @@ export class InteractionManager {
     }
   }
 
-  private promptFor(label: string, ctx: InteractionContext): ObjectLabelUpdate {
+  // the "stand up" hint sits below the seat, out of the character's way
+  private promptFor(label: string, ctx: InteractionContext, active = false): ObjectLabelUpdate {
     return {
-      id: 'interaction-prompt',
+      id: active ? 'interaction-prompt-active' : 'interaction-prompt',
       label,
       worldX: ctx.tileX * TILE_SIZE + TILE_SIZE / 2,
-      worldY: ctx.tileY * TILE_SIZE - PROMPT_Y_OFFSET,
+      worldY: active
+        ? (ctx.tileY + 1) * TILE_SIZE + PROMPT_Y_OFFSET / 2
+        : ctx.tileY * TILE_SIZE - PROMPT_Y_OFFSET,
     };
   }
 
