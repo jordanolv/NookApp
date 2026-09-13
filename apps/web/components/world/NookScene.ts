@@ -116,7 +116,12 @@ export class NookScene extends Phaser.Scene {
     this.buildOverlay = new BuildOverlay(this);
     this.roomZones = new RoomZoneManager(this);
     this.worldObjects = new WorldObjectManager(this);
-    this.buildController = new BuildController(this, this.buildOverlay, () => this.model);
+    this.buildController = new BuildController(
+      this,
+      this.buildOverlay,
+      () => this.model,
+      (wx, wy) => this.decorRenderer.itemAtWorldPoint(wx, wy),
+    );
 
     this.input.on('pointerdown', this.buildController.onPointerDown, this.buildController);
     this.input.on('pointermove', this.buildController.onPointerMove, this.buildController);

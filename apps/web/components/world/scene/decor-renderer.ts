@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { TILE_SIZE } from './constants';
 import { getDecorAsset } from './decor-catalog';
 import type { MapModel } from './map-model';
+import type { DecorObject } from '@nookapp/protocol';
 
 const SCALE = 2;
 // Sub-pixel depth bump so decor always wins Y-sort ties against walls at the
@@ -15,6 +16,7 @@ export function decorCellTextureKey(decorId: string, dx: number, dy: number) {
 
 export class DecorRenderer {
   private sprites = new Map<string, Phaser.GameObjects.Image[]>();
+  private items = new Map<string, DecorObject>();
   private readonly group: Phaser.Physics.Arcade.StaticGroup;
 
   constructor(private readonly scene: Phaser.Scene) {
@@ -29,8 +31,10 @@ export class DecorRenderer {
     this.group.clear(true, true);
 
     const seen = new Set<string>();
+    this.items.clear();
     for (const item of model.data.layers.decor) {
       seen.add(item.id);
+      this.items.set(item.id, item);
       const asset = getDecorAsset(item.asset);
       if (!asset) continue;
 
@@ -83,6 +87,22 @@ export class DecorRenderer {
     }
 
     this.group.refresh();
+  }
+
+  // The decor drawn under a world point, topmost first. Art often spills far
+  // outside its anchor cell (a 4x4-tile counter anchored on one cell), so the
+  // build tools hit-test the rendered sprites, not the cell index.
+  itemAtWorldPoint(wx: number, wy: number): DecorObject | null {
+    let best: { item: DecorObject; depth: number } | null = null;
+    for (const [id, list] of this.sprites) {
+      const item = this.items.get(id);
+      if (!item) continue;
+      for (const s of list) {
+        if (!s.getBounds().contains(wx, wy)) continue;
+        if (!best || s.depth > best.depth) best = { item, depth: s.depth };
+      }
+    }
+    return best?.item ?? null;
   }
 
   destroy() {
