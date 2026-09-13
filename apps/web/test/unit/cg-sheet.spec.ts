@@ -34,8 +34,8 @@ describe('cg-sheet', () => {
       expect(sitFrame('up')).toBe(233);
     });
 
-    it('falls back to the most frontal pose for down, which has no true frame', () => {
-      expect(sitFrame('down')).toBe(227);
+    it('uses the frontal idle frame for down, the sheet has no camera-facing sit', () => {
+      expect(sitFrame('down')).toBe(idleFrame('down'));
     });
   });
 
