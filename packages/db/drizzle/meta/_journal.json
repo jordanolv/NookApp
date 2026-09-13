@@ -43,6 +43,13 @@
       "when": 1788910163126,
       "tag": "0005_ambitious_zeigeist",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789293604394,
+      "tag": "0006_loving_tag",
+      "breakpoints": true
     }
   ]
 }

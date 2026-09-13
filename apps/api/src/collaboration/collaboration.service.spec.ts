@@ -185,6 +185,51 @@ describe('CollaborationService', () => {
       expect(document.getArray<FloorCell>('floors').length).toBe(1);
     });
 
+    it('restores the document from the stored binary state when present', async () => {
+      const source = new Y.Doc();
+      source.getArray<FloorCell>('floors').insert(0, [{ x: 1, y: 1, asset: 'office_floor' }]);
+      const state = Buffer.from(Y.encodeStateAsUpdate(source));
+      mockDb.select.mockReturnValueOnce(
+        selectChain([
+          {
+            serverId: 's1',
+            data: { ...DEFAULT_MAP, layers: { floors: [], walls: [], decor: [], collision: [] } },
+            state,
+          },
+        ]),
+      );
+      const document = new Y.Doc();
+
+      await hooks.onLoadDocument({ documentName: 's1', document });
+
+      expect(document.getArray<FloorCell>('floors').toArray()).toEqual([
+        { x: 1, y: 1, asset: 'office_floor' },
+      ]);
+      // same item ids as the source: a client still holding the old doc merges without duplicates
+      Y.applyUpdate(document, Y.encodeStateAsUpdate(source));
+      expect(document.getArray<FloorCell>('floors').length).toBe(1);
+    });
+
+    it('drops duplicated cells when hydrating a legacy JSON row', async () => {
+      const cell: FloorCell = { x: 1, y: 2, asset: 'office_floor_light' };
+      mockDb.select.mockReturnValueOnce(
+        selectChain([
+          {
+            serverId: 's1',
+            data: {
+              ...DEFAULT_MAP,
+              layers: { floors: [cell, cell, cell], walls: [], decor: [], collision: [] },
+            },
+          },
+        ]),
+      );
+      const document = new Y.Doc();
+
+      await hooks.onLoadDocument({ documentName: 's1', document });
+
+      expect(document.getArray<FloorCell>('floors').toArray()).toEqual([cell]);
+    });
+
     it('skips hydration when the stored map fails validation', async () => {
       mockDb.select.mockReturnValueOnce(selectChain([{ serverId: 's1', data: { width: 'wide' } }]));
       const document = new Y.Doc();
@@ -213,12 +258,33 @@ describe('CollaborationService', () => {
       await Promise.resolve();
 
       expect(mockDb.insert).toHaveBeenCalledTimes(1);
-      const persisted = values.mock.calls[0][0] as { serverId: string; data: { layers: unknown } };
+      const persisted = values.mock.calls[0][0] as {
+        serverId: string;
+        data: { layers: unknown };
+        state: unknown;
+      };
       expect(persisted.serverId).toBe('s1');
       expect(persisted.data.layers).toMatchObject({
         floors: [{ x: 1, y: 1, asset: 'office_floor' }],
       });
       expect(onConflictDoUpdate).toHaveBeenCalledTimes(1);
+      expect(Buffer.isBuffer(persisted.state)).toBe(true);
+    });
+
+    it('removes duplicated cells from the document before persisting', async () => {
+      const { chain, values } = insertChain();
+      mockDb.insert.mockReturnValue(chain);
+      const document = new Y.Doc();
+      const cell: FloorCell = { x: 1, y: 1, asset: 'office_floor' };
+      document.getArray<FloorCell>('floors').insert(0, [cell, cell]);
+
+      await hooks.onChange({ documentName: 's1', document });
+      jest.advanceTimersByTime(1000);
+      await Promise.resolve();
+
+      expect(document.getArray<FloorCell>('floors').length).toBe(1);
+      const persisted = values.mock.calls[0][0] as { data: { layers: { floors: unknown[] } } };
+      expect(persisted.data.layers.floors).toEqual([cell]);
     });
 
     it('skips the write when the document holds invalid map data', async () => {
