@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Plus,
   Settings,
+  Sticker,
 } from 'lucide-vue-next';
 import { useServerHomeData } from '~/composables/useServerHomeData';
 import HomeBanner from './HomeBanner.vue';
@@ -115,6 +116,28 @@ function open(channelId: string) {
                     }}
                   </span>
                 </p>
+              </div>
+              <ChevronRight :size="13" :stroke-width="2" class="row__arrow" />
+            </li>
+          </ul>
+        </ClassicHomeCard>
+
+        <ClassicHomeCard
+          v-if="home.widgetChannels.value.length"
+          :icon="Sticker"
+          title="Widgets"
+          :count="home.widgetChannels.value.length"
+        >
+          <ul class="list">
+            <li
+              v-for="ch in home.widgetChannels.value"
+              :key="ch.id"
+              class="row"
+              @click="open(ch.id)"
+            >
+              <span class="row__hash">*</span>
+              <div class="row__body">
+                <p class="row__name">{{ ch.name }}</p>
               </div>
               <ChevronRight :size="13" :stroke-width="2" class="row__arrow" />
             </li>

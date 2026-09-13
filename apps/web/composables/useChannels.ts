@@ -1,4 +1,15 @@
-import type { ChannelPublic, CreateChannelInput, UpdateChannelInput } from '@nookapp/protocol';
+import type {
+  ChannelPublic,
+  CreateChannelInput,
+  UpdateChannelInput,
+  WidgetKind,
+} from '@nookapp/protocol';
+
+export interface CreateChannelOpts {
+  type: 'text' | 'voice' | 'widget';
+  widgetKind?: WidgetKind;
+  categoryId: string | null;
+}
 import { useServersStore } from '~/stores/servers';
 
 export function useChannels() {

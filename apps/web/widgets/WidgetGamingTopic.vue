@@ -1,6 +1,17 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { MessageSquare, Users, Trophy, Settings, Search, Zap, Clock, X } from 'lucide-vue-next';
+import {
+  MessageSquare,
+  Users,
+  Trophy,
+  Settings,
+  Search,
+  Zap,
+  Clock,
+  X,
+  Gamepad2,
+} from 'lucide-vue-next';
+import { usePlayingGames } from '~/composables/usePlayingGames';
 import { useQueueTimer } from '~/composables/useQueueTimer';
 import { gradientFor } from '~/utils/color-hash';
 
@@ -29,6 +40,8 @@ type TabId = (typeof tabs)[number]['id'];
 const activeTab = ref<TabId>('discussion');
 
 const banner = computed(() => gradientFor(props.channelId));
+const playing = usePlayingGames(computed(() => props.serverId));
+const isPlaying = computed(() => playing.isPlaying(props.channelId));
 
 const queue = useQueueTimer();
 
@@ -82,6 +95,16 @@ const lfgPosts = computed(() => [
           <div class="game-pills">
             <span class="pill"><span class="pill-dot" /> 3 joueurs en ligne</span>
             <span class="pill">42 messages</span>
+            <button
+              type="button"
+              class="pill pill--btn"
+              :class="{ 'pill--on': isPlaying }"
+              :title="isPlaying ? 'Retirer de ma sidebar' : 'Afficher ce jeu dans ma sidebar'"
+              @click="playing.toggle(channelId)"
+            >
+              <Gamepad2 :size="11" />
+              {{ isPlaying ? "J'arrête" : "J'y joue" }}
+            </button>
           </div>
         </div>
       </div>
@@ -210,7 +233,7 @@ const lfgPosts = computed(() => [
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: rgba(8, 8, 12, 0.6);
+  background: transparent;
 }
 
 .banner {
@@ -259,12 +282,26 @@ const lfgPosts = computed(() => [
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+.pill--btn {
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition:
+    background 120ms,
+    border-color 120ms;
+}
+.pill--btn:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+.pill--on {
+  background: var(--accent-violet);
+}
+
 .pill-dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #22c55e;
-  box-shadow: 0 0 6px rgba(34, 197, 94, 0.8);
+  background: var(--accent-leaf);
+  box-shadow: 0 0 6px var(--accent-leaf-soft);
 }
 
 .tabs {
@@ -272,8 +309,8 @@ const lfgPosts = computed(() => [
   align-items: center;
   gap: 2px;
   padding: 0 14px;
-  background: rgba(0, 0, 0, 0.35);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--surface-tinted);
+  border-bottom: 1px solid var(--surface-divider);
   flex-shrink: 0;
 }
 .tab {
@@ -285,7 +322,7 @@ const lfgPosts = computed(() => [
   border: none;
   font-size: 12px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--ink-faint);
   cursor: pointer;
   border-bottom: 2px solid transparent;
   transition:
@@ -293,11 +330,11 @@ const lfgPosts = computed(() => [
     border-color 120ms;
 }
 .tab:hover {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--ink-soft);
 }
 .tab--active {
-  color: rgba(199, 210, 254, 1);
-  border-bottom-color: rgb(99, 102, 241);
+  color: var(--accent-violet);
+  border-bottom-color: var(--accent-violet);
 }
 .tab--icon {
   padding: 10px;
@@ -330,8 +367,8 @@ const lfgPosts = computed(() => [
   align-items: center;
   gap: 14px;
   padding: 14px;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(139, 92, 246, 0.08));
-  border: 1px solid rgba(99, 102, 241, 0.25);
+  background: var(--accent-violet-soft);
+  border: 1px solid var(--accent-violet);
   border-radius: 12px;
 }
 .cta-left {
@@ -340,46 +377,46 @@ const lfgPosts = computed(() => [
 .cta-title {
   font-size: 13px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--ink);
   margin-bottom: 3px;
 }
 .cta-sub {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--ink-faint);
 }
 .cta-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 9px 14px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, var(--accent-violet), var(--accent-cool));
   color: white;
   border: none;
   border-radius: 10px;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 2px 12px var(--accent-violet-soft);
   transition:
     transform 120ms,
     box-shadow 120ms;
 }
 .cta-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 18px rgba(99, 102, 241, 0.55);
+  box-shadow: 0 4px 18px var(--accent-violet-soft);
 }
 .cta-btn--active {
-  background: linear-gradient(135deg, #ef4444, #dc2626);
-  box-shadow: 0 2px 12px rgba(239, 68, 68, 0.4);
+  background: var(--accent-rose);
+  box-shadow: 0 2px 12px var(--accent-rose-soft);
   animation: queue-pulse 1.4s ease-in-out infinite;
 }
 @keyframes queue-pulse {
   0%,
   100% {
-    box-shadow: 0 2px 12px rgba(239, 68, 68, 0.4);
+    box-shadow: 0 2px 12px var(--accent-rose-soft);
   }
   50% {
-    box-shadow: 0 2px 24px rgba(239, 68, 68, 0.7);
+    box-shadow: 0 2px 24px var(--accent-rose-soft);
   }
 }
 
@@ -388,7 +425,7 @@ const lfgPosts = computed(() => [
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--ink-faint);
   margin-bottom: 8px;
 }
 
@@ -405,7 +442,7 @@ const lfgPosts = computed(() => [
 .criteria-label {
   font-size: 11px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--ink-muted);
   min-width: 60px;
 }
 .chip-group {
@@ -415,37 +452,37 @@ const lfgPosts = computed(() => [
 }
 .chip {
   padding: 4px 10px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--surface-tinted);
+  border: 1px solid var(--surface-border);
   border-radius: 999px;
   font-size: 11px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--ink-muted);
   cursor: pointer;
   text-transform: capitalize;
   transition: all 120ms;
 }
 .chip:hover {
-  background: rgba(255, 255, 255, 0.07);
-  color: rgba(255, 255, 255, 0.8);
+  background: var(--surface-tinted-strong);
+  color: var(--ink-soft);
 }
 .chip--active {
-  background: rgba(99, 102, 241, 0.2);
-  border-color: rgba(99, 102, 241, 0.4);
-  color: rgb(199, 210, 254);
+  background: var(--accent-violet-soft);
+  border-color: var(--accent-violet);
+  color: var(--accent-violet);
 }
 .toggle {
   width: 36px;
   height: 20px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--surface-tinted-strong);
   border: none;
   cursor: pointer;
   position: relative;
   transition: background 160ms;
 }
 .toggle--on {
-  background: rgba(99, 102, 241, 0.6);
+  background: var(--accent-violet);
 }
 .toggle-knob {
   position: absolute;
@@ -470,7 +507,7 @@ const lfgPosts = computed(() => [
   display: flex;
   align-items: center;
   gap: 6px;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--ink-faint);
   margin-bottom: 4px;
 }
 .lfg-card {
@@ -478,19 +515,19 @@ const lfgPosts = computed(() => [
   align-items: center;
   gap: 10px;
   padding: 10px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--surface-tinted);
+  border: 1px solid var(--surface-border);
   border-radius: 10px;
   transition: background 120ms;
 }
 .lfg-card:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--surface-tinted-strong);
 }
 .lfg-avatar {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, var(--accent-violet), var(--accent-cool));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -512,7 +549,7 @@ const lfgPosts = computed(() => [
 .lfg-author {
   font-size: 11px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--ink);
 }
 .lfg-tag {
   font-size: 9px;
@@ -521,34 +558,34 @@ const lfgPosts = computed(() => [
   letter-spacing: 0.04em;
   padding: 1px 6px;
   border-radius: 4px;
-  background: rgba(99, 102, 241, 0.18);
-  color: rgb(165, 180, 252);
+  background: var(--accent-violet-soft);
+  color: var(--accent-violet);
 }
 .lfg-tag[data-tag='casual'] {
-  background: rgba(34, 197, 94, 0.18);
-  color: rgb(134, 239, 172);
+  background: var(--accent-leaf-soft);
+  color: var(--accent-leaf);
 }
 .lfg-tag[data-tag='pro'] {
-  background: rgba(239, 68, 68, 0.18);
-  color: rgb(252, 165, 165);
+  background: var(--accent-rose-soft);
+  color: var(--accent-rose);
 }
 .lfg-time {
   display: inline-flex;
   align-items: center;
   gap: 3px;
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--ink-faint);
   margin-left: auto;
 }
 .lfg-text {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--ink-soft);
 }
 .lfg-join {
   padding: 6px 12px;
-  background: rgba(99, 102, 241, 0.18);
-  border: 1px solid rgba(99, 102, 241, 0.3);
-  color: rgb(199, 210, 254);
+  background: var(--accent-violet-soft);
+  border: 1px solid var(--accent-violet);
+  color: var(--accent-violet);
   font-size: 11px;
   font-weight: 700;
   border-radius: 8px;
@@ -556,7 +593,7 @@ const lfgPosts = computed(() => [
   transition: all 120ms;
 }
 .lfg-join:hover {
-  background: rgba(99, 102, 241, 0.3);
+  background: var(--accent-violet);
 }
 
 .highlights {
@@ -569,16 +606,16 @@ const lfgPosts = computed(() => [
   align-items: center;
   justify-content: center;
   gap: 10px;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--ink-faint);
 }
 .hl-title {
   font-size: 13px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--ink-muted);
 }
 .hl-sub {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--ink-faint);
   max-width: 240px;
   text-align: center;
   line-height: 1.5;

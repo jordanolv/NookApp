@@ -86,7 +86,7 @@ function hasImageIcon(url: string | null | undefined) {
   justify-content: center;
   height: 100%;
   padding: 24px 12px;
-  color: rgba(255, 255, 255, 0.32);
+  color: var(--ink-faint);
   font-size: 11px;
   font-weight: 600;
   text-align: center;
@@ -97,7 +97,7 @@ function hasImageIcon(url: string | null | undefined) {
   align-items: stretch;
   min-height: 40px;
   border-radius: 9px;
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--surface-tinted);
   border: 1px solid transparent;
   transition:
     background 140ms,
@@ -105,8 +105,8 @@ function hasImageIcon(url: string | null | undefined) {
 }
 
 .home-pin:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.07);
+  background: var(--surface-tinted-strong);
+  border-color: var(--surface-border);
 }
 
 .home-pin__main {
@@ -127,8 +127,8 @@ function hasImageIcon(url: string | null | undefined) {
   height: 26px;
   flex-shrink: 0;
   border-radius: 8px;
-  background: rgba(99, 102, 241, 0.13);
-  color: rgba(199, 210, 254, 0.95);
+  background: var(--accent-violet-soft);
+  color: var(--accent-violet);
   overflow: hidden;
 }
 .home-pin__icon--image {
@@ -146,7 +146,7 @@ function hasImageIcon(url: string | null | undefined) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--ink);
   font-size: 12px;
   font-weight: 750;
 }
@@ -156,7 +156,7 @@ function hasImageIcon(url: string | null | undefined) {
   align-items: center;
   gap: 4px;
   min-width: 0;
-  color: rgba(255, 255, 255, 0.38);
+  color: var(--ink-muted);
   font-size: 10px;
   font-weight: 650;
 }
@@ -167,14 +167,14 @@ function hasImageIcon(url: string | null | undefined) {
   justify-content: center;
   width: 34px;
   flex-shrink: 0;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--ink-faint);
   transition:
     color 140ms,
     background 140ms;
 }
 
 .home-pin__remove:hover {
-  background: rgba(248, 113, 113, 0.12);
-  color: rgb(248, 113, 113);
+  background: var(--accent-rose-soft);
+  color: var(--accent-rose);
 }
 </style>

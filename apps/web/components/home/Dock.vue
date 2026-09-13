@@ -35,7 +35,7 @@ defineEmits<{
   width: 32px;
   height: 32px;
   border-radius: 9px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--ink-muted);
   background: transparent;
   transition:
     background 140ms,
@@ -44,7 +44,7 @@ defineEmits<{
 }
 
 .home-dock__icon:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.85);
+  background: var(--surface-tinted-strong);
+  color: var(--ink);
 }
 </style>

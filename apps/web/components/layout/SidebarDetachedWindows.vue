@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { CategoryPublic, ChannelPublic } from '@nookapp/protocol';
+import type { CreateChannelOpts } from '~/composables/useChannels';
 import type { useSidebar } from '~/composables/useSidebar';
 import type { HomePinKind } from '~/composables/useHomePins';
 
@@ -21,7 +22,7 @@ const emit = defineEmits<{
   'select-channel': [channel: ChannelPublic, e: MouseEvent | KeyboardEvent];
   'edit-channel': [channelId: string];
   'edit-category': [categoryId: string];
-  'create-channel': [opts: { type: 'text' | 'voice'; categoryId: string | null }];
+  'create-channel': [opts: CreateChannelOpts];
   'open-pinned': [channel: ChannelPublic, kind: HomePinKind];
 }>();
 

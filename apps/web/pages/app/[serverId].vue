@@ -10,6 +10,10 @@ import { useInviteFlow } from '~/composables/useInviteFlow';
 import { useChannelReadState } from '~/composables/useChannelReadState';
 import { useSidebarSectionOrder } from '~/composables/useSidebarSectionOrder';
 import { useChannelEditing } from '~/composables/useChannelEditing';
+import type { CreateChannelOpts } from '~/composables/useChannels';
+import { WIDGET_REGISTRY } from '~/widgets/registry';
+import { useServerMembers } from '~/composables/useServerMembers';
+import { useNotificationDock } from '~/composables/useNotificationDock';
 import type ClassicLayout from '~/components/classic/Layout.vue';
 import type PhaserApp from '~/components/world/PhaserApp.vue';
 
@@ -99,6 +103,8 @@ async function joinOrLeaveVoice(channelId: string) {
 }
 
 const readState = useChannelReadState();
+const dock = useNotificationDock();
+const { nameOf } = useServerMembers(serverId);
 
 function handleChannelClick(ch: ChannelPublic, e: MouseEvent | KeyboardEvent) {
   if (ch.type === 'voice') {
@@ -124,11 +130,16 @@ function openHomePinnedItem(channel: ChannelPublic, kind: HomePinKind) {
 const { createChannel: createChannelApi } = useChannels();
 const channelEditing = useChannelEditing();
 
-async function onInlineCreateChannel(opts: { type: 'text' | 'voice'; categoryId: string | null }) {
-  const defaultName = opts.type === 'voice' ? 'nouveau vocal' : 'nouveau channel';
+async function onInlineCreateChannel(opts: CreateChannelOpts) {
+  const defaultName = opts.widgetKind
+    ? WIDGET_REGISTRY[opts.widgetKind].label.toLowerCase()
+    : opts.type === 'voice'
+      ? 'nouveau vocal'
+      : 'nouveau channel';
   const ch = await createChannelApi(serverId.value, {
     name: defaultName,
     type: opts.type,
+    widgetKind: opts.widgetKind,
     showStat: true,
   });
   if (opts.categoryId) {
@@ -154,6 +165,7 @@ watch(
       fetchChannels(id),
       fetchCategories(id),
       fetchMessageCounts(id).catch((err) => console.warn('fetchMessageCounts failed', err)),
+      readState.loadUnread(id),
       loadMember(id).catch((err) => console.warn('loadMember failed', err)),
       loadMap(id).catch((err) => console.warn('loadMap failed', err)),
     ]);
@@ -166,6 +178,7 @@ const dmRealtime = useDmRealtime();
 let teardownVoiceListeners: (() => void) | null = null;
 let teardownMessageCounter: (() => void) | null = null;
 let teardownDmRealtime: (() => void) | null = null;
+let teardownReconnect: (() => void) | null = null;
 
 onMounted(() => {
   socket.connect();
@@ -177,10 +190,24 @@ onMounted(() => {
   teardownVoiceListeners = voice.setupListeners();
   teardownMessageCounter = socket.onMessage((msg) => {
     messagesStore.incrementCount(msg.channelId);
-    if (msg.authorId !== user.value?.id)
-      messagesStore.noteLastMessage(msg.channelId, msg.createdAt);
+    if (messagesStore.byChannel[msg.channelId]) messagesStore.appendMessage(msg.channelId, msg);
+    if (msg.authorId === user.value?.id) return;
+    messagesStore.noteLastMessage(msg.channelId, msg.createdAt);
+    readState.noteIncoming(msg);
+    if (!user.value || !msg.mentions.includes(user.value.id)) return;
+    if (readState.isViewing(msg.channelId)) return;
+    const channel = store.channels.find((c) => c.id === msg.channelId);
+    dock.push({
+      kind: 'mention',
+      title: `${nameOf(msg.authorId)} t'a mentionné${channel ? ` dans #${channel.name}` : ''}`,
+      detail: msg.content.slice(0, 80),
+      timeoutMs: 8000,
+      onClick: () => channel && handleChannelClick(channel, new MouseEvent('click')),
+    });
   });
   teardownDmRealtime = dmRealtime.setup();
+  // A reconnection means messages were missed: pull the counters back from the server.
+  teardownReconnect = socket.onConnect(() => void readState.loadUnread(serverId.value));
 });
 
 onUnmounted(async () => {
@@ -188,6 +215,7 @@ onUnmounted(async () => {
   teardownVoiceListeners?.();
   teardownMessageCounter?.();
   teardownDmRealtime?.();
+  teardownReconnect?.();
   socket.disconnect();
 });
 

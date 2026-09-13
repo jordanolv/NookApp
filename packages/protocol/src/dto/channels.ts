@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const channelTypeSchema = z.enum(['text', 'voice', 'forum', 'game', 'widget']);
 export type ChannelType = z.infer<typeof channelTypeSchema>;
 
-export const widgetKindSchema = z.enum(['notes', 'gaming']);
+export const widgetKindSchema = z.enum(['gaming']);
 export type WidgetKind = z.infer<typeof widgetKindSchema>;
 
 export const mapZoneSchema = z.object({

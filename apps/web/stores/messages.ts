@@ -25,6 +25,7 @@ export const useMessagesStore = defineStore('messages', {
     },
     appendMessage(channelId: string, message: MessagePublic) {
       if (!this.byChannel[channelId]) this.byChannel[channelId] = [];
+      if (this.byChannel[channelId].some((m) => m.id === message.id)) return;
       this.byChannel[channelId].push(message);
     },
     updateMessage(channelId: string, message: MessagePublic) {

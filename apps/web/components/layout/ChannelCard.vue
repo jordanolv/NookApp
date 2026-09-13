@@ -24,13 +24,11 @@ const data = inject(CHANNEL_CARD_DATA);
 if (!data) throw new Error('ChannelCard must be used inside a provider of CHANNEL_CARD_DATA');
 
 const readState = useChannelReadState();
-const lastMessage = computed(() => data.lastMessageOf(props.channel.id));
 const stat = computed(() => data.statOf(props.channel));
 const isForumHeader = computed(() => props.channel.type === 'forum' && !props.isChild);
-const unread = computed(() =>
-  readState.unreadCount(props.channel.id, lastMessage.value?.createdAt),
-);
-const unreadLabel = computed(() => (unread.value > 99 ? '99+' : String(unread.value)));
+const unread = computed(() => readState.unreadCount(props.channel.id));
+const mentions = computed(() => readState.mentionCount(props.channel.id));
+const badge = (n: number) => (n > 99 ? '99+' : String(n));
 const accent = computed(() => data.accent(props.channel));
 const cardVars = computed(() => ({ '--accent': `rgba(${accent.value}, 1)` }));
 
@@ -141,8 +139,16 @@ async function updateChannelStyle(patch: { color?: string | null; iconName?: str
       </span>
     </div>
 
-    <span v-if="unread > 0" class="card__unread" :title="`${unread} non lus`">
-      {{ unreadLabel }}
+    <span
+      v-if="mentions > 0"
+      class="card__pill card__pill--mention"
+      :title="`${mentions} mention(s)`"
+    >
+      @{{ badge(mentions) }}
+    </span>
+
+    <span v-if="unread > 0" class="card__pill" :title="`${unread} non lus`">
+      {{ badge(unread) }}
     </span>
 
     <div v-if="channel.showStat && stat.label" class="card__stat">
@@ -290,7 +296,7 @@ async function updateChannelStyle(patch: { color?: string | null; iconName?: str
   transform: rotate(-90deg);
 }
 
-.card__unread {
+.card__pill {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -305,6 +311,10 @@ async function updateChannelStyle(patch: { color?: string | null; iconName?: str
   background: var(--accent-rose);
   color: #fff;
   letter-spacing: -0.02em;
+}
+.card__pill--mention {
+  background: var(--accent-violet);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-violet) 28%, transparent);
 }
 
 .card__stat {

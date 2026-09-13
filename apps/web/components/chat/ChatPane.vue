@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { useMessagesStore } from '~/stores/messages';
 import { renderMarkdown, isGifUrl } from '~/composables/useMarkdown';
+import { useChannelReadState } from '~/composables/useChannelReadState';
+import { useServerMembers } from '~/composables/useServerMembers';
+import { highlightMentions } from '~/utils/mentions';
 
 const props = defineProps<{
   channelId: string;
@@ -13,6 +16,9 @@ const { fetchMessages, sendMessage, editMessage, deleteMessage } = useMessages()
 const messagesStore = useMessagesStore();
 const socket = useSocket();
 const auth = useAuthStore();
+const readState = useChannelReadState();
+const { nameOf, byUserId } = useServerMembers(serverId);
+const memberNames = computed(() => [...byUserId.value.values()].map((u) => u.name));
 
 const editingId = ref<string | null>(null);
 const editDraft = ref('');
@@ -32,17 +38,23 @@ function scrollToBottom() {
 
 watch(
   () => props.channelId,
-  async (id) => {
+  async (id, previous) => {
+    if (previous) readState.setViewing(previous, false);
+    readState.setViewing(id, true);
     await fetchMessages(serverId.value, id);
+    readState.markRead(id);
     scrollToBottom();
   },
   { immediate: true },
 );
 
+onUnmounted(() => readState.setViewing(props.channelId, false));
+
 onMounted(() => {
   const offSent = socket.onMessage((msg) => {
     if (msg.channelId === props.channelId) {
       messagesStore.appendMessage(props.channelId, msg);
+      readState.markRead(props.channelId);
       scrollToBottom();
     }
   });
@@ -105,7 +117,7 @@ function formatTime(iso: string) {
 function renderContent(content: string): string {
   const gif = isGifUrl(content);
   if (gif) return `<img src="${gif}" class="rounded-lg max-h-48 mt-1" style="max-width:100%" />`;
-  return renderMarkdown(content);
+  return highlightMentions(renderMarkdown(content), memberNames.value, auth.user?.name);
 }
 
 const GROUP_GAP_MS = 2 * 60 * 1000;
@@ -166,13 +178,13 @@ function showHeader(i: number): boolean {
               color: '#fff',
             }"
           >
-            {{ msg.authorId.slice(0, 2).toUpperCase() }}
+            {{ nameOf(msg.authorId).slice(0, 2).toUpperCase() }}
           </div>
           <div v-else class="w-7 flex-shrink-0" />
           <div class="flex flex-col min-w-0">
             <div v-if="showHeader(i)" class="flex items-baseline gap-2 mb-0.5">
               <span class="text-xs font-semibold" :style="{ color: 'var(--ink)' }">
-                {{ msg.authorId.slice(0, 8) }}
+                {{ nameOf(msg.authorId) }}
               </span>
               <span class="text-xs" :style="{ color: 'var(--ink-muted)' }">{{
                 formatTime(msg.createdAt)
@@ -248,6 +260,7 @@ function showHeader(i: number): boolean {
     <ChatMessageInput
       :placeholder="`Message #${channel?.name ?? '…'}`"
       :disabled="sending"
+      :mention-names="memberNames"
       @send="onSend"
     />
   </div>
@@ -295,5 +308,16 @@ function showHeader(i: number): boolean {
 .message-content a {
   color: var(--accent-cool);
   text-decoration: underline;
+}
+.message-content .mention {
+  padding: 0.05em 0.3em;
+  border-radius: 4px;
+  font-weight: 600;
+  color: var(--accent-violet);
+  background: color-mix(in srgb, var(--accent-violet) 14%, transparent);
+}
+.message-content .mention--me {
+  color: #fff;
+  background: var(--accent-violet);
 }
 </style>

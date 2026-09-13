@@ -1,4 +1,4 @@
-import { index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { index, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import { user } from '../auth/user';
 import { channel } from './channel';
 
@@ -13,6 +13,7 @@ export const message = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     content: text('content').notNull(),
+    mentions: jsonb('mentions').$type<string[]>().notNull().default([]),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     editedAt: timestamp('edited_at', { withTimezone: true }),
   },

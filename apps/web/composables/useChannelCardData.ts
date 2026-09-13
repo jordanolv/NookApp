@@ -32,7 +32,7 @@ export function useChannelCardData(_opts: {
     const list = messages.byChannel[channelId];
     const last = list && list.length ? (list[list.length - 1] as ChannelLastMessage) : null;
     if (!last) return null;
-    return readState.isUnread(channelId, last.createdAt) ? last : null;
+    return readState.isUnread(channelId) ? last : null;
   }
 
   function statOf(_ch: ChannelPublic): ChannelStat {

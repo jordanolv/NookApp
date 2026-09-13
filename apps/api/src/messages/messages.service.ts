@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, count, desc, eq, lt } from 'drizzle-orm';
-import { channel, member, message, type Database } from '@nookapp/db';
+import { and, count, desc, eq, lt, ne, sql } from 'drizzle-orm';
+import { channel, channelRead, member, message, user, type Database } from '@nookapp/db';
 import {
   hasPermission,
   PERMISSIONS,
+  resolveMentions,
   type CreateMessageInput,
   type MessagePublic,
+  type ServerUnread,
   type UpdateMessageInput,
 } from '@nookapp/protocol';
 import { DB } from '../database/database.module';
@@ -20,6 +22,7 @@ function toMessagePublic(row: typeof message.$inferSelect): MessagePublic {
     content: row.content,
     createdAt: row.createdAt.toISOString(),
     editedAt: row.editedAt?.toISOString() ?? null,
+    mentions: row.mentions ?? [],
   };
 }
 
@@ -82,6 +85,7 @@ export class MessagesService {
         channelId,
         authorId: userId,
         content: input.content,
+        mentions: await this.resolveMentions(serverId, input.content),
       })
       .returning();
 
@@ -104,7 +108,11 @@ export class MessagesService {
 
     const [updated] = await this.db
       .update(message)
-      .set({ content: input.content, editedAt: new Date() })
+      .set({
+        content: input.content,
+        mentions: await this.resolveMentions(serverId, input.content),
+        editedAt: new Date(),
+      })
       .where(eq(message.id, messageId))
       .returning();
 
@@ -128,6 +136,57 @@ export class MessagesService {
     }
 
     await this.db.delete(message).where(eq(message.id, messageId));
+  }
+
+  /** Unread and mention counts per channel, relative to the member's last read timestamp. */
+  async unreadByServer(serverId: string, userId: string): Promise<ServerUnread> {
+    const mentionsMe = JSON.stringify([userId]);
+    const rows = await this.db
+      .select({
+        channelId: message.channelId,
+        total: count(),
+        mentions: sql<number>`count(*) filter (where ${message.mentions} @> ${mentionsMe}::jsonb)`,
+      })
+      .from(message)
+      .innerJoin(channel, eq(channel.id, message.channelId))
+      .leftJoin(
+        channelRead,
+        and(eq(channelRead.channelId, message.channelId), eq(channelRead.userId, userId)),
+      )
+      .where(
+        and(
+          eq(channel.serverId, serverId),
+          ne(message.authorId, userId),
+          sql`${message.createdAt} > coalesce(${channelRead.lastReadAt}, 'epoch'::timestamptz)`,
+        ),
+      )
+      .groupBy(message.channelId);
+
+    const unread: ServerUnread = {};
+    for (const r of rows)
+      unread[r.channelId] = { messages: Number(r.total), mentions: Number(r.mentions) };
+    return unread;
+  }
+
+  async markChannelRead(serverId: string, channelId: string, userId: string): Promise<void> {
+    await this.requireChannelMember(serverId, channelId, userId);
+    await this.db
+      .insert(channelRead)
+      .values({ id: randomUUID(), channelId, userId, lastReadAt: new Date() })
+      .onConflictDoUpdate({
+        target: [channelRead.channelId, channelRead.userId],
+        set: { lastReadAt: new Date() },
+      });
+  }
+
+  private async resolveMentions(serverId: string, content: string): Promise<string[]> {
+    if (!content.includes('@')) return [];
+    const members = await this.db
+      .select({ id: user.id, name: user.name })
+      .from(member)
+      .innerJoin(user, eq(user.id, member.userId))
+      .where(eq(member.serverId, serverId));
+    return resolveMentions(content, members);
   }
 
   private async requireMessage(channelId: string, messageId: string) {

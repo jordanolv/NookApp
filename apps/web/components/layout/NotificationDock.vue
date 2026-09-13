@@ -15,6 +15,8 @@ const kindAccent = computed(() => {
       return 'var(--accent-warm)';
     case 'error':
       return 'var(--accent-rose)';
+    case 'mention':
+      return 'var(--accent-violet)';
     case 'info':
     default:
       return 'var(--accent-cool)';
