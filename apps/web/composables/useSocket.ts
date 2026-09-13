@@ -8,6 +8,9 @@ import type {
   PlayerAppearancePayload,
   PlayerEmote,
   PlayerEmotePayload,
+  PlayerPresence,
+  PlayerPresencePayload,
+  ServerJoinPayload,
   PlayerHelloPayload,
   PlayerMovedPayload,
   PlayerSnapshotPayload,
@@ -84,6 +87,10 @@ export function useSocket() {
     socket?.emit('player:hello', payload);
   }
 
+  function joinServer(payload: ServerJoinPayload) {
+    socket?.emit('server:join', payload);
+  }
+
   function onSnapshot(cb: (payload: PlayerSnapshotPayload) => void) {
     socket?.on('player:snapshot', cb);
     return () => socket?.off('player:snapshot', cb);
@@ -146,6 +153,15 @@ export function useSocket() {
     return () => socket?.off('player:appearance', cb);
   }
 
+  function emitPlayerPresence(presence: PlayerPresence) {
+    socket?.emit('player:presence', { presence });
+  }
+
+  function onPlayerPresence(cb: (payload: PlayerPresencePayload) => void) {
+    socket?.on('player:presence', cb);
+    return () => socket?.off('player:presence', cb);
+  }
+
   function emitPlayerEmote(emote: PlayerEmote) {
     socket?.emit('player:emote', { emote });
   }
@@ -189,6 +205,7 @@ export function useSocket() {
     raw,
     latencyMs: readonly(latencyMs),
     hello,
+    joinServer,
     onSnapshot,
     onMessage,
     onMessageUpdated,
@@ -204,6 +221,8 @@ export function useSocket() {
     onPlayerAppearance,
     emitPlayerEmote,
     onPlayerEmote,
+    emitPlayerPresence,
+    onPlayerPresence,
     emitVoiceJoin,
     emitVoiceLeave,
     onVoiceSnapshot,

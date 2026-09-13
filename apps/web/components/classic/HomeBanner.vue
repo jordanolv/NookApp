@@ -53,9 +53,9 @@ defineProps<{
   position: relative;
   border-radius: 16px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
-  background: rgba(15, 16, 24, 0.9);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-lift);
+  background: var(--surface-strong);
 }
 
 .banner__media {

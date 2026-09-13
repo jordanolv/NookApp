@@ -3,6 +3,7 @@ import { Hash, MessageSquare, X } from 'lucide-vue-next';
 import type { ChannelPublic } from '@nookapp/protocol';
 
 defineProps<{ serverId: string }>();
+const emit = defineEmits<{ 'join-voice': [channel: ChannelPublic] }>();
 
 const { store } = useServers();
 
@@ -19,7 +20,11 @@ const selectedChannel = computed(() =>
 );
 
 function openChannel(channelId: string) {
-  if (channelById.value.has(channelId)) selectedChannelId.value = channelId;
+  const channel = channelById.value.get(channelId);
+  if (!channel) return;
+  // voice has no window: hand it back to the page, which owns the voice session
+  if (channel.type === 'voice') emit('join-voice', channel);
+  else selectedChannelId.value = channelId;
 }
 
 function backToHome() {
@@ -31,20 +36,13 @@ defineExpose({ openChannel, backToHome });
 
 <template>
   <div class="classic">
-    <div class="classic__backdrop" aria-hidden="true">
-      <div class="classic__backdrop-floor" />
-      <div class="classic__backdrop-grid" />
-      <div class="classic__backdrop-glow" />
-      <span class="classic__backdrop-prop classic__backdrop-prop--1">🪴</span>
-      <span class="classic__backdrop-prop classic__backdrop-prop--2">🛋️</span>
-      <span class="classic__backdrop-prop classic__backdrop-prop--3">🪑</span>
-      <span class="classic__backdrop-prop classic__backdrop-prop--4">🧸</span>
-      <div class="classic__backdrop-haze" />
-    </div>
+    <div class="classic__backdrop" aria-hidden="true" />
 
-    <main class="classic__stage">
+    <main class="classic__stage" :class="{ 'classic__stage--split': selectedChannel }">
+      <ClassicHome class="home-stage" :server-id="serverId" @open-channel="openChannel" />
+
       <Transition name="classic-window">
-        <article v-if="selectedChannel" :key="selectedChannel.id" class="window">
+        <article v-if="selectedChannel" class="window">
           <header class="window__head">
             <span class="window__head-icon">
               <component
@@ -60,14 +58,6 @@ defineExpose({ openChannel, backToHome });
           </header>
           <ChatPane :channel-id="selectedChannel.id" class="window__chat" />
         </article>
-
-        <ClassicHome
-          v-else
-          key="home"
-          class="home-stage"
-          :server-id="serverId"
-          @open-channel="openChannel"
-        />
       </Transition>
     </main>
   </div>
@@ -78,11 +68,7 @@ defineExpose({ openChannel, backToHome });
   position: relative;
   width: 100%;
   height: 100%;
-  font-family:
-    'Inter',
-    system-ui,
-    -apple-system,
-    sans-serif;
+  font-family: var(--font-body);
   overflow: hidden;
 }
 
@@ -91,77 +77,7 @@ defineExpose({ openChannel, backToHome });
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  overflow: hidden;
-}
-
-.classic__backdrop-floor {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(ellipse at 50% 80%, rgba(99, 102, 241, 0.18), transparent 65%),
-    linear-gradient(180deg, #0c0d18 0%, #11121f 60%, #0a0a14 100%);
-}
-
-.classic__backdrop-grid {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 32px 32px;
-  background-position: 16px 16px;
-  mask-image: radial-gradient(ellipse at 50% 60%, black 30%, transparent 80%);
-  -webkit-mask-image: radial-gradient(ellipse at 50% 60%, black 30%, transparent 80%);
-  filter: blur(0.4px);
-}
-
-.classic__backdrop-glow {
-  position: absolute;
-  top: -20%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 800px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(129, 140, 248, 0.18), transparent 70%);
-  filter: blur(40px);
-}
-
-.classic__backdrop-haze {
-  position: absolute;
-  inset: 0;
-  background: rgba(7, 7, 11, 0.55);
-}
-
-.classic__backdrop-prop {
-  position: absolute;
-  font-size: 32px;
-  opacity: 0.16;
-  filter: blur(0.4px) grayscale(0.4);
-  user-select: none;
-}
-
-.classic__backdrop-prop--1 {
-  top: 12%;
-  left: 8%;
-  transform: rotate(-10deg) scale(1.4);
-}
-.classic__backdrop-prop--2 {
-  bottom: 22%;
-  left: 18%;
-  font-size: 44px;
-  transform: rotate(4deg) scale(1.8);
-}
-.classic__backdrop-prop--3 {
-  bottom: 30%;
-  right: 30%;
-  font-size: 28px;
-  transform: rotate(-8deg) scale(1.3);
-}
-.classic__backdrop-prop--4 {
-  top: 22%;
-  right: 14%;
-  font-size: 32px;
-  transform: rotate(8deg);
+  background: var(--page-bg);
 }
 
 .classic__stage {
@@ -172,24 +88,23 @@ defineExpose({ openChannel, backToHome });
   display: flex;
   align-items: stretch;
   justify-content: center;
-  padding: 28px;
+  gap: 16px;
+  padding: 16px;
 }
 
 .window {
   position: relative;
-  width: 100%;
-  max-width: 780px;
+  flex: 0 0 440px;
+  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  border-radius: 18px;
-  background: rgba(15, 16, 24, 0.86);
+  border-radius: 14px;
+  background: var(--surface-strong);
   backdrop-filter: blur(24px) saturate(160%);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow:
-    0 32px 80px rgba(0, 0, 0, 0.55),
-    0 0 0 1px rgba(99, 102, 241, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-lift);
   overflow: hidden;
 }
 
@@ -198,16 +113,26 @@ defineExpose({ openChannel, backToHome });
   width: 100%;
   max-width: 1100px;
   flex: 1;
+  min-width: 0;
   min-height: 0;
+}
+
+@media (max-width: 1100px) {
+  .classic__stage--split .home-stage {
+    display: none;
+  }
+  .window {
+    flex: 1;
+  }
 }
 
 .window__head {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0));
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--surface-divider);
+  background: var(--surface-tinted);
 }
 
 .window__head--ghost {
@@ -217,14 +142,14 @@ defineExpose({ openChannel, backToHome });
 .window__head-icon {
   display: flex;
   align-items: center;
-  color: rgba(165, 180, 252, 0.85);
+  color: var(--ink-muted);
 }
 
 .window__head-name {
   flex: 1;
   font-size: 13px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -237,15 +162,15 @@ defineExpose({ openChannel, backToHome });
   width: 24px;
   height: 24px;
   border-radius: 6px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--ink-faint);
   transition:
     background 120ms,
     color 120ms;
 }
 
 .window__head-close:hover {
-  background: rgba(239, 68, 68, 0.2);
-  color: rgb(248, 113, 113);
+  background: color-mix(in srgb, var(--accent-rose) 18%, transparent);
+  color: var(--accent-rose);
 }
 
 .window__chat {
@@ -255,15 +180,12 @@ defineExpose({ openChannel, backToHome });
 
 .classic-window-enter-active,
 .classic-window-leave-active {
-  transition:
-    opacity 200ms,
-    transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: opacity 160ms;
 }
 
 .classic-window-enter-from,
 .classic-window-leave-to {
   opacity: 0;
-  transform: translateY(8px) scale(0.98);
 }
 
 .welcome {
@@ -290,7 +212,7 @@ defineExpose({ openChannel, backToHome });
   margin: 0 0 8px;
   font-size: 22px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--ink);
   letter-spacing: -0.01em;
 }
 
@@ -298,13 +220,13 @@ defineExpose({ openChannel, backToHome });
   margin: 0 0 14px;
   font-size: 13px;
   line-height: 1.6;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--ink-muted);
 }
 
 .welcome__hint {
   margin: 0;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--ink-faint);
   font-style: italic;
 }
 </style>

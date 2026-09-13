@@ -12,6 +12,7 @@ import {
   type NameTagStatus,
 } from '~/components/world/name-tag/constants';
 import { useLocalActivity } from './useLocalActivity';
+import type { PlayerPresence } from '@nookapp/protocol';
 
 type AttachableTrack = {
   attach: (el: HTMLVideoElement) => HTMLVideoElement;
@@ -58,6 +59,8 @@ export function useWorldOverlays(opts: {
   game: Phaser.Game;
   cachedRect: ShallowRef<DOMRect | null>;
   localUserId: string;
+  // presence of the other players, keyed by userId (fed by socket events)
+  remotePresence: Map<string, PlayerPresence>;
   // translator passed from the component (the scene has no i18n context)
   t: (key: string) => string;
   out: {
@@ -117,10 +120,12 @@ export function useWorldOverlays(opts: {
 
     const worldMode = voice.mediaViewMode.value === 'world';
     const localUserId = opts.localUserId;
-    const isDeafened = voice.isDeafened.value;
-    const isMuted = voice.isMuted.value;
-    const localStatus: NameTagStatus = status.effectiveStatus.value;
-    const localMediaIcon = isDeafened ? ICON_DEAFENED : isMuted ? ICON_MUTED : '';
+    const localPresence: PlayerPresence = {
+      status: status.effectiveStatus.value,
+      activity: localActivity.value,
+      muted: voice.isMuted.value,
+      deafened: voice.isDeafened.value,
+    };
     const localCam = voice.isCameraOn.value;
     const localScreen = voice.isScreenSharing.value;
     const localCamTrack = voice.localCameraTrack.value as AttachableTrack | null;
@@ -136,12 +141,13 @@ export function useWorldOverlays(opts: {
     for (const t of latestTags) {
       const isLocal = t.userId === localUserId;
       const tag = NookScene.projectToScreen(cam, rect, t.worldX, t.worldY - NAME_TAG_Y_OFFSET);
+      const p = isLocal ? localPresence : opts.remotePresence.get(t.userId);
       nextNameTags.push({
         userId: t.userId,
         name: t.name,
-        status: isLocal ? localStatus : 'online',
-        mediaIconHtml: isLocal ? localMediaIcon : '',
-        activity: isLocal ? localActivity.value : null,
+        status: (p?.status ?? 'online') as NameTagStatus,
+        mediaIconHtml: p?.deafened ? ICON_DEAFENED : p?.muted ? ICON_MUTED : '',
+        activity: p?.activity ?? null,
         emote: emoteFor(t.userId, now),
         x: tag.x,
         y: tag.y,

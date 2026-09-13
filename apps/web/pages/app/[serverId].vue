@@ -172,6 +172,11 @@ let teardownDmRealtime: (() => void) | null = null;
 
 onMounted(() => {
   socket.connect();
+  // The world view registers itself via hello(); the classic view has no player
+  // on the map but still needs the server room for chat and voice presence.
+  if (classicEnabled.value) {
+    socket.joinServer({ serverId: serverId.value, name: user.value?.name ?? '' });
+  }
   teardownVoiceListeners = voice.setupListeners();
   teardownMessageCounter = socket.onMessage((msg) => {
     messagesStore.incrementCount(msg.channelId);
@@ -260,6 +265,7 @@ const serverBannerUrl = computed(() => resolveUrl(server.value?.bannerUrl) ?? nu
       ref="classicLayoutRef"
       :server-id="serverId"
       class="classic-shell"
+      @join-voice="(ch) => joinOrLeaveVoice(ch.id)"
       :style="{ paddingLeft: classicLeftPad + 'px', paddingRight: classicRightPad + 'px' }"
     />
 
