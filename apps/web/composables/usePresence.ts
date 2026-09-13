@@ -25,6 +25,9 @@ let cleanups: (() => void)[] = [];
 
 function attach() {
   const socket = useSocket();
+  // Components mount before the page connects; the listeners below would be
+  // registered on nothing. connect() is idempotent, so make the socket exist now.
+  socket.connect();
 
   cleanups.push(
     socket.onSnapshot((snap) => {
