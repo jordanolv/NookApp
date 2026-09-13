@@ -91,6 +91,12 @@ export function useSocket() {
     socket?.emit('server:join', payload);
   }
 
+  /** Fires on every (re)connection, so callers can resync what they missed while offline. */
+  function onConnect(cb: () => void) {
+    socket?.on('connect', cb);
+    return () => socket?.off('connect', cb);
+  }
+
   function onSnapshot(cb: (payload: PlayerSnapshotPayload) => void) {
     socket?.on('player:snapshot', cb);
     return () => socket?.off('player:snapshot', cb);
@@ -206,6 +212,7 @@ export function useSocket() {
     latencyMs: readonly(latencyMs),
     hello,
     joinServer,
+    onConnect,
     onSnapshot,
     onMessage,
     onMessageUpdated,

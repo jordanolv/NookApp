@@ -65,6 +65,10 @@ function openChannel(ch: ChannelPublic, e?: MouseEvent | KeyboardEvent) {
     widgetWindows.open({ id: ch.id, name: ch.name, widgetKind: ch.widgetKind });
     return;
   }
+  if (ch.type === 'game') {
+    openTopicWindow(ch);
+    return;
+  }
   props.chatTabs.openChannel(ch.id);
 }
 

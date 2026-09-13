@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Settings, SignalHigh, SignalLow, SignalMedium, SignalZero } from 'lucide-vue-next';
 import type { CategoryPublic, ChannelPublic } from '@nookapp/protocol';
+import type { CreateChannelOpts } from '~/composables/useChannels';
 import { useLocalActivity } from '~/composables/useLocalActivity';
 import { useStatus, type Status } from '~/composables/useStatus';
 
@@ -22,7 +23,7 @@ const emit = defineEmits<{
   'select-channel': [channel: ChannelPublic, e: MouseEvent | KeyboardEvent];
   'edit-channel': [channelId: string];
   'edit-category': [categoryId: string];
-  'create-channel': [opts: { type: 'text' | 'voice'; categoryId: string | null }];
+  'create-channel': [opts: CreateChannelOpts];
   'open-user-settings': [];
 }>();
 
@@ -119,7 +120,10 @@ onBeforeUnmount(() => {
         @select="(ch, e) => emit('select-channel', ch, e)"
         @edit-channel="(id) => emit('edit-channel', id)"
         @edit-category="(id) => emit('edit-category', id)"
-        @create-channel="(categoryId) => emit('create-channel', { type: 'text', categoryId })"
+        @create-channel="
+          ({ widgetKind, categoryId }) =>
+            emit('create-channel', { type: widgetKind ? 'widget' : 'text', widgetKind, categoryId })
+        "
       />
       <LayoutVoiceChannelsList
         :channels="voiceChannels"

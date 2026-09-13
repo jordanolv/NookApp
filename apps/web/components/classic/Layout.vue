@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { Hash, MessageSquare, X } from 'lucide-vue-next';
+import { Hash, MessageSquare, Sticker, X } from 'lucide-vue-next';
 import type { ChannelPublic } from '@nookapp/protocol';
+import { getWidget } from '~/widgets/registry';
 
 defineProps<{ serverId: string; canManage?: boolean }>();
 const emit = defineEmits<{
@@ -70,7 +71,13 @@ defineExpose({ openChannel, backToHome });
           <header class="window__head">
             <span class="window__head-icon">
               <component
-                :is="selectedChannel.type === 'forum' ? MessageSquare : Hash"
+                :is="
+                  selectedChannel.type === 'forum'
+                    ? MessageSquare
+                    : selectedChannel.type === 'widget'
+                      ? Sticker
+                      : Hash
+                "
                 :size="14"
                 :stroke-width="2.2"
               />
@@ -80,7 +87,15 @@ defineExpose({ openChannel, backToHome });
               <X :size="14" :stroke-width="2.2" />
             </button>
           </header>
-          <ChatPane :channel-id="selectedChannel.id" class="window__chat" />
+          <component
+            :is="getWidget(selectedChannel.widgetKind)?.component"
+            v-if="selectedChannel.type === 'widget'"
+            :server-id="serverId"
+            :channel-id="selectedChannel.id"
+            :channel-name="selectedChannel.name"
+            class="window__chat"
+          />
+          <ChatPane v-else :channel-id="selectedChannel.id" class="window__chat" />
         </article>
       </Transition>
     </main>

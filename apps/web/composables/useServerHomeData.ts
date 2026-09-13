@@ -45,6 +45,10 @@ export function useServerHomeData(serverId: Ref<string>) {
     allChannels.value.filter((c) => c.type === 'forum' && !c.parentId),
   );
 
+  const widgetChannels = computed(() =>
+    allChannels.value.filter((c) => c.type === 'widget' && !c.parentId),
+  );
+
   const pinnedChannels = computed<ChannelPublic[]>(() => {
     const ids = homePins.pins.value.filter((p) => p.kind === 'channel').map((p) => p.channelId);
     const byId = new Map(allChannels.value.map((c) => [c.id, c]));
@@ -78,6 +82,7 @@ export function useServerHomeData(serverId: Ref<string>) {
     voiceChannels,
     liveVoiceChannels,
     forumChannels,
+    widgetChannels,
     pinnedChannels,
     forumThreadCount,
     lastSnippet,
