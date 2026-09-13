@@ -71,9 +71,6 @@ function onReorderSections(fromKey: string, toKey: string) {
 }
 const sidebar = useSidebar(['channels', ...PANEL_SECTIONS.map((s) => s.key)]);
 
-const classicLeftPad = computed(() => 300);
-const classicRightPad = computed(() => (sidebar.activeSet.value.size > 0 ? 352 : 72));
-
 // ── Shared state ───────────────────────────────────────────────────────
 const chatTabs = useChatTabs();
 const serverPicker = useServerPicker();
@@ -210,6 +207,7 @@ const serverBannerUrl = computed(() => resolveUrl(server.value?.bannerUrl) ?? nu
 <template>
   <div class="page-root">
     <LayoutNookSidebars
+      v-if="!classicEnabled"
       :sidebar="sidebar"
       :right-sections="rightSections"
       :channels="sidebarChannels"
@@ -237,6 +235,7 @@ const serverBannerUrl = computed(() => resolveUrl(server.value?.bannerUrl) ?? nu
       :server-name="server?.name ?? ''"
       :banner-url="serverBannerUrl"
       :can-manage-map="canManageMap"
+      :classic="classicEnabled"
       @open-server-menu="serverPicker.openMenu"
     />
 
@@ -265,8 +264,10 @@ const serverBannerUrl = computed(() => resolveUrl(server.value?.bannerUrl) ?? nu
       ref="classicLayoutRef"
       :server-id="serverId"
       class="classic-shell"
+      :can-manage="canManageChannels"
       @join-voice="(ch) => joinOrLeaveVoice(ch.id)"
-      :style="{ paddingLeft: classicLeftPad + 'px', paddingRight: classicRightPad + 'px' }"
+      @create-channel="(type) => onInlineCreateChannel({ type, categoryId: null })"
+      @open-user-settings="showUserSettings = true"
     />
 
     <WorldPhaserApp

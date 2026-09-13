@@ -1,15 +1,27 @@
 <script setup lang="ts">
 import { computed, toRef } from 'vue';
-import { Hash, MessageSquare, Volume2, Sparkles, Pin, ChevronRight } from 'lucide-vue-next';
+import {
+  Hash,
+  MessageSquare,
+  Volume2,
+  Sparkles,
+  Pin,
+  ChevronRight,
+  Plus,
+  Settings,
+} from 'lucide-vue-next';
 import { useServerHomeData } from '~/composables/useServerHomeData';
 import HomeBanner from './HomeBanner.vue';
 
 const props = defineProps<{
   serverId: string;
+  canManage?: boolean;
 }>();
 
 const emit = defineEmits<{
   'open-channel': [channelId: string];
+  'create-channel': [type: 'text' | 'voice'];
+  'open-user-settings': [];
 }>();
 
 const home = useServerHomeData(toRef(props, 'serverId'));
@@ -35,9 +47,32 @@ function open(channelId: string) {
       :channel-count="home.allChannels.value.length"
     />
 
+    <div class="me">
+      <span class="me__avatar">{{ (user?.name ?? '?').slice(0, 1).toUpperCase() }}</span>
+      <span class="me__name">{{ user?.name }}</span>
+      <button
+        type="button"
+        class="me__settings"
+        title="Paramètres du compte"
+        @click="emit('open-user-settings')"
+      >
+        <Settings :size="15" :stroke-width="2" />
+      </button>
+    </div>
+
     <section class="grid">
       <div class="grid__col grid__col--main">
         <ClassicHomeCard :icon="Hash" title="Salons actifs" :count="home.textChannels.value.length">
+          <template v-if="canManage" #actions>
+            <button
+              type="button"
+              class="card-add"
+              title="Créer un salon"
+              @click="emit('create-channel', 'text')"
+            >
+              <Plus :size="13" :stroke-width="2.4" />
+            </button>
+          </template>
           <ul v-if="home.textChannels.value.length" class="list">
             <li v-for="ch in home.textChannels.value" :key="ch.id" class="row" @click="open(ch.id)">
               <span class="row__hash">#</span>
@@ -94,6 +129,16 @@ function open(channelId: string) {
           title="Vocaux"
           :count="`${liveVoiceCount}/${home.voiceChannels.value.length}`"
         >
+          <template v-if="canManage" #actions>
+            <button
+              type="button"
+              class="card-add"
+              title="Créer un salon vocal"
+              @click="emit('create-channel', 'voice')"
+            >
+              <Plus :size="13" :stroke-width="2.4" />
+            </button>
+          </template>
           <ul class="list">
             <li
               v-for="v in home.liveVoiceChannels.value"
@@ -180,6 +225,54 @@ function open(channelId: string) {
   font-family: var(--font-body);
   scrollbar-width: thin;
   scrollbar-color: var(--surface-tinted-strong) transparent;
+}
+
+.me {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 4px;
+}
+.me__avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-inverse);
+  background: var(--ink-muted);
+}
+.me__name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.me__settings,
+.card-add {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition:
+    background 120ms,
+    color 120ms;
+}
+.me__settings:hover,
+.card-add:hover {
+  background: var(--surface-tinted-strong);
+  color: var(--ink);
+}
+.card-add {
+  width: 22px;
+  height: 22px;
 }
 
 .grid {

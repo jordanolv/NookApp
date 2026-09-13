@@ -27,6 +27,8 @@ defineProps<{
   serverName: string;
   bannerUrl?: string | null;
   canManageMap?: boolean;
+  // classic view: no world, so no emotes and no build mode
+  classic?: boolean;
 }>();
 
 const { buildMode } = useMap();
@@ -90,7 +92,7 @@ function restoreOnline() {
     <span class="dock__sep" aria-hidden="true" />
 
     <!-- World actions -->
-    <div class="dock__status-wrap">
+    <div v-if="!classic" class="dock__status-wrap">
       <button
         type="button"
         class="dock__btn"
@@ -154,7 +156,7 @@ function restoreOnline() {
     </button>
 
     <!-- Build mode -->
-    <template v-if="canManageMap">
+    <template v-if="canManageMap && !classic">
       <span class="dock__sep" aria-hidden="true" />
       <button
         type="button"
