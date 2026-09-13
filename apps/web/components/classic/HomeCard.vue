@@ -15,6 +15,7 @@ defineProps<{
       <component :is="icon" :size="13" :stroke-width="2.2" class="card__head-icon" />
       <h2 class="card__title">{{ title }}</h2>
       <span v-if="count !== undefined" class="card__count">{{ count }}</span>
+      <slot name="actions" />
     </header>
     <slot />
   </article>
