@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import type { DecorObject } from '@nookapp/protocol';
 import { TILE_SIZE, WORLD_COLS, WORLD_ROWS } from '../constants';
 import { getDecorAsset } from '../decor-catalog';
 import type { MapModel } from '../map-model';
@@ -39,6 +40,7 @@ export class BuildController {
     private readonly scene: Phaser.Scene,
     private readonly buildOverlay: BuildOverlay,
     private readonly getModel: () => MapModel | null,
+    private readonly decorAtPoint: (wx: number, wy: number) => DecorObject | null,
   ) {
     this.tilePaint = new RectPaintTool(scene, { add: 0x6366f1, remove: 0xef4444 });
     this.wallPaint = new RectPaintTool(scene, { add: 0x9a9a9a, remove: 0xef4444 });
@@ -115,8 +117,19 @@ export class BuildController {
     }
     if (this.tool === 'erase') {
       this.eraseDragLastTile = { x: tx, y: ty };
-      this.scene.events.emit('cell-erase', { x: tx, y: ty } satisfies CellErasePayload);
+      this.erase(pointer, tx, ty);
     }
+  }
+
+  // Erasing on a drawn object removes that object; anything else clears the cell.
+  private erase(pointer: Phaser.Input.Pointer, tx: number, ty: number) {
+    const model = this.getModel();
+    const hit = model?.decorAt(tx, ty) ?? this.decorAtPoint(pointer.worldX, pointer.worldY);
+    if (hit) {
+      this.scene.events.emit('decor-remove', { x: hit.x, y: hit.y } satisfies DecorRemovePayload);
+      return;
+    }
+    this.scene.events.emit('cell-erase', { x: tx, y: ty } satisfies CellErasePayload);
   }
 
   onPointerMove(pointer: Phaser.Input.Pointer) {
@@ -147,7 +160,7 @@ export class BuildController {
       if (isOutOfBounds(tx, ty)) return;
       if (this.eraseDragLastTile.x === tx && this.eraseDragLastTile.y === ty) return;
       this.eraseDragLastTile = { x: tx, y: ty };
-      this.scene.events.emit('cell-erase', { x: tx, y: ty } satisfies CellErasePayload);
+      this.erase(pointer, tx, ty);
     }
   }
 

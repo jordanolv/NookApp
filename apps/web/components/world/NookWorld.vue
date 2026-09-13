@@ -83,6 +83,31 @@ const myPresence = computed<PlayerPresence>(() => ({
 const remotePresence = new Map<string, PlayerPresence>();
 
 const canvasRef = ref<HTMLDivElement | null>(null);
+const stageRef = ref<HTMLDivElement | null>(null);
+// The canvas is rendered at zoom 1 and upscaled 1.5x by CSS. A fractional
+// canvas size (calc(100% / 1.5)) makes the browser resample unevenly, which
+// shows up as stray 1px lines on tile edges; whole pixels keep the mapping exact.
+const canvasSize = ref({ width: 0, height: 0 });
+let stageObserver: ResizeObserver | null = null;
+function fitCanvas() {
+  const el = stageRef.value;
+  if (!el) return;
+  canvasSize.value = {
+    width: Math.floor(el.clientWidth / 1.5),
+    height: Math.floor(el.clientHeight / 1.5),
+  };
+}
+onMounted(() => {
+  fitCanvas();
+  if (stageRef.value && typeof ResizeObserver !== 'undefined') {
+    stageObserver = new ResizeObserver(fitCanvas);
+    stageObserver.observe(stageRef.value);
+  }
+});
+onUnmounted(() => {
+  stageObserver?.disconnect();
+  stageObserver = null;
+});
 const game = shallowRef<Phaser.Game | null>(null);
 const playerPopup = ref<{ userId: string; name: string; x: number; y: number } | null>(null);
 
@@ -405,13 +430,13 @@ defineExpose({
 </script>
 
 <template>
-  <div class="relative w-full h-full overflow-hidden">
+  <div ref="stageRef" class="relative w-full h-full overflow-hidden">
     <div
       ref="canvasRef"
       class="absolute top-0 left-0"
       :style="{
-        width: 'calc(100% / 1.5)',
-        height: 'calc(100% / 1.5)',
+        width: canvasSize.width + 'px',
+        height: canvasSize.height + 'px',
         transform: 'scale(1.5)',
         transformOrigin: '0 0',
         imageRendering: 'pixelated',
