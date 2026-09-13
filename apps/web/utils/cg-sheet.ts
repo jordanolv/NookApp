@@ -27,15 +27,15 @@ export const CG_WALK_START: Record<Direction, number> = {
 };
 
 // Static chair-sit pose per facing direction (CG sheet row 4, 224-235, legs
-// forward). The sheet has NO camera-facing chair sit — the head only turns
-// left / right / back. So 'down' has no true pose; it falls back to the most
-// frontal 3/4 frame (227). Row 5 (280+) is a cross-legged FLOOR sit, unused
-// here. Side- and back-facing seats map cleanly. See limezu_cg_layout memory.
+// forward). The sheet has NO camera-facing chair sit — every sit frame is a
+// profile. For 'down' the frontal idle frame drawn over the chair (lifted by
+// the seat offset) reads as seated; the 3/4 profile 227 never did. Row 5
+// (280+) is a cross-legged FLOOR sit, unused. See limezu_cg_layout memory.
 export const CG_SIT_FRAME: Record<Direction, number> = {
   right: 224,
   left: 230,
   up: 233,
-  down: 227,
+  down: 3,
 };
 
 export function sitFrame(dir: Direction): number {
