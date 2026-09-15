@@ -8,6 +8,27 @@ projet applique le [versionnage sémantique](https://semver.org/lang/fr/).
 `release-please` à partir des Conventional Commits (voir
 `.github/workflows/release-please.yml`).
 
+## [1.4.0](https://github.com/jordanolv/NookApp/compare/v1.3.0...v1.4.0) (2026-09-15)
+
+
+### Fonctionnalités
+
+* **chat:** mention members and persist unread counters ([#127](https://github.com/jordanolv/NookApp/issues/127)) ([42f85f1](https://github.com/jordanolv/NookApp/commit/42f85f1cd9e3be871f042454e638e77c51beb374))
+* **classic:** server room join, voice presence and layout rework ([#121](https://github.com/jordanolv/NookApp/issues/121)) ([2d61f86](https://github.com/jordanolv/NookApp/commit/2d61f863a0308a5d9d576fc11bf404eab552a97f))
+* **classic:** standalone widget page without the world sidebars ([#123](https://github.com/jordanolv/NookApp/issues/123)) ([5c6153e](https://github.com/jordanolv/NookApp/commit/5c6153ee7d01b441c065bd1b7688a44ba39420df))
+* voice stage, live channel lists and face-up seats ([#132](https://github.com/jordanolv/NookApp/issues/132)) ([1f99ba2](https://github.com/jordanolv/NookApp/commit/1f99ba27c3b8b040c99a29f79a4d79ac899cffad))
+
+
+### Corrections
+
+* **maps:** persist yjs state and dedupe cells on reconnect ([#119](https://github.com/jordanolv/NookApp/issues/119)) ([6109da2](https://github.com/jordanolv/NookApp/commit/6109da2c1937c19db071a5a42373900230218cf2))
+* **voice:** keep the stage labels readable in light mode ([#134](https://github.com/jordanolv/NookApp/issues/134)) ([2570af0](https://github.com/jordanolv/NookApp/commit/2570af05f3fc218098f828245cdf98fad2368703))
+* **web:** stop prerendering pages that need runtime config ([#129](https://github.com/jordanolv/NookApp/issues/129)) ([e0e9fc7](https://github.com/jordanolv/NookApp/commit/e0e9fc713aca35079fa0c9b37b53cc59bba1c411))
+* **world:** connect the socket before presence subscribes ([#124](https://github.com/jordanolv/NookApp/issues/124)) ([2f63863](https://github.com/jordanolv/NookApp/commit/2f63863ee320c7cafd325bd05ff379cdeead0a26))
+* **world:** face the camera when seated and center on the seat ([#120](https://github.com/jordanolv/NookApp/issues/120)) ([0f49207](https://github.com/jordanolv/NookApp/commit/0f492070237b95028eab9d0556bff40f80bcd4d7))
+* **world:** keep seated characters above their chair, prompt below ([#125](https://github.com/jordanolv/NookApp/issues/125)) ([f0e2f63](https://github.com/jordanolv/NookApp/commit/f0e2f639015be88d16605da82293db5118196c45))
+* **world:** whole-pixel canvas size and eraser on drawn decor ([#126](https://github.com/jordanolv/NookApp/issues/126)) ([8965557](https://github.com/jordanolv/NookApp/commit/89655577829f68155b97f6370990b4f884ada35b))
+
 ## [1.3.0](https://github.com/jordanolv/NookApp/compare/v1.2.0...v1.3.0) (2026-09-12)
 
 
