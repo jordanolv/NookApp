@@ -29,7 +29,13 @@ export function useDmRealtime() {
 
   function setup() {
     void fetchConversations();
-    return socket.onDmMessage(handle);
+    const offMessage = socket.onDmMessage(handle);
+    // Unread counts are computed server-side: a reconnect just needs a refetch.
+    const offConnect = socket.onConnect(() => void fetchConversations());
+    return () => {
+      offMessage();
+      offConnect();
+    };
   }
 
   return { setup };

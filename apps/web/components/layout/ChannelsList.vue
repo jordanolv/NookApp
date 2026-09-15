@@ -4,6 +4,8 @@ import type { ChannelPublic, CategoryPublic } from '@nookapp/protocol';
 import { ChevronDown, Folder } from 'lucide-vue-next';
 import { CHANNEL_CARD_DATA, useChannelCardData } from '~/composables/useChannelCardData';
 import ChannelEntry from './ChannelEntry.vue';
+import { WIDGET_REGISTRY } from '~/widgets/registry';
+import type { WidgetKind } from '@nookapp/protocol';
 
 const props = defineProps<{
   channels: ChannelPublic[];
@@ -17,8 +19,13 @@ const emit = defineEmits<{
   select: [channel: ChannelPublic, event: MouseEvent | KeyboardEvent];
   'edit-channel': [channelId: string];
   'edit-category': [categoryId: string];
-  'create-channel': [categoryId: string | null];
+  'create-channel': [opts: { widgetKind?: WidgetKind; categoryId: string | null }];
 }>();
+
+const widgetKinds = Object.entries(WIDGET_REGISTRY) as [
+  WidgetKind,
+  (typeof WIDGET_REGISTRY)[WidgetKind],
+][];
 
 const UNGROUPED_KEY = '__ungrouped__';
 
@@ -27,6 +34,16 @@ const expandedForums = ref<Set<string>>(new Set());
 const ctxMenu = ref<{ type: 'channel' | 'category'; id: string; x: number; y: number } | null>(
   null,
 );
+const createMenu = ref<{ categoryId: string | null; x: number; y: number } | null>(null);
+
+function openCreateMenu(categoryId: string | null, e: MouseEvent) {
+  createMenu.value = { categoryId, x: e.clientX, y: e.clientY };
+}
+function create(widgetKind?: WidgetKind) {
+  if (createMenu.value)
+    emit('create-channel', { widgetKind, categoryId: createMenu.value.categoryId });
+  createMenu.value = null;
+}
 
 function toggleSet(set: Set<string>, id: string): Set<string> {
   const next = new Set(set);
@@ -97,7 +114,7 @@ const grouped = computed(() =>
           type="button"
           class="cat-header__add"
           title="Créer un channel"
-          @click.stop="emit('create-channel', null)"
+          @click.stop="openCreateMenu(null, $event)"
         >
           +
         </button>
@@ -143,7 +160,7 @@ const grouped = computed(() =>
           type="button"
           class="cat-header__add"
           title="Créer un channel"
-          @click.stop="emit('create-channel', g.category.id)"
+          @click.stop="openCreateMenu(g.category.id, $event)"
         >
           +
         </button>
@@ -174,6 +191,18 @@ const grouped = computed(() =>
         "
       >
         Modifier
+      </button>
+    </LayoutCtxMenu>
+
+    <LayoutCtxMenu v-if="createMenu" :x="createMenu.x" :y="createMenu.y" @close="createMenu = null">
+      <button class="ctx-menu__item" @click="create()">Salon textuel</button>
+      <button
+        v-for="[kind, def] in widgetKinds"
+        :key="kind"
+        class="ctx-menu__item"
+        @click="create(kind)"
+      >
+        Widget {{ def.label }}
       </button>
     </LayoutCtxMenu>
   </div>

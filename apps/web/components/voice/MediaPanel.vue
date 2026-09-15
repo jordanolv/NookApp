@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { type LocalVideoTrack, type RemoteVideoTrack } from 'livekit-client';
 
+// closable=false where there is no world to fall back to (classic view)
+withDefaults(defineProps<{ closable?: boolean }>(), { closable: true });
+
 type VideoTrack = LocalVideoTrack | RemoteVideoTrack;
 type Feed = {
   key: string;
@@ -185,6 +188,7 @@ onBeforeUnmount(() => {
           />
           <p class="text-xs font-semibold flex-1" style="color: var(--ink-soft)">En direct</p>
           <button
+            v-if="closable"
             class="rounded-md p-0.5 transition-colors"
             style="color: var(--ink-faint)"
             title="Fermer"

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import type { ChannelPublic } from '@nookapp/protocol';
 import { Plus, Search, Users, MessageSquare, Pin, PinOff } from 'lucide-vue-next';
 import { useHomePins } from '~/composables/useHomePins';
+import { usePlayingGames } from '~/composables/usePlayingGames';
 import { useGameTopicWindows } from '~/composables/useGameTopicWindows';
 import { gradientFor, hashString } from '~/utils/color-hash';
 import GameComposer from './GameComposer.vue';
@@ -17,6 +18,7 @@ const props = defineProps<{
 const { store } = useChannels();
 const homePins = useHomePins(computed(() => props.serverId));
 const { resolveUrl } = useResolveUrl();
+const playing = usePlayingGames(computed(() => props.serverId));
 
 const games = computed(() => store.channels.filter((c) => c.parentId === props.channelId));
 
@@ -118,6 +120,7 @@ function onGameCreated(game: ChannelPublic) {
               <span class="online-dot" />
               {{ hashString(game.id) % 7 }} en ligne
             </div>
+            <div v-if="playing.isPlaying(game.id)" class="online-badge playing-badge">Je joue</div>
           </div>
           <div class="meta">
             <p class="name">{{ game.name }}</p>
@@ -151,7 +154,7 @@ function onGameCreated(game: ChannelPublic) {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: rgba(8, 8, 12, 0.4);
+  background: transparent;
 }
 
 .toolbar {
@@ -159,7 +162,7 @@ function onGameCreated(game: ChannelPublic) {
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--surface-divider);
   flex-shrink: 0;
 }
 
@@ -172,21 +175,21 @@ function onGameCreated(game: ChannelPublic) {
   left: 9px;
   top: 50%;
   transform: translateY(-50%);
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--ink-faint);
 }
 .search-input {
   width: 100%;
   padding: 6px 10px 6px 28px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--surface-tinted);
+  border: 1px solid var(--surface-border);
   border-radius: 8px;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--ink);
   font-size: 12px;
   outline: none;
   transition: border-color 120ms;
 }
 .search-input:focus {
-  border-color: rgba(99, 102, 241, 0.45);
+  border-color: var(--accent-violet);
 }
 
 .add-btn {
@@ -194,21 +197,21 @@ function onGameCreated(game: ChannelPublic) {
   align-items: center;
   gap: 5px;
   padding: 6px 12px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, var(--accent-violet), var(--accent-cool));
   color: white;
   font-size: 12px;
   font-weight: 600;
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
+  box-shadow: 0 2px 8px var(--accent-violet-soft);
   transition:
     transform 120ms,
     box-shadow 120ms;
 }
 .add-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.5);
+  box-shadow: 0 4px 12px var(--accent-violet-soft);
 }
 
 .library {
@@ -224,12 +227,12 @@ function onGameCreated(game: ChannelPublic) {
 .empty-title {
   font-size: 13px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--ink-muted);
   margin-bottom: 6px;
 }
 .empty-sub {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--ink-faint);
   max-width: 240px;
   margin: 0 auto;
   line-height: 1.5;
@@ -247,8 +250,8 @@ function onGameCreated(game: ChannelPublic) {
   flex-direction: column;
   border-radius: 12px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--surface-tinted);
+  border: 1px solid var(--surface-border);
   cursor: pointer;
   text-align: left;
   padding: 0;
@@ -259,10 +262,8 @@ function onGameCreated(game: ChannelPublic) {
 }
 .game-card:hover {
   transform: translateY(-3px);
-  border-color: rgba(99, 102, 241, 0.4);
-  box-shadow:
-    0 12px 32px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(99, 102, 241, 0.2);
+  border-color: var(--accent-violet);
+  box-shadow: var(--shadow-soft);
 }
 
 .pin-btn {
@@ -297,7 +298,7 @@ function onGameCreated(game: ChannelPublic) {
 
 .pin-btn:hover,
 .pin-btn--active {
-  background: rgba(99, 102, 241, 0.82);
+  background: var(--accent-violet);
   color: white;
 }
 
@@ -340,12 +341,17 @@ function onGameCreated(game: ChannelPublic) {
   letter-spacing: 0.04em;
   z-index: 2;
 }
+.playing-badge {
+  top: auto;
+  bottom: 7px;
+  background: var(--accent-violet);
+}
 .online-dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #22c55e;
-  box-shadow: 0 0 6px rgba(34, 197, 94, 0.8);
+  background: var(--accent-leaf);
+  box-shadow: 0 0 6px var(--accent-leaf-soft);
   animation: pulse 1.8s ease-in-out infinite;
 }
 @keyframes pulse {
@@ -364,7 +370,7 @@ function onGameCreated(game: ChannelPublic) {
 .name {
   font-size: 12px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--ink);
   margin-bottom: 3px;
   white-space: nowrap;
   overflow: hidden;
@@ -374,7 +380,7 @@ function onGameCreated(game: ChannelPublic) {
   display: flex;
   gap: 9px;
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--ink-faint);
 }
 .stat {
   display: inline-flex;

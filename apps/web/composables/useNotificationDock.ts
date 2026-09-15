@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue';
 import type { Component } from 'vue';
 
-export type NotificationKind = 'info' | 'success' | 'warn' | 'error';
+export type NotificationKind = 'info' | 'success' | 'warn' | 'error' | 'mention';
 
 export type NotificationItem = {
   id: string;

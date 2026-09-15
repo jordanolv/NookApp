@@ -1,7 +1,6 @@
 import type { Component } from 'vue';
-import { FileText, Gamepad2 } from 'lucide-vue-next';
+import { Gamepad2 } from 'lucide-vue-next';
 import type { WidgetKind } from '@nookapp/protocol';
-import WidgetNotes from './WidgetNotes.vue';
 import WidgetGaming from './WidgetGaming.vue';
 
 export interface WidgetDefinition {
@@ -14,14 +13,6 @@ export interface WidgetDefinition {
 }
 
 export const WIDGET_REGISTRY: Record<WidgetKind, WidgetDefinition> = {
-  notes: {
-    label: 'Notes',
-    description: 'Notes rapides et colorées',
-    component: WidgetNotes,
-    icon: FileText,
-    defaultSize: { width: 720, height: 560 },
-    minSize: { width: 480, height: 360 },
-  },
   gaming: {
     label: 'Gaming',
     description: 'Library de jeux + discussions',

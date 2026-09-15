@@ -106,8 +106,8 @@ function onCancel() {
   gap: 12px;
   padding: 12px;
   border-radius: 12px;
-  background: rgba(99, 102, 241, 0.08);
-  border: 1px dashed rgba(99, 102, 241, 0.4);
+  background: var(--accent-violet-soft);
+  border: 1px dashed var(--accent-violet);
   margin-bottom: 14px;
 }
 .composer-cover {
@@ -115,13 +115,13 @@ function onCancel() {
   height: 96px;
   flex-shrink: 0;
   border-radius: 8px;
-  border: 1px dashed rgba(99, 102, 241, 0.4);
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2));
+  border: 1px dashed var(--accent-violet);
+  background: var(--accent-violet-soft);
   padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--ink-muted);
   cursor: pointer;
   overflow: hidden;
   transition:
@@ -130,8 +130,8 @@ function onCancel() {
     color 140ms;
 }
 .composer-cover:hover {
-  border-color: rgba(99, 102, 241, 0.7);
-  color: rgba(255, 255, 255, 0.85);
+  border-color: var(--accent-violet);
+  color: var(--ink);
 }
 .composer-cover-img {
   width: 100%;
@@ -145,17 +145,17 @@ function onCancel() {
   gap: 8px;
 }
 .composer-input {
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-raised);
+  border: 1px solid var(--surface-border);
   border-radius: 8px;
   padding: 8px 10px;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--ink);
   font-size: 13px;
   font-weight: 600;
   outline: none;
 }
 .composer-input:focus {
-  border-color: rgba(99, 102, 241, 0.6);
+  border-color: var(--accent-violet);
 }
 .composer-actions {
   display: flex;
@@ -171,12 +171,12 @@ function onCancel() {
   transition: all 120ms;
 }
 .composer-btn.solid {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, var(--accent-violet), var(--accent-cool));
   color: white;
 }
 .composer-btn.ghost {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.6);
+  background: var(--surface-tinted-strong);
+  color: var(--ink-muted);
 }
 .composer-btn.disabled {
   opacity: 0.4;

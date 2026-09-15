@@ -2,12 +2,14 @@ import { z } from 'zod';
 
 export const SOCKET_EVENTS = {
   PlayerHello: 'player:hello',
+  ServerJoin: 'server:join',
   PlayerJoined: 'player:joined',
   PlayerLeft: 'player:left',
   PlayerMoved: 'player:moved',
   PlayerSnapshot: 'player:snapshot',
   PlayerAppearance: 'player:appearance',
   PlayerEmote: 'player:emote',
+  PlayerPresence: 'player:presence',
   MessageSent: 'message:sent',
   MessageUpdated: 'message:updated',
   MessageDeleted: 'message:deleted',
@@ -45,6 +47,21 @@ export const playerMovedPayloadSchema = z.object({
 });
 export type PlayerMovedPayload = z.infer<typeof playerMovedPayloadSchema>;
 
+// What the name tag shows above a player: status dot, mute icons, activity emoji.
+export const playerPresenceSchema = z.object({
+  status: z.enum(['online', 'busy', 'away']),
+  activity: z.string().max(16).nullable(),
+  muted: z.boolean(),
+  deafened: z.boolean(),
+});
+export type PlayerPresence = z.infer<typeof playerPresenceSchema>;
+
+export const playerPresencePayloadSchema = z.object({
+  userId: z.string(),
+  presence: playerPresenceSchema,
+});
+export type PlayerPresencePayload = z.infer<typeof playerPresencePayloadSchema>;
+
 export const playerEmoteSchema = z.enum(['wave', 'dance', 'laugh', 'heart', 'party']);
 export type PlayerEmote = z.infer<typeof playerEmoteSchema>;
 
@@ -54,6 +71,14 @@ export const playerEmotePayloadSchema = z.object({
 });
 export type PlayerEmotePayload = z.infer<typeof playerEmotePayloadSchema>;
 
+// Classic (non-world) clients join the server room for chat and voice presence
+// without registering a player on the map.
+export const serverJoinPayloadSchema = z.object({
+  serverId: z.string(),
+  name: z.string(),
+});
+export type ServerJoinPayload = z.infer<typeof serverJoinPayloadSchema>;
+
 export const playerHelloPayloadSchema = z.object({
   serverId: z.string(),
   name: z.string(),
@@ -61,6 +86,7 @@ export const playerHelloPayloadSchema = z.object({
   y: z.number(),
   dir: z.enum(['up', 'down', 'left', 'right']),
   appearance: playerAppearanceSchema.optional(),
+  presence: playerPresenceSchema.optional(),
 });
 export type PlayerHelloPayload = z.infer<typeof playerHelloPayloadSchema>;
 
@@ -72,6 +98,7 @@ export const playerStateSchema = z.object({
   dir: z.enum(['up', 'down', 'left', 'right']),
   appearance: playerAppearanceSchema.optional(),
   pose: playerPoseSchema.optional(),
+  presence: playerPresenceSchema.optional(),
 });
 export type PlayerState = z.infer<typeof playerStateSchema>;
 

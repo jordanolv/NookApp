@@ -1,5 +1,5 @@
 <script setup lang="ts">
-defineProps<{ label: string; x: number; y: number }>();
+defineProps<{ label: string; x: number; y: number; muted?: boolean }>();
 </script>
 
 <template>
@@ -9,6 +9,7 @@ defineProps<{ label: string; x: number; y: number }>();
   >
     <div
       class="rounded-md px-2 py-[2px] text-[11px] font-semibold whitespace-nowrap"
+      :class="{ 'opacity-70 text-[10px] font-medium': muted }"
       :style="{
         background: 'var(--surface)',
         color: 'var(--ink)',

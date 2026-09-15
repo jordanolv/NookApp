@@ -25,6 +25,9 @@ import WorldOverlays from './overlay/WorldOverlays.vue';
 import ZonePicker from './ZonePicker.vue';
 import WorldLoadingOverlay from './WorldLoadingOverlay.vue';
 import { EMOTE_BUBBLE_MS, emoteById } from '~/utils/emotes';
+import type { PlayerPresence } from '@nookapp/protocol';
+import { useStatus } from '~/composables/useStatus';
+import { useLocalActivity } from '~/composables/useLocalActivity';
 
 type RectPayload = {
   x1: number;
@@ -67,8 +70,44 @@ const character = useCharacter();
 const presence = usePresence();
 const socket = useSocket();
 const { t } = useI18n();
+const status = useStatus();
+const { localActivity } = useLocalActivity();
+
+// what the others see above our head; sent on hello and on every change
+const myPresence = computed<PlayerPresence>(() => ({
+  status: status.effectiveStatus.value,
+  activity: localActivity.value,
+  muted: voice.isMuted.value,
+  deafened: voice.isDeafened.value,
+}));
+const remotePresence = new Map<string, PlayerPresence>();
 
 const canvasRef = ref<HTMLDivElement | null>(null);
+const stageRef = ref<HTMLDivElement | null>(null);
+// The canvas is rendered at zoom 1 and upscaled 1.5x by CSS. A fractional
+// canvas size (calc(100% / 1.5)) makes the browser resample unevenly, which
+// shows up as stray 1px lines on tile edges; whole pixels keep the mapping exact.
+const canvasSize = ref({ width: 0, height: 0 });
+let stageObserver: ResizeObserver | null = null;
+function fitCanvas() {
+  const el = stageRef.value;
+  if (!el) return;
+  canvasSize.value = {
+    width: Math.floor(el.clientWidth / 1.5),
+    height: Math.floor(el.clientHeight / 1.5),
+  };
+}
+onMounted(() => {
+  fitCanvas();
+  if (stageRef.value && typeof ResizeObserver !== 'undefined') {
+    stageObserver = new ResizeObserver(fitCanvas);
+    stageObserver.observe(stageRef.value);
+  }
+});
+onUnmounted(() => {
+  stageObserver?.disconnect();
+  stageObserver = null;
+});
 const game = shallowRef<Phaser.Game | null>(null);
 const playerPopup = ref<{ userId: string; name: string; x: number; y: number } | null>(null);
 
@@ -184,6 +223,7 @@ onMounted(() => {
         p.name,
       );
       if (p.appearance) scene.setRemoteAppearance(p.userId, p.appearance);
+      if (p.presence) remotePresence.set(p.userId, p.presence);
     }
     loadingPhase.value = 'ready';
   });
@@ -201,7 +241,13 @@ onMounted(() => {
       state.name,
     );
     if (state.appearance) scene.setRemoteAppearance(state.userId, state.appearance);
+    if (state.presence) remotePresence.set(state.userId, state.presence);
   });
+
+  const offPresence = socket.onPlayerPresence(({ userId, presence: p }) => {
+    remotePresence.set(userId, p);
+  });
+  const stopPresenceWatch = watch(myPresence, (p) => socket.emitPlayerPresence(p));
 
   const offAppearance = socket.onPlayerAppearance(({ userId, appearance }) => {
     scene.setRemoteAppearance(userId, appearance);
@@ -220,6 +266,7 @@ onMounted(() => {
 
   const offLeft = socket.onPlayerLeft(({ userId }) => {
     scene.removeRemotePlayer(userId);
+    remotePresence.delete(userId);
     overlaysHandle?.removeScreenRing(userId);
   });
 
@@ -244,6 +291,7 @@ onMounted(() => {
       game: game.value!,
       cachedRect: cameraOffset.cachedRect,
       localUserId: props.userId,
+      remotePresence,
       t,
       out: {
         nameTags: nameTagOverlays,
@@ -334,6 +382,7 @@ onMounted(() => {
       y: scene.localBody.y,
       dir: 'down',
       appearance: character.appearance.value,
+      presence: myPresence.value,
     });
   };
 
@@ -344,6 +393,8 @@ onMounted(() => {
     offLeft();
     offAppearance();
     offEmote();
+    offPresence();
+    stopPresenceWatch();
     rawSocket.off('world:object:snapshot', onWorldSnapshot);
     rawSocket.off('world:object:spawn', onWorldSpawn);
     rawSocket.off('world:object:remove', onWorldRemove);
@@ -379,13 +430,13 @@ defineExpose({
 </script>
 
 <template>
-  <div class="relative w-full h-full overflow-hidden">
+  <div ref="stageRef" class="relative w-full h-full overflow-hidden">
     <div
       ref="canvasRef"
       class="absolute top-0 left-0"
       :style="{
-        width: 'calc(100% / 1.5)',
-        height: 'calc(100% / 1.5)',
+        width: canvasSize.width + 'px',
+        height: canvasSize.height + 'px',
         transform: 'scale(1.5)',
         transformOrigin: '0 0',
         imageRendering: 'pixelated',

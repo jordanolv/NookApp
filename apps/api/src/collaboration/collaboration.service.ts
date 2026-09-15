@@ -17,6 +17,8 @@ import {
 import { DB } from '../database/database.module';
 import { AUTH, type AuthInstance, type AuthSession } from '../auth/auth.types';
 import crypto from 'node:crypto';
+import * as Y from 'yjs';
+import { dedupeCells, dedupeYArray } from './map-dedupe';
 
 const SAVE_DEBOUNCE_MS = 1000;
 const TOKEN_TTL_MS = 30 * 60 * 1000; // 30 min
@@ -107,16 +109,25 @@ export class CollaborationService implements OnApplicationShutdown {
       .where(eq(mapTable.serverId, documentName))
       .limit(1);
 
+    if (row?.state) {
+      Y.applyUpdate(document, row.state);
+      return;
+    }
+
+    // Legacy rows (JSON only) may carry cells duplicated by earlier reconnect merges.
     const parsed = row
       ? mapDataSchema.safeParse(row.data)
       : { success: true as const, data: DEFAULT_MAP };
 
     if (!parsed.success) return;
 
+    const floors = dedupeCells(parsed.data.layers.floors);
+    const walls = dedupeCells(parsed.data.layers.walls);
+    const decor = dedupeCells(parsed.data.layers.decor);
     document.transact(() => {
-      if (parsed.data.layers.floors.length) floorsArray.insert(0, parsed.data.layers.floors);
-      if (parsed.data.layers.walls.length) wallsArray.insert(0, parsed.data.layers.walls);
-      if (parsed.data.layers.decor.length) decorArray.insert(0, parsed.data.layers.decor);
+      if (floors.length) floorsArray.insert(0, floors);
+      if (walls.length) wallsArray.insert(0, walls);
+      if (decor.length) decorArray.insert(0, decor);
     });
   }
 
@@ -134,9 +145,24 @@ export class CollaborationService implements OnApplicationShutdown {
   }
 
   private async persistDoc(serverId: string, document: onChangePayload['document']) {
-    const floors = document.getArray<FloorCell>('floors').toArray();
-    const walls = document.getArray<WallCell>('walls').toArray();
-    const decor = document.getArray<DecorObject>('decor').toArray();
+    const floorsArray = document.getArray<FloorCell>('floors');
+    const wallsArray = document.getArray<WallCell>('walls');
+    const decorArray = document.getArray<DecorObject>('decor');
+
+    // A client that kept a stale doc across a restart merges every cell twice.
+    // Cleaning the doc here propagates the deletions back to everyone connected.
+    document.transact(() => {
+      const changed = [
+        dedupeYArray(floorsArray),
+        dedupeYArray(wallsArray),
+        dedupeYArray(decorArray),
+      ].some(Boolean);
+      if (changed) this.logger.warn(`removed duplicated cells from map ${serverId}`);
+    });
+
+    const floors = floorsArray.toArray();
+    const walls = wallsArray.toArray();
+    const decor = decorArray.toArray();
 
     const parsed = mapDataSchema.safeParse({
       width: DEFAULT_MAP.width,
@@ -149,12 +175,13 @@ export class CollaborationService implements OnApplicationShutdown {
       return;
     }
 
+    const state = Buffer.from(Y.encodeStateAsUpdate(document));
     await this.db
       .insert(mapTable)
-      .values({ serverId, data: parsed.data, updatedAt: new Date() })
+      .values({ serverId, data: parsed.data, state, updatedAt: new Date() })
       .onConflictDoUpdate({
         target: mapTable.serverId,
-        set: { data: parsed.data, updatedAt: new Date() },
+        set: { data: parsed.data, state, updatedAt: new Date() },
       });
   }
 }

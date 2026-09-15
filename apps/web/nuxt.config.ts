@@ -23,8 +23,11 @@ export default defineNuxtConfig({
     },
   },
   routeRules: {
-    '/': { prerender: true },
-    '/legal/**': { prerender: true },
+    // Prerendering bakes runtimeConfig.public at build time, when the deploy
+    // env is absent: the page would then ship the localhost fallbacks to every
+    // visitor. These render per request so the container env wins.
+    '/': { ssr: true },
+    '/legal/**': { ssr: true },
     '/auth/**': { ssr: true },
     '/app/**': { ssr: false },
     // Game assets are not content-hashed, so cache them for a week instead of

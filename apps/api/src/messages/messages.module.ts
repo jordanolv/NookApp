@@ -6,10 +6,11 @@ import { RolesModule } from '../roles/roles.module';
 import { MessageCountsController } from './message-counts.controller';
 import { MessagesController } from './messages.controller';
 import { MessagesService } from './messages.service';
+import { UnreadController } from './unread.controller';
 
 @Module({
   imports: [AuthModule, MembersModule, RealtimeModule, RolesModule],
-  controllers: [MessagesController, MessageCountsController],
+  controllers: [MessagesController, MessageCountsController, UnreadController],
   providers: [MessagesService],
 })
 export class MessagesModule {}

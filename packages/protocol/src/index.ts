@@ -8,5 +8,6 @@ export * from './dto/roles';
 export * from './dto/servers';
 export * from './dto/ui-layout';
 export * from './dto/users';
+export * from './mentions';
 export * from './permissions';
 export * from './socket-events';
