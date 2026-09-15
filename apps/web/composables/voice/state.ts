@@ -13,6 +13,7 @@ export const isDeafened = ref(false);
 export const isScreenSharing = ref(false);
 
 export const localCameraTrack = shallowRef<LocalVideoTrack | null>(null);
+export const localScreenTrack = shallowRef<LocalVideoTrack | null>(null);
 export const isCameraOn = computed(() => localCameraTrack.value !== null);
 
 export const activeSpeakers = ref<Set<string>>(new Set());
@@ -30,8 +31,7 @@ export const remoteScreenTracks = ref<Map<string, RemoteTrack>>(new Map());
 // Audio elements keyed by participant identity (= userId)
 export const audioEls = new Map<string, HTMLAudioElement>();
 
-// 'world' = cam bubbles above players; 'panel' = Discord-style floating grid
-export const mediaViewMode = ref<'world' | 'panel'>('world');
+// Feed the voice stage should enlarge, set when a cam bubble is clicked.
 export const mediaPanelFocusKey = ref<string | null>(null);
 
 // One-shot flag: when true, the next leave() should send the avatar back to

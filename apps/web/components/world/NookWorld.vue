@@ -284,6 +284,9 @@ onMounted(() => {
 
   scene.onReady = () => {
     _scene = scene;
+    // The stored appearance usually lands while Phaser is still booting, when
+    // the watch below has no scene to push it to — re-apply it once we do.
+    scene.applyAppearance(character.appearance.value);
     if (loadingPhase.value !== 'ready') loadingPhase.value = 'syncing';
 
     overlaysHandle = useWorldOverlays({
@@ -346,6 +349,9 @@ onMounted(() => {
     if (props.buildMode) scene.setBuildMode(true);
 
     cameraOffset.apply();
+    // Phaser resizes the camera after our DOM observer fires; recomputing here
+    // keeps the offset from being derived from a stale cam.width.
+    game.value?.scale.on('resize', () => cameraOffset.apply());
 
     const syncRooms = () =>
       scene.setRooms(
@@ -458,8 +464,6 @@ defineExpose({
       :y="playerPopup.y"
       @close="playerPopup = null"
     />
-
-    <VoiceMediaPanel />
 
     <ZonePicker
       v-if="zonePickerActive"

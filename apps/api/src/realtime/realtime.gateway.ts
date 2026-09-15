@@ -263,6 +263,10 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     this.server
       .to(`server:${serverId}`)
       .emit('voice:joined', { userId, name, channelId: payload.channelId });
+
+    // The snapshot sent when entering the server predates whoever joined voice
+    // since — without this, a late joiner only ever learns about later arrivals.
+    this.emitVoiceSnapshot(client, serverId);
   }
 
   @SubscribeMessage('voice:leave')

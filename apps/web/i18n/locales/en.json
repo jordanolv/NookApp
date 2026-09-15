@@ -264,17 +264,6 @@
       "label": "Status",
       "clear": "Clear status"
     },
-    "members": {
-      "title": "In voice",
-      "you": "you",
-      "empty": "No one here yet",
-      "viewCompact": "Avatars-only view",
-      "viewDetailed": "Detailed list view",
-      "hereTitle": "Members here",
-      "hereEmpty": "You're alone here for now.",
-      "hide": "Hide",
-      "drag": "Drag to move"
-    },
     "accountSettings": "Account settings",
     "signOut": "Sign out"
   },

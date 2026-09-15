@@ -27,7 +27,7 @@ const initials = computed(() =>
 );
 
 function viewScreenShare() {
-  voice.openMediaPanel(`screen-${props.userId}`);
+  voice.focusFeed(`screen-${props.userId}`);
   emit('close');
 }
 

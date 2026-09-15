@@ -239,8 +239,6 @@ onUnmounted(() => {
     />
   </ClientOnly>
 
-  <WorldHudVoiceMembersHere />
-
   <WorldHudMapOverlay
     v-if="showMap"
     :map-data="currentMap ?? null"

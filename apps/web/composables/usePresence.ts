@@ -1,5 +1,6 @@
 import { onMounted, onUnmounted, ref, shallowRef } from 'vue';
 import type {
+  PlayerAppearance,
   PlayerState,
   PlayerMovedPayload,
   VoiceParticipant,
@@ -11,6 +12,7 @@ export interface PresencePlayer {
   name: string;
   x: number;
   y: number;
+  appearance?: PlayerAppearance;
 }
 
 /**
@@ -37,9 +39,16 @@ function attach() {
         name: snap.you.name,
         x: snap.you.x,
         y: snap.you.y,
+        appearance: snap.you.appearance,
       });
       for (const p of snap.others) {
-        next.set(p.userId, { userId: p.userId, name: p.name, x: p.x, y: p.y });
+        next.set(p.userId, {
+          userId: p.userId,
+          name: p.name,
+          x: p.x,
+          y: p.y,
+          appearance: p.appearance,
+        });
       }
       playersMap.value = next;
     }),
@@ -48,7 +57,23 @@ function attach() {
   cleanups.push(
     socket.onPlayerJoined((p: PlayerState) => {
       const next = new Map(playersMap.value);
-      next.set(p.userId, { userId: p.userId, name: p.name, x: p.x, y: p.y });
+      next.set(p.userId, {
+        userId: p.userId,
+        name: p.name,
+        x: p.x,
+        y: p.y,
+        appearance: p.appearance,
+      });
+      playersMap.value = next;
+    }),
+  );
+
+  cleanups.push(
+    socket.onPlayerAppearance(({ userId, appearance }) => {
+      const cur = playersMap.value.get(userId);
+      if (!cur) return;
+      const next = new Map(playersMap.value);
+      next.set(userId, { ...cur, appearance });
       playersMap.value = next;
     }),
   );
@@ -128,7 +153,13 @@ function detach() {
 function setLocalPlayer(p: { userId: string; name: string; x: number; y: number }) {
   const next = new Map(playersMap.value);
   const existing = next.get(p.userId);
-  next.set(p.userId, { userId: p.userId, name: existing?.name ?? p.name, x: p.x, y: p.y });
+  next.set(p.userId, {
+    userId: p.userId,
+    name: existing?.name ?? p.name,
+    x: p.x,
+    y: p.y,
+    appearance: existing?.appearance,
+  });
   playersMap.value = next;
 }
 

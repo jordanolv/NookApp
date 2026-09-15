@@ -13,8 +13,14 @@ import { mediaDevicePrefs } from '~/composables/useMediaDevices';
 export function createRoom(): Room {
   const prefs = mediaDevicePrefs.value;
   return new Room({
-    adaptiveStream: true,
-    dynacast: true,
+    // Both off on purpose. They save bandwidth by cutting a stream nobody is
+    // looking at, and both decide that from element geometry — which they read
+    // wrong on 72px bubbles moving over a canvas and on panels that mount and
+    // unmount. A handful of cams per room does not need the savings.
+    // ponytail: re-enable adaptiveStream if a room ever holds enough cams to
+    // hurt, and give the bubbles a fixed-size wrapper first.
+    adaptiveStream: false,
+    dynacast: false,
     audioCaptureDefaults: {
       deviceId: prefs.audioinput ?? undefined,
       echoCancellation: true,
@@ -39,9 +45,12 @@ export function bindRoomEvents(lkRoom: Room) {
       return;
     }
     if (track.kind !== Track.Kind.Video) return;
-    if (pub.source === Track.Source.Camera) attachRemoteVideo(uid, 'cam', track as RemoteTrack);
+    // A publication muted before we subscribed emits no TrackMuted event we can
+    // catch — its state is only readable here, off the publication itself.
+    if (pub.source === Track.Source.Camera)
+      attachRemoteVideo(uid, 'cam', track as RemoteTrack, !pub.isMuted);
     else if (pub.source === Track.Source.ScreenShare)
-      attachRemoteVideo(uid, 'screen', track as RemoteTrack);
+      attachRemoteVideo(uid, 'screen', track as RemoteTrack, !pub.isMuted);
   });
 
   lkRoom.on(RoomEvent.TrackUnsubscribed, (track, pub, participant) => {
