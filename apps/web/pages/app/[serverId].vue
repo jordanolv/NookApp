@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, markRaw, onMounted, onUnmounted, ref, watch } from 'vue';
-import { Hammer, Map as MapIcon, Pin, Users } from 'lucide-vue-next';
+import { Hammer, Map as MapIcon, Pin, Users, Video } from 'lucide-vue-next';
 import type { CategoryPublic, ChannelPublic } from '@nookapp/protocol';
 import { type HomePinKind } from '~/composables/useHomePins';
 import { useInterfacePreferences } from '~/composables/useInterfacePreferences';
@@ -46,8 +46,10 @@ const SECTION_LABELS: Record<string, string> = {
   members: 'Membres',
   pinned: 'Épinglés',
   map: 'Carte',
+  voice: 'En vocal',
 };
 const PANEL_SECTIONS = markRaw([
+  { key: 'voice', label: 'En vocal', icon: Video },
   { key: 'members', label: 'Membres', icon: Users },
   { key: 'pinned', label: 'Épinglés', icon: Pin },
   { key: 'map', label: 'Carte', icon: MapIcon },
@@ -62,7 +64,7 @@ const rightSections = computed(() => {
     mode?: 'panel' | 'toggle';
     active?: boolean;
     onToggle?: () => void;
-  }> = [...PANEL_SECTIONS];
+  }> = PANEL_SECTIONS.filter((s) => s.key !== 'voice' || voice.currentChannelId.value);
   return sectionOrder.applyOrder(sections);
 });
 
@@ -74,6 +76,14 @@ function onReorderSections(fromKey: string, toKey: string) {
   );
 }
 const sidebar = useSidebar(['channels', ...PANEL_SECTIONS.map((s) => s.key)]);
+
+// Joining voice pops the stage open once; closing it again is the user's call.
+watch(
+  () => voice.currentChannelId.value,
+  (id) => {
+    if (id && !sidebar.activeSet.value.has('voice')) sidebar.toggleSection('voice');
+  },
+);
 
 // ── Shared state ───────────────────────────────────────────────────────
 const chatTabs = useChatTabs();
@@ -179,6 +189,7 @@ let teardownVoiceListeners: (() => void) | null = null;
 let teardownMessageCounter: (() => void) | null = null;
 let teardownDmRealtime: (() => void) | null = null;
 let teardownReconnect: (() => void) | null = null;
+let teardownChannelSync: (() => void) | null = null;
 
 onMounted(() => {
   socket.connect();
@@ -205,6 +216,12 @@ onMounted(() => {
       onClick: () => channel && handleChannelClick(channel, new MouseEvent('click')),
     });
   });
+  // Another admin created/renamed/removed a channel: pull the lists again.
+  teardownChannelSync = socket.onChannelsChanged(({ actorId }) => {
+    if (actorId === user.value?.id) return;
+    void fetchChannels(serverId.value);
+    void fetchCategories(serverId.value);
+  });
   teardownDmRealtime = dmRealtime.setup();
   // A reconnection means messages were missed: pull the counters back from the server.
   teardownReconnect = socket.onConnect(() => void readState.loadUnread(serverId.value));
@@ -214,6 +231,7 @@ onUnmounted(async () => {
   if (voice.currentChannelId.value) await voice.leave();
   teardownVoiceListeners?.();
   teardownMessageCounter?.();
+  teardownChannelSync?.();
   teardownDmRealtime?.();
   teardownReconnect?.();
   socket.disconnect();

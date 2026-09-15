@@ -124,7 +124,6 @@ export function useWorldOverlays(opts: {
     const rect = opts.cachedRect.value;
     if (!rect) return;
 
-    const worldMode = voice.mediaViewMode.value === 'world';
     const localUserId = opts.localUserId;
     const localPresence: PlayerPresence = {
       status: status.effectiveStatus.value,
@@ -166,7 +165,7 @@ export function useWorldOverlays(opts: {
         ? localCamTrack
         : ((remoteVideoTracks.get(t.userId) as AttachableTrack | undefined) ?? null);
 
-      if (worldMode && media?.cam && camTrack) {
+      if (media?.cam && camTrack) {
         const b = NookScene.projectToScreen(cam, rect, t.worldX, t.worldY - CAM_BUBBLE_Y_OFFSET);
         nextBubbles.push({
           userId: t.userId,
@@ -179,7 +178,7 @@ export function useWorldOverlays(opts: {
         });
       }
 
-      if (worldMode && media?.screen) {
+      if (media?.screen) {
         seenScreens.add(t.userId);
         const arc = ensureScreenRing(t.userId);
         arc.x = t.worldX;

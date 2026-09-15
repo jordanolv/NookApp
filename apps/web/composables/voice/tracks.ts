@@ -35,8 +35,15 @@ function videoMapFor(source: 'cam' | 'screen') {
   return source === 'cam' ? remoteVideoTracks : remoteScreenTracks;
 }
 
-export function attachRemoteVideo(uid: string, source: 'cam' | 'screen', track: RemoteTrack) {
-  setParticipantMedia(uid, { [source]: true });
+// live=false when the publisher joined with the feed already off: the track is
+// kept so a later unmute has something to show, but no dead tile is rendered.
+export function attachRemoteVideo(
+  uid: string,
+  source: 'cam' | 'screen',
+  track: RemoteTrack,
+  live: boolean,
+) {
+  setParticipantMedia(uid, { [source]: live });
   const map = videoMapFor(source);
   map.value = new Map(map.value).set(uid, track);
 }

@@ -28,14 +28,14 @@ describe('cg-sheet', () => {
   });
 
   describe('sitFrame', () => {
-    it('maps the side- and back-facing seats to their own poses', () => {
+    it('maps the side-facing seats to their own poses', () => {
       expect(sitFrame('right')).toBe(224);
       expect(sitFrame('left')).toBe(230);
-      expect(sitFrame('up')).toBe(233);
     });
 
-    it('uses the frontal idle frame for down, the sheet has no camera-facing sit', () => {
+    it('uses the idle frame head-on, the sheet only has profile sits', () => {
       expect(sitFrame('down')).toBe(idleFrame('down'));
+      expect(sitFrame('up')).toBe(idleFrame('up'));
     });
   });
 

@@ -23,8 +23,11 @@ const BODY_OFFSET = { x: 3, y: 24 };
 
 // while seated the sprite is lifted onto the seat, so its feet no longer say
 // which row it belongs to: depth comes from the seat cell instead, just above
-// the chair (decor sits at cell bottom + 0.5) and below the next row.
+// the chair (decor sits at cell bottom + 0.5) and below the next row. Facing
+// up means the chair is drawn from behind, so the backrest must cover the
+// character instead.
 const SEAT_DEPTH_ABOVE_DECOR = 1;
+const SEAT_DEPTH_BEHIND_DECOR = 0.25;
 
 export function ensureWalkAnims(scene: Phaser.Scene, bodyKey: string) {
   for (const dir of DIRECTIONS) {
@@ -45,6 +48,7 @@ export class CharacterSprite {
   private readonly layers: (Phaser.GameObjects.Sprite | null)[];
   private appearance: Appearance;
   private seated = false;
+  private seatedDir: Direction = 'down';
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -134,6 +138,7 @@ export class CharacterSprite {
   // static seated pose, drawn above the chair (see SEAT_DEPTH_ABOVE_DECOR)
   sit(dir: Direction) {
     this.seated = true;
+    this.seatedDir = dir;
     this.body.anims.stop();
     this.body.setFrame(sitFrame(dir));
   }
@@ -185,9 +190,8 @@ export class CharacterSprite {
     const sy = Math.round(this.body.y);
     this.body.setPosition(sx, sy);
     const frame = this.body.frame.name;
-    const depth = this.seated
-      ? Math.floor(sy / TILE_SIZE) * TILE_SIZE + TILE_SIZE + SEAT_DEPTH_ABOVE_DECOR
-      : sy;
+    const seatDepth = this.seatedDir === 'up' ? SEAT_DEPTH_BEHIND_DECOR : SEAT_DEPTH_ABOVE_DECOR;
+    const depth = this.seated ? Math.floor(sy / TILE_SIZE) * TILE_SIZE + TILE_SIZE + seatDepth : sy;
     for (let i = 1; i < this.layers.length; i++) {
       const layer = this.layers[i];
       if (!layer) continue;

@@ -11,18 +11,6 @@ const emit = defineEmits<{
 }>();
 
 const { store } = useServers();
-const voice = useVoice();
-
-// No world to draw cam bubbles on: cameras and screen shares always use the
-// floating media grid while the classic view is mounted.
-onMounted(() => voice.openMediaPanel());
-onBeforeUnmount(() => voice.closeMediaPanel());
-watch(
-  () => voice.mediaViewMode.value,
-  (mode) => {
-    if (mode === 'world') voice.openMediaPanel();
-  },
-);
 
 const selectedChannelId = ref<string | null>(null);
 
@@ -54,7 +42,7 @@ defineExpose({ openChannel, backToHome });
 <template>
   <div class="classic">
     <div class="classic__backdrop" aria-hidden="true" />
-    <VoiceMediaPanel :closable="false" />
+    <VoiceMediaPanel />
 
     <main class="classic__stage" :class="{ 'classic__stage--split': selectedChannel }">
       <ClassicHome

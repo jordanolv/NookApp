@@ -52,6 +52,27 @@ describe('RealtimeGateway.handleServerJoin', () => {
   });
 });
 
+describe('RealtimeGateway.handleVoiceJoin', () => {
+  it('sends the joiner a snapshot of who is already in voice', async () => {
+    const { gateway, client } = makeGateway();
+    await gateway.handleServerJoin(client, { serverId: 'srv-1', name: 'Jordan' });
+    gateway.handleVoiceJoin(client, { channelId: 'voc-1' });
+
+    const { client: other, clientEmit: otherEmit } = makeGateway();
+    (other.data as { userId: string }).userId = 'user-2';
+    await gateway.handleServerJoin(other, { serverId: 'srv-1', name: 'Ynov' });
+    otherEmit.mockClear();
+    gateway.handleVoiceJoin(other, { channelId: 'voc-1' });
+
+    expect(otherEmit).toHaveBeenCalledWith('voice:snapshot', {
+      participants: [
+        { userId: 'user-1', name: 'Jordan', channelId: 'voc-1' },
+        { userId: 'user-2', name: 'Ynov', channelId: 'voc-1' },
+      ],
+    });
+  });
+});
+
 describe('RealtimeGateway.handlePlayerPresence', () => {
   const presence = { status: 'busy', activity: null, muted: true, deafened: false };
 

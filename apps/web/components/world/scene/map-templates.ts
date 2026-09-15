@@ -45,9 +45,9 @@ function buildOpenSpace(): MapData {
       walls: stampRoomWalls(room, 'drywall'),
       decor: [
         ...deskX.map((x, i) => decorAt(`desk_pc_${i + 1}`, x, 32)),
-        ...deskX.map((x) => decorAt('chair_blue', x, 33)),
+        ...deskX.map((x) => decorAt('chair_blue_up', x, 33)),
         ...deskX.map((x, i) => decorAt(`desk_pc_${i + 1}`, x, 37)),
-        ...deskX.map((x) => decorAt('chair_blue', x, 38)),
+        ...deskX.map((x) => decorAt('chair_blue_up', x, 38)),
         decorAt('plant_tall', 28, 30),
         decorAt('plant_tall', 43, 30),
         decorAt('whiteboard', 31, 30),
@@ -124,9 +124,9 @@ function buildStarterOffice(): MapData {
       walls: stampRoomWalls(room, 'wood'),
       decor: [
         decorAt('desk_pc_1', 32, 33),
-        decorAt('chair_blue', 32, 34),
+        decorAt('chair_blue_up', 32, 34),
         decorAt('desk_pc_2', 39, 33),
-        decorAt('chair_blue', 39, 34),
+        decorAt('chair_blue_up', 39, 34),
         decorAt('whiteboard', 35, 31),
         decorAt('plant_tall', 31, 39),
         decorAt('plant_med', 40, 39),
