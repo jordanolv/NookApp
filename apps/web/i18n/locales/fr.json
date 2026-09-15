@@ -264,17 +264,6 @@
       "label": "Statut",
       "clear": "Aucun statut"
     },
-    "members": {
-      "title": "Dans le vocal",
-      "you": "toi",
-      "empty": "Personne pour l'instant",
-      "viewCompact": "Mode avatars seuls",
-      "viewDetailed": "Mode liste détaillée",
-      "hereTitle": "Membres ici",
-      "hereEmpty": "Tu es seul ici pour l'instant.",
-      "hide": "Masquer",
-      "drag": "Glisser pour déplacer"
-    },
     "accountSettings": "Paramètres du compte",
     "signOut": "Se déconnecter"
   },

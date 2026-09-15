@@ -20,6 +20,7 @@ import type { AuthSession } from '../auth/auth.types';
 import { imageUploadOptions, StorageService } from '../common/storage';
 import { ZodPipe } from '../common/zod.pipe';
 import { ServerScopeGuard } from '../members/server-scope.guard';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { CategoriesService } from './categories.service';
 
 interface UploadedFileMeta {
@@ -35,6 +36,7 @@ export class CategoriesController {
   constructor(
     private readonly categoriesService: CategoriesService,
     private readonly storageService: StorageService,
+    private readonly gateway: RealtimeGateway,
   ) {}
 
   @Get()
@@ -43,33 +45,43 @@ export class CategoriesController {
   }
 
   @Post()
-  create(
+  async create(
     @CurrentUser() user: AuthSession['user'],
     @Param('serverId') serverId: string,
     @Body(new ZodPipe(createCategoryInputSchema))
     body: ReturnType<typeof createCategoryInputSchema.parse>,
   ) {
-    return this.categoriesService.createCategory(serverId, user.id, body);
+    const created = await this.categoriesService.createCategory(serverId, user.id, body);
+    this.gateway.emitToServer(serverId, 'channels:changed', { actorId: user.id });
+    return created;
   }
 
   @Patch(':categoryId')
-  update(
+  async update(
     @CurrentUser() user: AuthSession['user'],
     @Param('serverId') serverId: string,
     @Param('categoryId') categoryId: string,
     @Body(new ZodPipe(updateCategoryInputSchema))
     body: ReturnType<typeof updateCategoryInputSchema.parse>,
   ) {
-    return this.categoriesService.updateCategory(serverId, categoryId, user.id, body);
+    const updated = await this.categoriesService.updateCategory(
+      serverId,
+      categoryId,
+      user.id,
+      body,
+    );
+    this.gateway.emitToServer(serverId, 'channels:changed', { actorId: user.id });
+    return updated;
   }
 
   @Delete(':categoryId')
-  remove(
+  async remove(
     @CurrentUser() user: AuthSession['user'],
     @Param('serverId') serverId: string,
     @Param('categoryId') categoryId: string,
   ) {
-    return this.categoriesService.deleteCategory(serverId, categoryId, user.id);
+    await this.categoriesService.deleteCategory(serverId, categoryId, user.id);
+    this.gateway.emitToServer(serverId, 'channels:changed', { actorId: user.id });
   }
 
   @Post(':categoryId/icon')
@@ -82,7 +94,11 @@ export class CategoriesController {
   ) {
     if (!file) throw new BadRequestException('No file uploaded');
     const url = this.storageService.urlFor('category-icons', file.filename);
-    return this.categoriesService.updateCategory(serverId, categoryId, user.id, { iconUrl: url });
+    const updated = await this.categoriesService.updateCategory(serverId, categoryId, user.id, {
+      iconUrl: url,
+    });
+    this.gateway.emitToServer(serverId, 'channels:changed', { actorId: user.id });
+    return updated;
   }
 
   @Post(':categoryId/banner')
@@ -95,6 +111,10 @@ export class CategoriesController {
   ) {
     if (!file) throw new BadRequestException('No file uploaded');
     const url = this.storageService.urlFor('category-banners', file.filename);
-    return this.categoriesService.updateCategory(serverId, categoryId, user.id, { bannerUrl: url });
+    const updated = await this.categoriesService.updateCategory(serverId, categoryId, user.id, {
+      bannerUrl: url,
+    });
+    this.gateway.emitToServer(serverId, 'channels:changed', { actorId: user.id });
+    return updated;
   }
 }

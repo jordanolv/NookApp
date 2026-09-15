@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AuthGuard } from '../auth/auth.guard';
 import { ServerScopeGuard } from '../members/server-scope.guard';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import type { AuthSession } from '../auth/auth.types';
 import { StorageService } from '../common/storage';
 import { CategoriesController } from './categories.controller';
@@ -29,6 +30,8 @@ const mockStorage = {
   deleteByUrl: jest.fn(),
 };
 
+const mockGateway = { emitToServer: jest.fn() };
+
 const allowAll = { canActivate: () => true };
 
 describe('CategoriesController', () => {
@@ -41,6 +44,7 @@ describe('CategoriesController', () => {
       providers: [
         { provide: CategoriesService, useValue: mockCategoriesService },
         { provide: StorageService, useValue: mockStorage },
+        { provide: RealtimeGateway, useValue: mockGateway },
       ],
     })
       .overrideGuard(AuthGuard)

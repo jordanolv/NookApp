@@ -62,6 +62,7 @@ function onToggleSection(key: string) {
     @reorder-sections="(from, to) => emit('reorder-sections', from, to)"
   >
     <template #members><HomeMembersList :server-id="serverId" /></template>
+    <template #voice><VoiceStage /></template>
     <template #pinned>
       <HomePinsList :server-id="serverId" @open="(ch, kind) => emit('open-pinned', ch, kind)" />
     </template>

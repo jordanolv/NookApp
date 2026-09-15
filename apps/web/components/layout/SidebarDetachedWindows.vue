@@ -76,6 +76,7 @@ function isOverSidebar(x: number, y: number, w: number, h: number): boolean {
         @edit-category="(id) => emit('edit-category', id)"
       />
       <HomeMembersList v-else-if="win.sectionKey === 'members'" :server-id="serverId" />
+      <VoiceStage v-else-if="win.sectionKey === 'voice'" />
       <HomePinsList
         v-else-if="win.sectionKey === 'pinned'"
         :server-id="serverId"

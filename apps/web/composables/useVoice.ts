@@ -13,8 +13,8 @@ import {
   isMuted,
   isScreenSharing,
   localCameraTrack,
+  localScreenTrack,
   mediaPanelFocusKey,
-  mediaViewMode,
   participantMedia,
   remoteScreenTracks,
   remoteVideoTracks,
@@ -31,6 +31,20 @@ let joinSeq = 0;
 export function useVoice() {
   const { public: runtimePublic } = useRuntimeConfig();
   const socket = useSocket();
+  const { user } = useAuth();
+
+  // Who is in the channel we are connected to. The gateway keeps voice presence
+  // in memory, so a restart or a missed snapshot can drop us from its list —
+  // being connected is proof enough, so add ourselves back rather than render
+  // an empty call.
+  const currentParticipants = computed(() => {
+    const channelId = currentChannelId.value;
+    if (!channelId) return [];
+    const list = voicePresence.value.get(channelId) ?? [];
+    const me = user.value;
+    if (!me || list.some((p) => p.userId === me.id)) return list;
+    return [...list, { userId: me.id, name: me.name, channelId }];
+  });
 
   function setupListeners() {
     const offSnapshot = socket.onVoiceSnapshot(applyVoiceSnapshot);
@@ -136,6 +150,10 @@ export function useVoice() {
     try {
       await room.value.localParticipant.setScreenShareEnabled(next);
       isScreenSharing.value = next;
+      localScreenTrack.value = next
+        ? ((room.value.localParticipant.getTrackPublication(Track.Source.ScreenShare)
+            ?.videoTrack as LocalVideoTrack) ?? null)
+        : null;
       const myId = room.value.localParticipant.identity;
       if (myId) setParticipantMedia(myId, { screen: next });
     } catch {
@@ -145,14 +163,9 @@ export function useVoice() {
 
   return {
     room: readonly(room),
-    mediaViewMode: readonly(mediaViewMode),
     mediaPanelFocusKey: readonly(mediaPanelFocusKey),
-    openMediaPanel: (focusKey?: string) => {
-      if (focusKey) mediaPanelFocusKey.value = focusKey;
-      mediaViewMode.value = 'panel';
-    },
-    closeMediaPanel: () => {
-      mediaViewMode.value = 'world';
+    focusFeed: (feedKey: string) => {
+      mediaPanelFocusKey.value = feedKey;
     },
     currentChannelId: readonly(currentChannelId),
     currentServerId: readonly(currentServerId),
@@ -161,8 +174,10 @@ export function useVoice() {
     isCameraOn,
     isScreenSharing: readonly(isScreenSharing),
     localCameraTrack: readonly(localCameraTrack),
+    localScreenTrack: readonly(localScreenTrack),
     activeSpeakers: readonly(activeSpeakers),
     voicePresence: readonly(voicePresence),
+    currentParticipants,
     participantMedia: readonly(participantMedia),
     remoteVideoTracks: readonly(remoteVideoTracks),
     remoteScreenTracks: readonly(remoteScreenTracks),

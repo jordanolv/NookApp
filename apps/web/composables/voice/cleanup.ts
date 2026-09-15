@@ -5,6 +5,7 @@ import {
   currentServerId,
   isScreenSharing,
   localCameraTrack,
+  localScreenTrack,
   participantMedia,
   remoteScreenTracks,
   remoteVideoTracks,
@@ -25,6 +26,7 @@ export function cleanupRoom() {
   currentServerId.value = null;
   isScreenSharing.value = false;
   localCameraTrack.value = null;
+  localScreenTrack.value = null;
   activeSpeakers.value = new Set();
   participantMedia.value = new Map();
   remoteVideoTracks.value = new Map();

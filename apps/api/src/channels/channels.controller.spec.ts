@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { createChannelInputSchema } from '@nookapp/protocol';
 import { AuthGuard } from '../auth/auth.guard';
 import { ServerScopeGuard } from '../members/server-scope.guard';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { StorageService } from '../common/storage';
 import type { AuthSession } from '../auth/auth.types';
 import { ChannelsController } from './channels.controller';
@@ -29,6 +30,8 @@ const mockStorage = {
   deleteByUrl: jest.fn(),
 };
 
+const mockGateway = { emitToServer: jest.fn() };
+
 const allowAll = { canActivate: () => true };
 
 describe('ChannelsController', () => {
@@ -42,6 +45,7 @@ describe('ChannelsController', () => {
       providers: [
         { provide: ChannelsService, useValue: mockChannelsService },
         { provide: StorageService, useValue: mockStorage },
+        { provide: RealtimeGateway, useValue: mockGateway },
       ],
     })
       .overrideGuard(AuthGuard)
