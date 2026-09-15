@@ -23,16 +23,23 @@ export interface DecorAsset {
 // Which decor the player can interact with, keyed by asset id. The catalog is
 // the single registry of interactive behavior (decor.generated.ts is generated
 // and must not be hand-edited). Chairs face the camera, so a down-facing sit.
-// The 32x48 chair/sofa PNGs carry their art in the left half of the canvas, so
-// the seat offset re-centers the character on the drawn seat.
-const CHAIR: InteractionSpec = { kind: 'sit', facing: 'down', seatOffset: { x: -15, y: -16 } };
+// The 32x48 sofa PNGs carry their art in the left half of the canvas, so the
+// seat offset re-centers the character on the drawn seat.
+const CHAIR: InteractionSpec = { kind: 'sit', facing: 'down', seatOffset: { x: 0, y: -6 } };
 const SOFA: InteractionSpec = { kind: 'sit', facing: 'down', seatOffset: { x: -16, y: -6 } };
+// The _up chairs are the same seats drawn from behind: sit facing away, i.e. towards a desk above.
+const CHAIR_UP: InteractionSpec = { kind: 'sit', facing: 'up', seatOffset: { x: 0, y: -6 } };
 const INTERACTIONS: Record<string, InteractionSpec> = {
   chair_blue: CHAIR,
   chair_gray: CHAIR,
   chair_orange: CHAIR,
   chair_red: CHAIR,
   chair_yellow: CHAIR,
+  chair_blue_up: CHAIR_UP,
+  chair_gray_up: CHAIR_UP,
+  chair_orange_up: CHAIR_UP,
+  chair_red_up: CHAIR_UP,
+  chair_yellow_up: CHAIR_UP,
   free_office_chair: { kind: 'sit', facing: 'down', seatOffset: { x: 0, y: 6 } },
   sofa_1: SOFA,
   sofa_2: SOFA,
