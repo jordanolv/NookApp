@@ -342,8 +342,8 @@ onBeforeUnmount(() => {
   padding: 1px 5px;
   border-radius: 5px;
   font-size: 9px;
-  color: var(--ink);
-  background: rgba(10, 10, 15, 0.62);
+  color: #fff;
+  background: rgba(10, 10, 15, 0.72);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -392,6 +392,10 @@ onBeforeUnmount(() => {
 .stage:fullscreen {
   padding: 12px;
   background: #0a0a0f;
+}
+.stage:fullscreen .stage__count,
+.stage:fullscreen .stage__btn {
+  color: rgba(255, 255, 255, 0.72);
 }
 .stage:fullscreen .stage__grid {
   align-content: center;
