@@ -20,8 +20,13 @@ export const SOCKET_EVENTS = {
   VoiceJoined: 'voice:joined',
   VoiceLeft: 'voice:left',
   VoiceSnapshot: 'voice:snapshot',
+  ChannelsChanged: 'channels:changed',
 } as const;
 export type SocketEventName = (typeof SOCKET_EVENTS)[keyof typeof SOCKET_EVENTS];
+
+// Channel/category mutations are rare: clients just refetch the lists.
+export const channelsChangedPayloadSchema = z.object({ actorId: z.string() });
+export type ChannelsChangedPayload = z.infer<typeof channelsChangedPayloadSchema>;
 
 export const playerAppearanceSchema = z.object({
   body: z.string(),

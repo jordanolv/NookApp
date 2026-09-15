@@ -20,6 +20,7 @@ import type { AuthSession } from '../auth/auth.types';
 import { imageUploadOptions, StorageService } from '../common/storage';
 import { ZodPipe } from '../common/zod.pipe';
 import { ServerScopeGuard } from '../members/server-scope.guard';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { ChannelsService } from './channels.service';
 
 interface UploadedChannelImageFile {
@@ -33,6 +34,7 @@ export class ChannelsController {
   constructor(
     private readonly channelsService: ChannelsService,
     private readonly storage: StorageService,
+    private readonly gateway: RealtimeGateway,
   ) {}
 
   @Get()
@@ -41,33 +43,38 @@ export class ChannelsController {
   }
 
   @Post()
-  create(
+  async create(
     @CurrentUser() user: AuthSession['user'],
     @Param('serverId') serverId: string,
     @Body(new ZodPipe(createChannelInputSchema))
     body: ReturnType<typeof createChannelInputSchema.parse>,
   ) {
-    return this.channelsService.createChannel(serverId, user.id, body);
+    const created = await this.channelsService.createChannel(serverId, user.id, body);
+    this.gateway.emitToServer(serverId, 'channels:changed', { actorId: user.id });
+    return created;
   }
 
   @Patch(':channelId')
-  update(
+  async update(
     @CurrentUser() user: AuthSession['user'],
     @Param('serverId') serverId: string,
     @Param('channelId') channelId: string,
     @Body(new ZodPipe(updateChannelInputSchema))
     body: ReturnType<typeof updateChannelInputSchema.parse>,
   ) {
-    return this.channelsService.updateChannel(serverId, channelId, user.id, body);
+    const updated = await this.channelsService.updateChannel(serverId, channelId, user.id, body);
+    this.gateway.emitToServer(serverId, 'channels:changed', { actorId: user.id });
+    return updated;
   }
 
   @Delete(':channelId')
-  remove(
+  async remove(
     @CurrentUser() user: AuthSession['user'],
     @Param('serverId') serverId: string,
     @Param('channelId') channelId: string,
   ) {
-    return this.channelsService.deleteChannel(serverId, channelId, user.id);
+    await this.channelsService.deleteChannel(serverId, channelId, user.id);
+    this.gateway.emitToServer(serverId, 'channels:changed', { actorId: user.id });
   }
 
   @Post(':channelId/icon')
@@ -84,6 +91,7 @@ export class ChannelsController {
     const updated = await this.channelsService.updateChannel(serverId, channelId, user.id, {
       iconUrl,
     });
+    this.gateway.emitToServer(serverId, 'channels:changed', { actorId: user.id });
     if (previous.iconUrl && previous.iconUrl !== iconUrl) {
       void this.storage.deleteByUrl(previous.iconUrl);
     }
@@ -103,6 +111,7 @@ export class ChannelsController {
     const updated = await this.channelsService.updateChannel(serverId, channelId, user.id, {
       bannerUrl,
     });
+    this.gateway.emitToServer(serverId, 'channels:changed', { actorId: user.id });
     if (previous.bannerUrl && previous.bannerUrl !== bannerUrl) {
       void this.storage.deleteByUrl(previous.bannerUrl);
     }

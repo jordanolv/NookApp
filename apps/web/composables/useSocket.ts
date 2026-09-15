@@ -1,5 +1,6 @@
 import { io, type Socket } from 'socket.io-client';
 import type {
+  ChannelsChangedPayload,
   DirectMessagePublic,
   DmTypingPayload,
   MessageDeletedPayload,
@@ -117,6 +118,11 @@ export function useSocket() {
     return () => socket?.off('message:deleted', cb);
   }
 
+  function onChannelsChanged(cb: (payload: ChannelsChangedPayload) => void) {
+    socket?.on('channels:changed', cb);
+    return () => socket?.off('channels:changed', cb);
+  }
+
   function onDmMessage(cb: (msg: DirectMessagePublic) => void) {
     socket?.on('dm:message', cb);
     return () => socket?.off('dm:message', cb);
@@ -217,6 +223,7 @@ export function useSocket() {
     onMessage,
     onMessageUpdated,
     onMessageDeleted,
+    onChannelsChanged,
     onDmMessage,
     emitDmTyping,
     onDmTyping,
